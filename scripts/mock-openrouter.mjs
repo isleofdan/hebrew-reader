@@ -38,35 +38,54 @@ let calls = 0;
 let guides = 0;
 let lastGuideModel = null;
 // Set by a check through POST /control: model ids answered as not found.
-const control = { unknown_models: [] };
+// guide_faults: one fault per guide call, in order (see mockGuide).
+const control = { unknown_models: [], guide_faults: [] };
+let lastGuideNote = null;
 
 const CATS = ['Nouns & Terms', 'Verbs', 'Expressions'];
-function mockGuide(items, date, n) {
+const SPELLING = /[חכךאעסשטת]/;
+const point = (w) => w[0] + '\u05b8' + w.slice(1); // one vowel point is enough for the check
+const flagFor = (w) => (SPELLING.test(w) ? `⚠️ Spelling: mind the letters of ${w}` : 'no spelling trap');
+
+// A guide that passes the server's five checks, unless `fault` names one to
+// break: coverage, drill, nikud, flags or objects.
+function mockGuide(items, date, n, fault) {
   const singles = items.filter((i) => !/\s/.test(i));
   const phrases = items.filter((i) => /\s/.test(i));
-  return {
+  const half = Math.ceil(items.length / 2);
+  const g = {
     title: `שיעור עם גיא — ${date}`,
     date,
     sections: [
       { kind: 'expressions', items: [...phrases.slice(0, 4).map((p) => ({ he: p, en: `the phrase "${p}"`, usage: 'Heard in news commentary.', flags: '⚠️ Construction: the English says it differently.' })), { he: 'ביטוי מומצא', en: 'an invented expression', usage: '', flags: '' }] },
       { kind: 'topics', items: [`Nif'al in the news (build ${n})`, 'Prepositions that differ from English'] },
-      { kind: 'grammar', topic: "Nif'al: passive and middle", explanation: `${items[0]} — the lesson's first line. Nif'al marks what happens to the subject.`, examples: [{ he: items[0], en: 'the first line of the lesson' }], for_guy: 'We looked at verbs where something happens to the subject.' },
-      { kind: 'drills', verbs: [{ verb: 'להיאלץ', root: 'א.ל.צ', binyan: "Nif'al", why: "Nif'al (1a) with a guttural first letter (1b); governs ל- (2).",
+      { kind: 'grammar', topic: "Nif'al: passive and middle", guys_lines: items.slice(0, half), explanation: `${items[0]} — the lesson's first line. Nif'al marks what happens to the subject; להיאלץ takes no object, only ל- and an infinitive.`, examples: [{ he: items[0], en: 'the first line of the lesson' }], verb_claims: [{ verb: 'להיאלץ', takes_object: false }], for_guy: 'We looked at verbs where something happens to the subject.' },
+      { kind: 'grammar', topic: 'News register', guys_lines: items.slice(half), explanation: 'The rest of the lesson: words and phrases from the news.', examples: [], verb_claims: [], for_guy: 'The news words.' },
+      { kind: 'drills', verbs: [{ verb: 'להיאלץ', root: 'א.ל.צ', binyan: "Nif'al", deviation: 'guttural', takes_object: false, why: "Nif'al (1a) with a guttural first letter (1b); governs ל- (2).",
         table: [{ tense: 'past', forms: [{ person: '1s', he: 'נֶאֱלַצְתִּי' }, { person: '3ms', he: 'נֶאֱלַץ' }, { person: '3fs', he: 'נֶאֶלְצָה' }] },
                 { tense: 'present', forms: [{ person: 'ms', he: 'נֶאֱלָץ' }, { person: 'fs', he: 'נֶאֱלֶצֶת' }] },
                 { tense: 'future', forms: [{ person: '1s', he: 'אֵאָלֵץ' }, { person: '3ms', he: 'יֵאָלֵץ' }] }],
         deviations: 'The guttural א takes a hataf vowel where the template has a shva.', paal_comparison: "Pa'al אָלַץ (to force) is rare; the active form in use is the Pi'el אִלֵּץ.",
         exercises: [{ sentence: 'הממשלה ___ לדחות את ההצבעה.', cue: '3fs past', answer: 'נאלצה' }, { sentence: 'אני ___ לעבוד מהבית מחר.', cue: '1s future', answer: 'אאלץ' }, { sentence: 'הוא ___ לוותר.', cue: '3ms past', answer: 'נאלץ' }] }] },
-      { kind: 'paper', prompts: [{ type: 'Root radiation map', anchor: 'ס.ל.מ', prompt: 'Put ס.ל.מ in the center and radiate outward to הסלמה and whatever else you recall. Where does the meaning stay military, and where does it go metaphorical?', categories: ['Verb conjugation production', 'Homophonous letter spelling'] }] },
-      { kind: 'vocabulary', rows: [...singles.map((w, i) => ({ he: w, en: `meaning of ${w}`, root: i % 2 ? 'ס.ל.מ' : '', binyan: i % 2 ? "Hif'il" : '', category: CATS[i % 3] })), { he: 'מילה שלא בשיעור', en: 'a word not in the lesson', root: '', binyan: '', category: 'Nouns & Terms' }] },
+      { kind: 'paper', prompts: [{ type: 'Root radiation map', anchor: 'ס.ל.ם', prompt: 'Put ס.ל.ם in the center and radiate outward to הסלמה and whatever else you recall. Where does the meaning stay military, and where does it go metaphorical?', categories: ['Verb conjugation production', 'Homophonous letter spelling'] }] },
+      { kind: 'vocabulary', rows: [...singles.map((w, i) => ({ he: w, pointed: point(w), en: `meaning of ${w}`, root: i % 2 ? 'ס.ל.מ' : '', binyan: i % 2 ? "Hif'il" : '', category: CATS[i % 3], flags: flagFor(w) })), { he: 'מילה שלא בשיעור', pointed: 'מִילָה', en: 'a word not in the lesson', root: '', binyan: '', category: 'Nouns & Terms', flags: '' }] },
       { kind: 'questions', items: ['מה הנושא העיקרי של השיעור?', 'איזה פועל בנפעל הופיע בשיעור?'] },
     ],
-    cards: [...items.map((w, i) => [w, w, `translit-${i}`, `meaning of ${w}`, i % 2 ? 'ס.ל.מ' : '', i % 2 ? "Hif'il" : '', CATS[i % 3], i % 2 ? 'verb' : 'noun', w, `an example with ${w}`, i % 2 ? '⚠️ Prep: ל- where English has no preposition' : '']),
+    cards: [...items.map((w, i) => [w, w, `translit-${i}`, `meaning of ${w}`, i % 2 ? 'ס.ל.מ' : '', i % 2 ? "Hif'il" : '', CATS[i % 3], i % 2 ? 'verb' : 'noun', w, `an example with ${w}`, [flagFor(w), i % 2 ? '⚠️ Prep: ל- where English has no preposition' : ''].filter(Boolean).join(' ')]),
       ['מוּמְצָא', 'מומצא', 'mumtza', 'invented', '', '', 'Nouns & Terms', 'noun', '', '', '']],
   };
+  const grammar = g.sections.filter((x) => x.kind === 'grammar');
+  const drill = g.sections.find((x) => x.kind === 'drills').verbs[0];
+  const rows = g.sections.find((x) => x.kind === 'vocabulary').rows;
+  if (fault === 'coverage') grammar[1].guys_lines.pop();
+  if (fault === 'drill') Object.assign(drill, { verb: 'לכתוב', root: 'כ.ת.ב', binyan: "Pa'al", deviation: 'none', takes_object: true });
+  if (fault === 'nikud') for (const r of rows) r.pointed = r.he;
+  if (fault === 'flags') { for (const r of rows) r.flags = ''; for (const c of g.cards) c[10] = ''; }
+  if (fault === 'objects') drill.takes_object = true;
+  return g;
 }
 http.createServer((req, res) => {
-  if (req.url === '/calls') { res.end(JSON.stringify({ calls, guides, last_guide_model: lastGuideModel })); return; }
+  if (req.url === '/calls') { res.end(JSON.stringify({ calls, guides, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote })); return; }
   let raw = '';
   req.on('data', (c) => raw += c);
   req.on('end', () => {
@@ -122,10 +141,12 @@ http.createServer((req, res) => {
       guides++;
       lastGuideModel = body.model;
       const date = (/Lesson date: (\S+)/.exec(user) || [])[1] || 'unknown';
-      const items = user.split('one per line:\n')[1].split('\n').filter(Boolean);
+      const [itemText, note] = user.split('one per line:\n')[1].split('\n\n');
+      const items = itemText.split('\n').filter(Boolean);
+      lastGuideNote = note || null;
       answer = items.some((i) => i.includes('סירוב'))
         ? { error: 'these lines are not a lesson a guide can be built from' }
-        : mockGuide(items, date, guides);
+        : mockGuide(items, date, guides, control.guide_faults.shift());
     } else {
       const surface = /Surface: (\S+)/.exec(user)[1];
       answer = known[surface] || { error: `unknown word ${surface} in this mock` };

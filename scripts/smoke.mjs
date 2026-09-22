@@ -323,7 +323,7 @@ try {
   const first = await api('POST', `/lessons/${L1.body.id}/guide`, {});
   check('first open starts the guide build (202, building)', first.status === 202 && first.body.guide_state === 'building', JSON.stringify(first.body).slice(0, 120));
   const built = await until(L1.body.id, (v) => v.guide_state !== 'building' && !v.saving);
-  const kinds = built.guide.sections.map((x) => x.kind).join(',');
+  const kinds = [...new Set(built.guide.sections.map((x) => x.kind))].join(',');
   check("the guide has the instructions' sections in their order",
     built.guide_state === 'built' && kinds === 'topics,grammar,drills,paper,vocabulary,questions,expressions', kinds);
   check('what the model added outside the lesson is dropped and counted',
@@ -362,7 +362,7 @@ try {
   const rb = await api('POST', `/lessons/${L1.body.id}/guide`, { rebuild: true });
   const rebuilt = await until(L1.body.id, (v) => v.guide_state !== 'building' && !v.saving);
   const topics = rebuilt.guide.sections.find((x) => x.kind === 'topics').items;
-  check('rebuild replaces the guide whole', rb.status === 202 && rebuilt.guide.built_at !== oldBuilt && topics.some((t) => /build 2/.test(t)) && !topics.some((t) => /build 1/.test(t)) && rebuilt.guide.sections.length === 7, topics.join(' | '));
+  check('rebuild replaces the guide whole', rb.status === 202 && rebuilt.guide.built_at !== oldBuilt && topics.some((t) => /build 2/.test(t)) && !topics.some((t) => /build 1/.test(t)) && rebuilt.guide.sections.length === 8, topics.join(' | '));
   check('rebuild does not save the words again', JSON.stringify(rebuilt.saved) === JSON.stringify(saved) && JSON.stringify(await putCounts()) === JSON.stringify(putsBeforeRebuild));
 
   // the guide model, and the fallback when OpenRouter does not know it (session five, step 1)
@@ -383,6 +383,40 @@ try {
     fellBack.guide_state === 'built' && !fellBack.guide_error && fellBack.guide.built_with === 'fallback' && fellBack.guide.model === 'anthropic/claude-sonnet-4.6'
     && (await orCalls()).last_guide_model === 'anthropic/claude-sonnet-4.6' && /not a valid model ID\); retrying once with anthropic\/claude-sonnet-4\.6/.test(server.log),
     JSON.stringify({ built_with: fellBack.guide.built_with, model: fellBack.guide.model, error: fellBack.guide_error }));
+
+  // the five rule checks (session five, step 2): each failing once, then passing on the one rebuild
+  check('the June guide passes all five checks on the first build: every line covered, first drill Nif\'al, points, flags, objects agree',
+    built.guide.checks && built.guide.checks.passed.join(',') === 'coverage,drill,nikud,flags,objects' && built.guide.checks.failed_first.length === 0
+    && built.guide.sections.filter((x) => x.kind === 'grammar').flatMap((x) => x.guys_lines).length === L1.body.items.length
+    && built.guide.sections.find((x) => x.kind === 'drills').verbs[0].binyan === "Nif'al", JSON.stringify(built.guide.checks));
+  for (const fault of ['coverage', 'drill', 'nikud', 'flags', 'objects']) {
+    const before = (await orCalls()).guides;
+    await control({ guide_faults: [fault] });
+    await api('POST', `/lessons/${L1.body.id}/guide`, { rebuild: true });
+    const v = await until(L1.body.id, (x) => x.guide_state !== 'building' && !x.saving);
+    const calls2 = (await orCalls()).guides - before;
+    check(`the ${fault} check fails once: one rebuild, the failure named in its prompt, the rebuilt guide saved`,
+      v.guide_state === 'built' && !v.guide_error && calls2 === 2 && v.guide.checks.failed_first.join(',') === fault
+      && new RegExp(`the ${fault} check`).test((await orCalls()).last_guide_note || '') && new RegExp(`failed the ${fault} check .*rebuilding once`).test(server.log),
+      `calls ${calls2}, failed_first ${v.guide && v.guide.checks.failed_first}, note ${((await orCalls()).last_guide_note || '').slice(0, 140)}`);
+  }
+  {
+    const kept = (await api('GET', `/lessons/${L1.body.id}`)).body.guide.built_at;
+    await control({ guide_faults: ['coverage', 'coverage'] });
+    await api('POST', `/lessons/${L1.body.id}/guide`, { rebuild: true });
+    const v = await until(L1.body.id, (x) => x.guide_state !== 'building' && !x.saving);
+    check('a check failing twice on a rebuild keeps the previous guide and names the check',
+      v.guide.built_at === kept && /^The study guide could not be built: it failed the coverage check twice — 1 of Guy's 10 lines are in no grammar section/.test(v.guide_error || ''), v.guide_error);
+    await control({ guide_faults: ['flags', 'flags'] });
+    await api('POST', `/lessons/${L2.body.id}/guide`, {});
+    const w = await until(L2.body.id, (x) => x.guide_state !== 'building' && !x.saving);
+    check('a check failing twice on a first build: no guide saved, no word saved, the check named',
+      w.guide_state === 'failed' && w.guide === null && w.saved === null && /it failed the flags check twice — \d+ items hold ח, כ, א, ע, ס, ש, ט or ת with no ⚠️ Spelling/.test(w.guide_error || ''), w.guide_error);
+    const gc = req(join(root, 'lib', 'guide-checks.js'));
+    check('root deviations read from the letters: נ.ק.ז pe-nun, ר.ג.ע guttural, כ.ו.ן hollow, ס.ל.ם none of the three',
+      gc.rootDeviations('נ.ק.ז').includes('pe-nun') && gc.rootDeviations('ר.ג.ע').includes('guttural') && gc.rootDeviations('כ.ו.ן').includes('hollow')
+      && !gc.irregular({ root: 'ס.ל.ם', binyan: "Hif'il" }) && gc.irregular({ root: 'ק.ב.ע', binyan: 'nifal' }) && gc.binyanKey("Pa'al (present)") === 'paal');
+  }
 
   // the model refusing the guide
   await api('POST', `/lessons/${L3.body.id}/guide`, {});

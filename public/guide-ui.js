@@ -44,6 +44,11 @@ function drawSection(sec) {
   }
   if (sec.kind === 'grammar') {
     const s = section('grammar', sec.topic || 'Grammar');
+    if (sec.guys_lines && sec.guys_lines.length) {
+      const lines = el('p', 'guys-lines');
+      lines.append(el('span', 'label', "Guy's lines"), he('span', sec.guys_lines.join(' · ')));
+      s.append(lines);
+    }
     if (sec.explanation) s.append(auto('p', sec.explanation, 'prose'));
     if (sec.examples.length) {
       const ul = el('ul', 'examples');
@@ -110,7 +115,11 @@ function drawSection(sec) {
     table.append(hr);
     for (const r of sec.rows) {
       const tr = el('tr');
-      tr.append(he('td', r.he), auto('td', r.en), he('td', r.root), el('td', '', r.binyan), auto('td', r.category));
+      const en = auto('td', r.en);
+      // A difficulty flag sits under the meaning; "no spelling trap" is the
+      // model's answer to the flag check, not something to read.
+      if (r.flags && !/^\s*no spelling trap\.?\s*$/i.test(r.flags)) en.append(auto('div', r.flags, 'flags'));
+      tr.append(he('td', r.pointed || r.he), en, he('td', r.root), el('td', '', r.binyan), auto('td', r.category));
       table.append(tr);
     }
     wrap.append(table);

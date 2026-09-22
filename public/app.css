@@ -258,6 +258,9 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 .guide .expr-he { font-weight: 700; }
 .guide .expr-en { color: var(--muted); font-size: 14px; }
 .guide .flags { font-size: 14px; unicode-bidi: plaintext; }
+.guide .vocab .flags { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.guide .guys-lines { margin: 0; display: flex; flex-direction: column; gap: 2px; }
+.guide .guys-lines .he { text-align: right; font-size: 16px; }
 
 /* the flashcards page */
 .cards-page { max-width: 640px; gap: 16px; }
