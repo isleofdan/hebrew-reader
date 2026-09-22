@@ -169,3 +169,67 @@ live proof is the deploy log and Dan's look): OpenRouter, the spine, Fly.
 - Real translations and ask answers are the model's; the prompts are in
   `lib/demand.js` and `lib/ask.js`.
 - The scheduled hunt and its line on the phone page: a later session.
+
+## Close-out note — session hebrew-reader-three, 22 Sep 2026
+
+Three fixes from Dan's live use, on branch `claude/peaceful-babbage-bb1t53`,
+each its own commit: the Ask box mislabeling a link-less answer as a failure,
+no dark theme on a phone browser that forces one, and headline words that
+could not be tapped. Checks against the local mocks: 69 server checks
+(`npm run smoke`, up from 60) and 82 page checks (`npm run screenshots`, up
+from 40).
+
+**Decisions this session.**
+
+- **"No data" reaches the Ask box as an answer.** The ask prompt used to
+  tell the model to answer `{"error"}` when a question "cannot be
+  answered", and the model read "there is no Nif'al here" as exactly that.
+  Now the prompt says that "there is none" IS the answer, with `links: []`,
+  and reserves `{"error"}` for declining to answer at all. The server takes
+  any reply carrying an answer as the answer, links or not. The failure
+  line — "The references could not be asked: …" — is left for the model
+  being unreachable, timing out, declining, or answering nothing usable,
+  and it names which of those it was.
+- **One model transport, with one option.** `lookup.chat()` gained
+  `textFallback`: with it, a reply that is not JSON but does carry text
+  comes back as `{ text }`. Only the ask surface passes it; the card and
+  the demand translation still refuse anything but JSON, so a card is never
+  built from prose.
+- **The palette rule.** Every color in the app is stated once, at the top of
+  `public/app.css`: a light set (`--light-*`) and a dark set (`--dark-*`)
+  under the same names. Three blocks map one set onto the names everything
+  else uses — the light set by default, the dark set under
+  `prefers-color-scheme: dark` for a page with no explicit choice, and the
+  dark set under `[data-theme="dark"]`. Nothing below that block names a
+  color; new rules use the mapped names. `color-scheme` is declared with
+  each set, so fields, scrollbars and the browser's own chrome follow.
+- **The switch's storage rule.** Light / Dark / Device sits in the header of
+  the index, the reader and the phone page. Device is the default and writes
+  nothing — the stylesheet's `prefers-color-scheme` block does the work, and
+  the choice is cleared from storage. Light and Dark write `data-theme` on
+  `<html>` and are remembered per browser under `hebrew-reader.theme`.
+  Every `localStorage` read and write is wrapped: where storage is refused,
+  the switch still works for that page's life. `public/theme.js` is loaded
+  in `<head>`, so the ground is chosen before the first paint.
+- **The print sheet and the login page stay light,** and say so with
+  `color-scheme: only light` — that is what stops a browser darkening them
+  on its own. The sheet is printed; the login page is one form.
+- **The headline rule.** The reader draws the headline with the same
+  routine as a paragraph (`fillWords`), so a headline word has the same
+  span markup, tint, card and touch as a body word, and its sentence is the
+  headline (`sentenceSpan` stops at a line break). `articles.asRead()` — the
+  headline as the first line, then the text — is how `lib/demand.js` and
+  `lib/ask.js` now read a piece, so the phone page can draw a headline
+  sentence, Check and Show stop refusing a headline word, and a headline
+  word on the map reaches a question about the piece. No other change was
+  needed: the gap, the translation and the card cache all follow the same
+  sentence.
+- **Contrast is measured, not asserted.** `npm run screenshots` reads the
+  colors the browser actually painted: WCAG contrast for text against its
+  ground, CIEDE2000 for one tint against another, since amber and blue
+  differ by hue rather than by lightness.
+
+**Open items.**
+- Whether Dan's phone browser stops forcing its own dark colors now that the
+  app declares both grounds: expected, not proven, until he looks.
+- The scheduled article hunt: a later session.
