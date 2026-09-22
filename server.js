@@ -11,6 +11,7 @@ const fs = require('node:fs');
 
 const auth = require('./lib/auth');
 const db = require('./lib/db');
+const articles = require('./lib/articles');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, serveStatic } = require('./lib/http');
 
@@ -65,8 +66,30 @@ async function handleLogin(req, res) {
   return wantsJson(req) ? sendJson(res, 200, { ok: true }, headers) : redirect(res, '/', headers);
 }
 
-// Routes that need the cookie, added by later steps.
+// Routes that need the cookie.
 const api = [];
+function route(method, pattern, run) { api.push({ method, pattern, run }); }
+
+// --- articles ---------------------------------------------------------------
+
+route('GET', /^\/articles$/, (req, res) => sendJson(res, 200, db.listArticles()));
+
+route('GET', /^\/articles\/(?<id>\d+)$/, (req, res, { id }) => sendJson(res, 200, db.getArticle(id)));
+
+route('DELETE', /^\/articles\/(?<id>\d+)$/, (req, res, { id }) => sendJson(res, 200, db.deleteArticle(id)));
+
+// { text } (pasted) or { url }. Answers the stored article plus `thin` when a
+// url gave under 200 characters of main text and the raw page text was kept.
+route('POST', /^\/articles$/, async (req, res) => {
+  const body = await readJson(req);
+  const hasText = typeof body.text === 'string' && body.text.trim() !== '';
+  const hasUrl = typeof body.url === 'string' && body.url.trim() !== '';
+  if (!hasText && !hasUrl) throw new db.ReaderError(400, 'Give either text (the pasted article) or url (its address).');
+  const drafted = hasText ? articles.fromText(body.text) : await articles.fromUrl(body.url.trim());
+  const stored = db.addArticle(drafted);
+  console.log(`article ${stored.id}: "${stored.title}" (${stored.text.length} chars${drafted.thin ? ', thin' : ''}${stored.source_url ? ', from ' + stored.source_url : ', pasted'})`);
+  return sendJson(res, 201, { ...stored, thin: drafted.thin });
+});
 
 function isApiPath(p) {
   return /^\/(articles|lookup|spots|marks-for-article)(\/|$)/.test(p);
