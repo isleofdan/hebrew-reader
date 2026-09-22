@@ -1,6 +1,7 @@
 'use strict';
 // The reader's word card: fills the desktop panel or the phone sheet from
 // POST /lookup through the shared CardUI, and keeps the page's tints in step.
+// The lesson page uses it too: its Reader answers source() with the lesson.
 
 (function () {
   const UI = window.CardUI;
@@ -20,7 +21,8 @@
     current = { span, surface, sentence, card: null, spot: null };
     UI.setLoading(card, surface);
     try {
-      const data = await window.Reader.api('POST', '/lookup', { surface, sentence, article_id: window.Reader.article.id });
+      const source = window.Reader.source ? window.Reader.source() : { article_id: window.Reader.article.id };
+      const data = await window.Reader.api('POST', '/lookup', { surface, sentence, ...source });
       if (my !== seq) return;
       current.card = data.card; current.spot = data.spot;
       UI.fill(card, data);

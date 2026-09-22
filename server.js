@@ -90,12 +90,14 @@ route('GET', /^\/marks-for-article\/(?<id>\d+)$/, (req, res, { id }) => {
 
 // --- the card ---------------------------------------------------------------
 
-// { surface, sentence, article_id } -> { card, spot, cached }.
+// { surface, sentence, article_id | lesson_id } -> { card, spot, cached }.
 route('POST', /^\/lookup$/, async (req, res) => {
   const body = await readJson(req);
   const articleId = body.article_id ? Number(body.article_id) : null;
   if (articleId) db.getArticle(articleId);
-  const answer = await lookup.lookup({ surface: body.surface, sentence: body.sentence, article_id: articleId });
+  const lessonId = body.lesson_id ? Number(body.lesson_id) : null;
+  if (lessonId) db.getLesson(lessonId);
+  const answer = await lookup.lookup({ surface: body.surface, sentence: body.sentence, article_id: articleId, lesson_id: lessonId });
   return sendJson(res, 200, answer);
 });
 
@@ -190,6 +192,26 @@ route('POST', /^\/lessons$/, async (req, res) => {
   const out = await guyLesson.add({ fileName, bytes });
   const { text, ...lessonOut } = out.lesson;
   return sendJson(res, out.created ? 201 : 200, { ...lessonOut, created: out.created, title_from: out.from || null, note: out.note });
+});
+
+// The lesson with its items, its guide when built, and the guide's state:
+// none, building, built, or failed (with the one-line reason).
+route('GET', /^\/lessons\/(?<id>\d+)$/, (req, res, { id }) => sendJson(res, 200, guyLesson.view(id)));
+
+// Builds the guide on first open; { rebuild: true } replaces the one there.
+// The build runs in the background: 202 while it runs, 200 when the guide was
+// already there and no rebuild was asked for.
+route('POST', /^\/lessons\/(?<id>\d+)\/guide$/, async (req, res, { id }) => {
+  const body = await readJson(req);
+  const state = guyLesson.startGuide(id, { rebuild: body.rebuild === true || body.rebuild === 'true' });
+  return sendJson(res, state === 'building' ? 202 : 200, guyLesson.view(id));
+});
+
+// The same surface map as an article's, for the lesson page's tints.
+route('GET', /^\/marks-for-lesson\/(?<id>\d+)$/, (req, res, { id }) => {
+  db.getLesson(id);
+  const surfaces = db.marksForSurfaces();
+  return sendJson(res, 200, { lesson_id: Number(id), surfaces, state: Object.keys(surfaces).length ? 'ok' : 'no data' });
 });
 
 function isApiPath(p) {

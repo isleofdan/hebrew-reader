@@ -10,6 +10,10 @@
 //   "a recipe"      -> {"error": ...}, the model declining
 //   "while it is down" -> the socket dropped, so the call is unreachable
 //   "list my map"   -> every surface the article context carried, echoed back
+//
+// A lesson guide ("Lesson: …" in the user message) is built from the items it
+// is given, plus one invented vocabulary row, expression and card that the
+// server must drop. An item containing "סירוב" makes it decline.
 import http from 'node:http';
 
 const port = Number(process.argv[2]) || 8791;
@@ -23,8 +27,35 @@ const known = {
   'ייקבעו': { surface: 'ייקבעו', lemma: 'נקבע', pos: 'verb', root: 'ק.ב.ע', binyan: 'nifal', tense: 'future', person_gender_number: '3p', meaning_en: 'will be set', governs: null, categories: ['conjugation'], note: "Nif'al future with the doubled yod spelling." },
 };
 let calls = 0;
+let guides = 0;
+
+const CATS = ['Nouns & Terms', 'Verbs', 'Expressions'];
+function mockGuide(items, date, n) {
+  const singles = items.filter((i) => !/\s/.test(i));
+  const phrases = items.filter((i) => /\s/.test(i));
+  return {
+    title: `שיעור עם גיא — ${date}`,
+    date,
+    sections: [
+      { kind: 'expressions', items: [...phrases.slice(0, 4).map((p) => ({ he: p, en: `the phrase "${p}"`, usage: 'Heard in news commentary.', flags: '⚠️ Construction: the English says it differently.' })), { he: 'ביטוי מומצא', en: 'an invented expression', usage: '', flags: '' }] },
+      { kind: 'topics', items: [`Nif'al in the news (build ${n})`, 'Prepositions that differ from English'] },
+      { kind: 'grammar', topic: "Nif'al: passive and middle", explanation: `${items[0]} — the lesson's first line. Nif'al marks what happens to the subject.`, examples: [{ he: items[0], en: 'the first line of the lesson' }], for_guy: 'We looked at verbs where something happens to the subject.' },
+      { kind: 'drills', verbs: [{ verb: 'להיאלץ', root: 'א.ל.צ', binyan: "Nif'al", why: "Nif'al (1a) with a guttural first letter (1b); governs ל- (2).",
+        table: [{ tense: 'past', forms: [{ person: '1s', he: 'נֶאֱלַצְתִּי' }, { person: '3ms', he: 'נֶאֱלַץ' }, { person: '3fs', he: 'נֶאֶלְצָה' }] },
+                { tense: 'present', forms: [{ person: 'ms', he: 'נֶאֱלָץ' }, { person: 'fs', he: 'נֶאֱלֶצֶת' }] },
+                { tense: 'future', forms: [{ person: '1s', he: 'אֵאָלֵץ' }, { person: '3ms', he: 'יֵאָלֵץ' }] }],
+        deviations: 'The guttural א takes a hataf vowel where the template has a shva.', paal_comparison: "Pa'al אָלַץ (to force) is rare; the active form in use is the Pi'el אִלֵּץ.",
+        exercises: [{ sentence: 'הממשלה ___ לדחות את ההצבעה.', cue: '3fs past', answer: 'נאלצה' }, { sentence: 'אני ___ לעבוד מהבית מחר.', cue: '1s future', answer: 'אאלץ' }, { sentence: 'הוא ___ לוותר.', cue: '3ms past', answer: 'נאלץ' }] }] },
+      { kind: 'paper', prompts: [{ type: 'Root radiation map', anchor: 'ס.ל.מ', prompt: 'Put ס.ל.מ in the center and radiate outward to הסלמה and whatever else you recall. Where does the meaning stay military, and where does it go metaphorical?', categories: ['Verb conjugation production', 'Homophonous letter spelling'] }] },
+      { kind: 'vocabulary', rows: [...singles.map((w, i) => ({ he: w, en: `meaning of ${w}`, root: i % 2 ? 'ס.ל.מ' : '', binyan: i % 2 ? "Hif'il" : '', category: CATS[i % 3] })), { he: 'מילה שלא בשיעור', en: 'a word not in the lesson', root: '', binyan: '', category: 'Nouns & Terms' }] },
+      { kind: 'questions', items: ['מה הנושא העיקרי של השיעור?', 'איזה פועל בנפעל הופיע בשיעור?'] },
+    ],
+    cards: [...items.map((w, i) => [w, w, `translit-${i}`, `meaning of ${w}`, i % 2 ? 'ס.ל.מ' : '', i % 2 ? "Hif'il" : '', CATS[i % 3], i % 2 ? 'verb' : 'noun', w, `an example with ${w}`, i % 2 ? '⚠️ Prep: ל- where English has no preposition' : '']),
+      ['מוּמְצָא', 'מומצא', 'mumtza', 'invented', '', '', 'Nouns & Terms', 'noun', '', '', '']],
+  };
+}
 http.createServer((req, res) => {
-  if (req.url === '/calls') { res.end(JSON.stringify({ calls })); return; }
+  if (req.url === '/calls') { res.end(JSON.stringify({ calls, guides })); return; }
   let raw = '';
   req.on('data', (c) => raw += c);
   req.on('end', () => {
@@ -69,6 +100,13 @@ http.createServer((req, res) => {
       answer = /nif.?al/i.test(user) && user.includes('map (surface')
         ? { answer: nifal.length ? `The Nif'al forms on your map in this piece: ${nifal.join(', ')}.` : 'No Nif\'al form of this piece is on your map yet.', links: nifal.map((w) => ({ claim: w, reference: 'pealim', term: w })) }
         : { answer: "נאלץ is the Nif'al of א.ל.צ, 'to be forced'; it takes ל- plus an infinitive (not sure about older usage with את).", links: [{ claim: "Nif'al of א.ל.צ", reference: 'pealim', term: 'אלצ' }, { claim: 'takes ל- plus an infinitive', reference: 'wiktionary', term: 'נאלץ' }, { claim: 'older usage', reference: 'academy', term: 'נאלץ' }] };
+    } else if (user.startsWith('Lesson: ')) {
+      guides++;
+      const date = (/Lesson date: (\S+)/.exec(user) || [])[1] || 'unknown';
+      const items = user.split('one per line:\n')[1].split('\n').filter(Boolean);
+      answer = items.some((i) => i.includes('סירוב'))
+        ? { error: 'these lines are not a lesson a guide can be built from' }
+        : mockGuide(items, date, guides);
     } else {
       const surface = /Surface: (\S+)/.exec(user)[1];
       answer = known[surface] || { error: `unknown word ${surface} in this mock` };

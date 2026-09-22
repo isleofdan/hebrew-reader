@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flashcards — Hebrew reader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@400;500;700&display=swap">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="/app.css">
+<script src="/theme.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">Hebrew reader</a>
+  <nav><a href="/">Articles</a><a id="lesson-link" href="#">Lesson</a><a class="active" href="#">Flashcards</a></nav>
+  <span class="spacer"></span>
+  <div class="theme" role="group" aria-label="Theme">
+    <button type="button" data-theme-choice="light">Light</button>
+    <button type="button" data-theme-choice="dark">Dark</button>
+    <button type="button" data-theme-choice="device">Device</button>
+  </div>
+</header>
+<main class="page cards-page">
+  <h1 class="cards-title" id="title"></h1>
+  <div class="row cards-controls">
+    <label class="cat-pick">Category
+      <select id="cat"><option value="">All</option></select>
+    </label>
+    <button class="btn toggle" id="nikud" type="button" aria-pressed="true">Nikud</button>
+    <button class="btn toggle" id="translit" type="button" aria-pressed="false">Transliteration</button>
+    <button class="btn" id="shuffle" type="button">Shuffle</button>
+    <span class="counter" id="counter"></span>
+  </div>
+  <section class="flash hidden" id="flash" tabindex="0" aria-live="polite">
+    <div class="face front">
+      <div class="cat" id="f-cat"></div>
+      <div class="word" id="f-word" dir="rtl"></div>
+      <div class="hint">tap to flip</div>
+    </div>
+    <div class="face back hidden">
+      <div class="cat" id="b-cat"></div>
+      <div class="word small" id="b-word" dir="rtl"></div>
+      <div class="meaning" id="b-meaning" dir="auto"></div>
+      <div class="grammar" id="b-grammar"></div>
+      <div class="translit hidden" id="b-translit" dir="ltr"></div>
+      <div class="example" id="b-example" dir="rtl"></div>
+      <div class="example-en" id="b-example-en" dir="auto"></div>
+      <details class="notes" id="b-notes"><summary>Notes</summary><div id="b-notes-text" dir="auto"></div></details>
+    </div>
+  </section>
+  <div class="row cards-nav hidden" id="nav">
+    <button class="btn" id="prev" type="button">Previous</button>
+    <button class="btn" id="notyet" type="button">Not yet</button>
+    <button class="btn primary" id="know" type="button">Know it</button>
+    <button class="btn" id="next" type="button">Next</button>
+  </div>
+  <p class="msg" id="msg"></p>
+</main>
+<script src="/cards.js"></script>
+</body>
+</html>

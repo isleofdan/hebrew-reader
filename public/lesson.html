@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson — Hebrew reader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@400;500;700&display=swap">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="/app.css">
+<script src="/theme.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">Hebrew reader</a>
+  <nav><a href="/">Articles</a><a class="active" href="#">Lesson</a></nav>
+  <span class="spacer"></span>
+  <div class="legend">
+    <span><i class="sw-shaky"></i>shaky on your map</span>
+    <span><i class="sw-new"></i>met, not yet marked</span>
+    <span><i class="sw-solid"></i>solid or never met</span>
+  </div>
+  <div class="theme" role="group" aria-label="Theme">
+    <button type="button" data-theme-choice="light">Light</button>
+    <button type="button" data-theme-choice="dark">Dark</button>
+    <button type="button" data-theme-choice="device">Device</button>
+  </div>
+</header>
+<div class="reader">
+  <main class="article-col lesson">
+    <div class="article-meta" id="meta"></div>
+    <h1 class="headline lesson-title" id="title"></h1>
+    <nav class="lesson-links hidden" id="links">
+      <a class="btn" id="cards-link" href="#">Flashcards</a>
+      <button class="btn" id="rebuild" type="button">Rebuild guide</button>
+    </nav>
+    <section class="lesson-block">
+      <h2 class="list-title">Items</h2>
+      <ol class="items" id="items"></ol>
+    </section>
+    <section class="lesson-block">
+      <h2 class="list-title">Study guide</h2>
+      <p class="msg" id="guide-msg"></p>
+      <div class="guide" id="guide"></div>
+    </section>
+    <p class="saved-line" id="saved-line"></p>
+    <p class="msg" id="page-msg"></p>
+  </main>
+  <aside class="side">
+    <div class="card-slot">
+      <section class="card idle" id="card-desktop" data-template="card">
+        <div class="head"><div class="surface"></div><div class="status">hover on a word</div></div>
+        <div class="line meaning"></div>
+        <div class="line grammar"></div>
+        <div class="chips"></div>
+        <div class="note"></div>
+        <div class="error"></div>
+        <div class="actions">
+          <button class="btn primary" data-act="shaky">Save to vocab</button>
+          <button class="btn" data-act="solid">Mark solid</button>
+          <button class="btn" data-act="ask">Ask about this root</button>
+        </div>
+        <div class="foot"></div>
+      </section>
+    </div>
+    <section>
+      <h2>This lesson against your map</h2>
+      <div class="side-list" id="side-list"></div>
+      <p class="empty" id="side-empty">No word here is on your map yet.</p>
+    </section>
+  </aside>
+</div>
+<div class="sheet-holder">
+  <section class="card sheet idle" id="card-phone">
+    <div class="head"><div class="surface"></div><div class="status"></div><button class="close" aria-label="Close">×</button></div>
+    <div class="line meaning"></div>
+    <div class="line grammar"></div>
+    <div class="chips"></div>
+    <div class="note"></div>
+    <div class="error"></div>
+    <div class="actions">
+      <button class="btn primary" data-act="shaky">Save to vocab</button>
+      <button class="btn" data-act="solid">Mark solid</button>
+      <button class="btn" data-act="ask">Ask about this root</button>
+    </div>
+    <div class="foot"></div>
+  </section>
+</div>
+<script src="/tokenize.js"></script>
+<script src="/card-ui.js"></script>
+<script src="/lesson.js"></script>
+<script src="/card.js"></script>
+</body>
+</html>
