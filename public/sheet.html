@@ -7,6 +7,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@400;500;700&display=swap">
 <style>
+  /* A print-clean sheet: no chrome, serif Hebrew, A4/Letter margins. It
+     prints, so it stays light whatever the device or the switch says; the
+     declaration below is what stops a browser darkening it by itself. */
+  :root { color-scheme: only light; }
   /* A print-clean sheet: no chrome, serif Hebrew, A4/Letter margins. */
   @page { size: A4; margin: 18mm 16mm; }
   :root { --text: #1f1e1a; --muted: #55524a; --line: #c9c3b4; --serif: 'Frank Ruhl Libre', 'David', 'Narkisim', 'Times New Roman', serif; --sans: 'Assistant', system-ui, sans-serif; }

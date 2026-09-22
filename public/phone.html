@@ -6,13 +6,20 @@
 <title>Hebrew reader · phone</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@400;500;700&display=swap">
+<meta name="color-scheme" content="light dark">
 <link rel="stylesheet" href="/app.css">
+<script src="/theme.js"></script>
 </head>
 <body>
 <header class="topbar">
   <a class="brand" href="/">Hebrew reader</a>
   <nav><a href="/">Articles</a><a class="phone active" href="/phone">phone</a></nav>
   <span class="spacer"></span>
+  <div class="theme" role="group" aria-label="Theme">
+    <button type="button" data-theme-choice="light">Light</button>
+    <button type="button" data-theme-choice="dark">Dark</button>
+    <button type="button" data-theme-choice="device">Device</button>
+  </div>
   <a href="/logout" style="font-size:13px;color:var(--muted)">Sign out</a>
 </header>
 <main class="page phone-page">

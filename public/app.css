@@ -1,10 +1,48 @@
+/* The palette, stated once: a light ground and a dark one under the same
+   names, so nothing below this block names a color. Which set is in force:
+   the device's own setting by default, or Light/Dark from the header switch,
+   which writes data-theme on <html> (see public/theme.js). */
 :root {
-  --bg: #f6f4ee; --panel: #fbfaf6; --line: #ddd8cc; --line-strong: #c9c3b4;
-  --text: #1f1e1a; --muted: #55524a; --accent: #2f6f6a; --accent-dark: #1f4d49; --accent-soft: #e6efee;
-  --amber: #f3dfa4; --amber-ink: #5a3b00; --amber-line: #b8860b; --blue: #d6e5f4; --blue-line: #5b7fa6;
-  --danger: #8a3b2a;
+  --light-bg: #f6f4ee; --light-panel: #fbfaf6; --light-line: #ddd8cc; --light-line-strong: #c9c3b4;
+  --light-text: #1f1e1a; --light-muted: #55524a; --light-accent: #2f6f6a; --light-accent-dark: #1f4d49; --light-accent-soft: #e6efee;
+  --light-amber: #f3dfa4; --light-amber-ink: #5a3b00; --light-amber-line: #b8860b; --light-blue: #d6e5f4; --light-blue-line: #5b7fa6;
+  --light-ok: #d9efd8; --light-ok-ink: #1d5a24; --light-ok-line: #3f8a4a;
+  --light-field: #ffffff; --light-on-accent: #ffffff; --light-danger: #8a3b2a; --light-shadow: rgba(0,0,0,0.12);
+
+  --dark-bg: #14130e; --dark-panel: #1d1c16; --dark-line: #302e26; --dark-line-strong: #4a4639;
+  --dark-text: #ece7da; --dark-muted: #a9a496; --dark-accent: #7ac6bc; --dark-accent-dark: #cfeeea; --dark-accent-soft: #1e3a37;
+  --dark-amber: #6b4f12; --dark-amber-ink: #f7e7bb; --dark-amber-line: #dcae33; --dark-blue: #22405e; --dark-blue-line: #85b4e6;
+  --dark-ok: #1d4526; --dark-ok-ink: #d3ecd3; --dark-ok-line: #59aa63;
+  --dark-field: #1a1913; --dark-on-accent: #0d211e; --dark-danger: #ff9d87; --dark-shadow: rgba(0,0,0,0.5);
+
   --serif: 'Frank Ruhl Libre', 'David', 'Narkisim', 'Times New Roman', serif;
   --sans: 'Assistant', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+:root, :root[data-theme="light"] {
+  color-scheme: light;
+  --bg: var(--light-bg); --panel: var(--light-panel); --line: var(--light-line); --line-strong: var(--light-line-strong);
+  --text: var(--light-text); --muted: var(--light-muted); --accent: var(--light-accent); --accent-dark: var(--light-accent-dark); --accent-soft: var(--light-accent-soft);
+  --amber: var(--light-amber); --amber-ink: var(--light-amber-ink); --amber-line: var(--light-amber-line); --blue: var(--light-blue); --blue-line: var(--light-blue-line);
+  --ok: var(--light-ok); --ok-ink: var(--light-ok-ink); --ok-line: var(--light-ok-line);
+  --field: var(--light-field); --on-accent: var(--light-on-accent); --danger: var(--light-danger); --shadow: var(--light-shadow);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: var(--dark-bg); --panel: var(--dark-panel); --line: var(--dark-line); --line-strong: var(--dark-line-strong);
+    --text: var(--dark-text); --muted: var(--dark-muted); --accent: var(--dark-accent); --accent-dark: var(--dark-accent-dark); --accent-soft: var(--dark-accent-soft);
+    --amber: var(--dark-amber); --amber-ink: var(--dark-amber-ink); --amber-line: var(--dark-amber-line); --blue: var(--dark-blue); --blue-line: var(--dark-blue-line);
+    --ok: var(--dark-ok); --ok-ink: var(--dark-ok-ink); --ok-line: var(--dark-ok-line);
+    --field: var(--dark-field); --on-accent: var(--dark-on-accent); --danger: var(--dark-danger); --shadow: var(--dark-shadow);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: var(--dark-bg); --panel: var(--dark-panel); --line: var(--dark-line); --line-strong: var(--dark-line-strong);
+  --text: var(--dark-text); --muted: var(--dark-muted); --accent: var(--dark-accent); --accent-dark: var(--dark-accent-dark); --accent-soft: var(--dark-accent-soft);
+  --amber: var(--dark-amber); --amber-ink: var(--dark-amber-ink); --amber-line: var(--dark-amber-line); --blue: var(--dark-blue); --blue-line: var(--dark-blue-line);
+  --ok: var(--dark-ok); --ok-ink: var(--dark-ok-ink); --ok-line: var(--dark-ok-line);
+  --field: var(--dark-field); --on-accent: var(--dark-on-accent); --danger: var(--dark-danger); --shadow: var(--dark-shadow);
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 16px; }
@@ -26,15 +64,22 @@ button { font: inherit; cursor: pointer; }
 .legend .sw-new { background: var(--blue); }
 .legend .sw-solid { background: var(--panel); border: 1px solid var(--line-strong); }
 
+/* the theme switch: Light / Dark / Device, one setting per browser */
+.theme { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 999px; overflow: hidden; background: var(--field); }
+.theme button { border: 0; background: transparent; color: var(--muted); font-size: 12px; padding: 6px 10px; line-height: 1.2; }
+.theme button + button { border-left: 1px solid var(--line); }
+.theme button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-dark); font-weight: 600; }
+.theme button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
 /* index */
 .page { max-width: 900px; margin: 0 auto; padding: 24px 16px 48px; display: flex; flex-direction: column; gap: 24px; }
 .panel { background: var(--panel); border: 1px solid var(--line-strong); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
 .panel h2 { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 label { font-size: 13px; color: var(--muted); }
-input[type=text], input[type=url], textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 8px; font: inherit; font-size: 16px; background: #fff; }
+input[type=text], input[type=url], textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 8px; font: inherit; font-size: 16px; background: var(--field); color: var(--text); }
 textarea { min-height: 140px; font-family: var(--serif); direction: rtl; line-height: 1.6; }
-.btn { height: 44px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--line-strong); background: #fff; color: var(--text); font-size: 15px; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.btn { height: 44px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--field); color: var(--text); font-size: 15px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
 .btn:disabled { opacity: 0.6; cursor: default; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .msg { font-size: 14px; color: var(--muted); min-height: 1.2em; }
@@ -83,7 +128,7 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 .demand .translation:empty { display: none; }
 .demand .sentence { direction: rtl; text-align: right; font-family: var(--serif); font-size: 22px; line-height: 1.7; }
 .demand .gap { display: inline-block; min-width: 88px; border-bottom: 2px solid var(--amber-line); padding: 0 4px; border-radius: 4px; }
-.demand .gap.right { background: #d9efd8; color: #1d5a24; border-bottom-color: #3f8a4a; }
+.demand .gap.right { background: var(--ok); color: var(--ok-ink); border-bottom-color: var(--ok-line); }
 .demand .gap.shown { background: var(--panel); border-bottom-color: var(--line-strong); }
 .demand .form-line { font-size: 14px; color: var(--muted); }
 .demand .form-line .he { direction: rtl; unicode-bidi: isolate; font-weight: 600; font-family: var(--serif); font-size: 16px; }
@@ -102,7 +147,7 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 .ask h2 label { font: inherit; color: inherit; cursor: text; }
 .ask textarea { min-height: 0; font-family: var(--sans); direction: ltr; line-height: 1.4; font-size: 15px; padding: 8px 10px; }
 .ask .btn { height: 40px; font-size: 14px; }
-.ask-answer { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; line-height: 1.5; }
+.ask-answer { background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; line-height: 1.5; }
 .ask-answer .answer { margin: 0; }
 .ask-answer .he { direction: rtl; unicode-bidi: isolate; font-family: var(--serif); font-size: 16px; }
 .ask-answer .links { margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
@@ -134,7 +179,7 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
   .reader { flex-direction: column; }
   .side { width: auto; border-left: 0; border-top: 1px solid var(--line); }
   .side .card-slot { display: none; }
-  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; max-height: 70vh; overflow: auto; box-shadow: 0 -8px 24px rgba(0,0,0,0.12); border-radius: 16px 16px 0 0; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; max-height: 70vh; overflow: auto; box-shadow: 0 -8px 24px var(--shadow); border-radius: 16px 16px 0 0; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
   .sheet .close { display: inline-block; border: 0; background: transparent; font-size: 22px; line-height: 1; color: var(--muted); padding: 0 4px; }
   .sheet.idle { display: none; }
   .card .actions .btn { height: 44px; }
