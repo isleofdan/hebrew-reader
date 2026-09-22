@@ -4,7 +4,7 @@
 // verify list: the gate and its lock, an article by paste and by url (a local
 // page), the card, the cache, the marks, the spine record.
 import { spawn } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, copyFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -509,6 +509,50 @@ try {
     && hAfter.status === 'shaky' && hAfter.touches === hBefore.touches && JSON.stringify(await putCounts()) === putsBefore, `${delLesson.status} ${hBefore.touches}->${hAfter.touches}`);
   const again404 = await api('DELETE', `/lessons/${L1id}`);
   check('deleting what is not there answers 404 naming it', again404.status === 404 && /No lesson with id/.test(again404.body.error), again404.body.error);
+  }
+
+  {
+  // the bulk-import script against a fresh site (session five, step 6)
+  const importDir = mkdtempSync(join(tmpdir(), 'hr-import-'));
+  const siteDir = mkdtempSync(join(tmpdir(), 'hr-import-site-'));
+  for (const f of ['Daniel HEB 15jun26.pdf', 'Daniel Hebrew 24feb26.pdf', 'Daniel Guy 10FEB2025.pdf', 'notes two lines.pdf']) copyFileSync(join(here, 'fixtures', f), join(importDir, f));
+  writeFileSync(join(importDir, 'IMG_0412.jpg'), 'not a pdf');
+  const site = start('node', ['server.js'], {
+    PORT: '8795', DATA_DIR: siteDir, APP_PASSWORD: PASS, COOKIE_SECRET: 'y'.repeat(64), COOKIE_INSECURE: '1',
+    OPENROUTER_API_KEY: 'test-key', OPENROUTER_URL: `http://127.0.0.1:${OR_PORT}/v1/chat/completions`,
+    SPINE_TOKEN: 'test-spine-token', SPINE_URL: `http://127.0.0.1:${SPINE_PORT}`,
+  });
+  await up('http://127.0.0.1:8795/health');
+  const runImport = (...extra) => new Promise((resolve) => {
+    const k = spawn('node', ['scripts/import-lessons.js', importDir, 'http://127.0.0.1:8795', ...extra], { cwd: root, env: { ...process.env, APP_PASSWORD: PASS } });
+    let out = '';
+    k.stdout.on('data', (d) => out += d); k.stderr.on('data', (d) => out += d);
+    k.on('close', (code) => resolve({ code, out }));
+  });
+  const one = await runImport('--build-guides-from', '2026-01-01');
+  const lines = one.out.split('\n');
+  const has = (re) => lines.some((l) => re.test(l));
+  check("import: Guy's three files imported with the dates from their names, the other PDF and the image skipped",
+    one.code === 0 && has(/^imported\s+Daniel HEB 15jun26\.pdf\s+2026-06-15\s+10 items$/) && has(/^imported\s+Daniel Hebrew 24feb26\.pdf\s+2026-02-24\s+6 items$/)
+    && has(/^imported\s+Daniel Guy 10FEB2025\.pdf\s+2025-02-10\s+5 items$/) && has(/^skipped\s+notes two lines\.pdf\s+not one of Guy's file names$/) && has(/^skipped\s+IMG_0412\.jpg\s+not a PDF$/), one.out);
+  check('import --build-guides-from 2026-01-01: guides built for the two 2026 lessons, one at a time; the 2025 lesson left for first open',
+    has(/^guides: 2 lessons dated 2026-01-01 or later without one$/) && has(/^guide\s+Daniel HEB 15jun26\.pdf\s+built in \d+ s$/) && has(/^guide\s+Daniel Hebrew 24feb26\.pdf\s+built in \d+ s$/) && !has(/Daniel Guy 10FEB2025\.pdf\s+built/), one.out);
+  const uploads = () => (site.log.match(/^lesson \d+: ".*" from /gm) || []).length;
+  const uploadsBefore = uploads();
+  const two = await runImport();
+  const lines2 = two.out.split('\n');
+  check('import run twice: the second run skips all three as already on the site, uploads nothing',
+    two.code === 0 && lines2.filter((l) => /^skipped\s+Daniel .*already on the site$/.test(l)).length === 3 && !/^imported/m.test(two.out)
+    && uploadsBefore === 3 && uploads() === 3, `${two.out} uploads ${uploadsBefore} -> ${uploads()}`);
+  copyFileSync(join(here, 'fixtures', 'Daniel Guy 10FEB2025.pdf'), join(importDir, 'Daniel Guy 21oct2024.pdf'));
+  const dry = await runImport('--dry-run');
+  check('import --dry-run names what it would add, with its date, and uploads nothing',
+    dry.code === 0 && /^would add\s+Daniel Guy 21oct2024\.pdf\s+2024-10-21$/m.test(dry.out) && uploads() === 3, dry.out);
+  const bad = await new Promise((resolve) => { const k = spawn('node', ['scripts/import-lessons.js', importDir, 'http://127.0.0.1:8795'], { cwd: root, env: { ...process.env, APP_PASSWORD: 'wrong' } }); let o = ''; k.stderr.on('data', (d) => o += d); k.on('close', (code) => resolve({ code, o })); });
+  check('import with a wrong passphrase stops at the login and says so', bad.code === 1 && /^Login refused \(401\)/.test(bad.o), bad.o);
+  site.kill();
+  rmSync(importDir, { recursive: true, force: true });
+  rmSync(siteDir, { recursive: true, force: true });
   }
 
   // 6. fail closed
