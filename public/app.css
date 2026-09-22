@@ -1,7 +1,13 @@
 /* The palette, stated once: a light ground and a dark one under the same
    names, so nothing below this block names a color. Which set is in force:
    the device's own setting by default, or Light/Dark from the header switch,
-   which writes data-theme on <html> (see public/theme.js). */
+   which writes data-theme on <html> (see public/theme.js).
+
+   The light ground says "only light": that is the ask to a browser that
+   darkens light pages by itself to leave this one alone, now that the app
+   has a dark ground of its own. A browser told to darken every site ignores
+   the ask and repaints anyway — then only the Dark position shows the design
+   as drawn, and the cure is that browser's own setting. */
 :root {
   --light-bg: #f6f4ee; --light-panel: #fbfaf6; --light-line: #ddd8cc; --light-line-strong: #c9c3b4;
   --light-text: #1f1e1a; --light-muted: #55524a; --light-accent: #2f6f6a; --light-accent-dark: #1f4d49; --light-accent-soft: #e6efee;
@@ -19,7 +25,7 @@
   --sans: 'Assistant', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 :root, :root[data-theme="light"] {
-  color-scheme: light;
+  color-scheme: only light;
   --bg: var(--light-bg); --panel: var(--light-panel); --line: var(--light-line); --line-strong: var(--light-line-strong);
   --text: var(--light-text); --muted: var(--light-muted); --accent: var(--light-accent); --accent-dark: var(--light-accent-dark); --accent-soft: var(--light-accent-soft);
   --amber: var(--light-amber); --amber-ink: var(--light-amber-ink); --amber-line: var(--light-amber-line); --blue: var(--light-blue); --blue-line: var(--light-blue-line);

@@ -303,6 +303,14 @@ try {
     await page.click('.theme button[data-theme-choice=device]');
     await page.waitForTimeout(200);
     check(`${name}: Device gives the page back to the device`, (await attr()) === null && (await ground()) === litGround && (await pressed()) === 'Device');
+    await page.click('.theme button[data-theme-choice=light]');
+    await page.waitForTimeout(150);
+    const lightScheme = await page.evaluate(() => getComputedStyle(document.documentElement).colorScheme);
+    const darkScheme = await page.evaluate(() => { document.documentElement.setAttribute('data-theme', 'dark'); const v = getComputedStyle(document.documentElement).colorScheme; document.documentElement.setAttribute('data-theme', 'light'); return v; });
+    check(`${name}: the light ground asks a self-darkening browser to leave it alone, the dark ground says it is dark`,
+      /only/.test(lightScheme) && /light/.test(lightScheme) && /dark/.test(darkScheme) && !/light/.test(darkScheme), `light: "${lightScheme}", dark: "${darkScheme}"`);
+    await page.click('.theme button[data-theme-choice=device]');
+    await page.waitForTimeout(150);
     const chrome = await page.locator('meta[name="theme-color"]').getAttribute('content');
     check(`${name}: the browser's own chrome is told which ground this is`, /^#/.test(chrome || ''), chrome);
     await page.goto(`${base}/read.html?id=${stored.id}`);
