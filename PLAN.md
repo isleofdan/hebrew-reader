@@ -240,8 +240,8 @@ from 40).
 
 Dan's שיעורי גיא project instructions were filed on the spine card as one
 note, `# GUY LESSON INSTRUCTIONS — 22 Sep 2026`, holding five files. The note
-is committed unchanged at `docs/guy-lessons/`. `lib/guy-lesson-prompt.js`
-reads every note in that folder at start, splits it on its
+is committed unchanged at `docs/guy-lessons/guy-lesson-instructions-2026-09-22.md` (the note's own heading as an ASCII file name, so no tool trips on the dash and spaces). `lib/guy-lesson-prompt.js`
+reads every note in that folder on the first guide build (a missing file stops the guide with its reason, never the server), splits it on its
 `=== FILE: <name> ===` lines, and quotes every file in full in the system
 message; then one closing block, "How these instructions apply in this app",
 asks for a JSON answer instead of two files and forbids items that are not in
