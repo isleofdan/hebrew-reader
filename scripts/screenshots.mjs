@@ -150,6 +150,30 @@ try {
     await page.waitForTimeout(300);
     check(`${name}: Show -> plain fill with the surface, the card under it`, (await page.locator('#demand-sentence .gap.shown').innerText()) === item2.surface);
     await page.screenshot({ path: join(out, `phone-show-${name}.png`) });
+
+    // the ask surface in the reader
+    await page.goto(`${base}/read.html?id=${stored.id}`);
+    await page.waitForSelector('.body .w');
+    await page.fill('#ask-q', "Which Nif'al forms are in this piece?");
+    await page.click('#ask-go');
+    await page.locator('#ask-answer:not(.hidden)').waitFor({ timeout: 10000 });
+    const askLinks = await page.locator('#ask-links a').evaluateAll((as) => as.map((a) => a.href));
+    check(`${name}: ask box answers under itself with a reference link per claim`, /Nif'al/.test(await page.locator('#ask-text').innerText()) && askLinks.length >= 1 && askLinks.every((h) => h.startsWith('https://www.pealim.com/')), askLinks.join(' '));
+    const askBox = await page.locator('#ask').boundingBox();
+    const articleBox = await page.locator('.article-col').boundingBox();
+    check(`${name}: ask box sits ${isMobile ? 'below the article' : 'in the right column'}`, isMobile ? askBox.y >= articleBox.y + articleBox.height - 1 : askBox.x >= articleBox.x + articleBox.width - 1);
+    await page.locator('#ask').scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: join(out, `reader-ask-${name}.png`) });
+
+    // the print sheet: no chrome, Nif'al first
+    await page.goto(`${base}/sheet.html?articles=5`);
+    await page.waitForSelector('.item, #none:not(.hidden)');
+    await page.waitForTimeout(400);
+    const h2s = await page.locator('h2').evaluateAll((hs) => hs.map((h) => h.textContent));
+    check(`${name}: print sheet has no chrome and lists Nif'al first`, await page.locator('.topbar, nav, button').count() === 0 && h2s[0] === "Nif'al" && await page.locator('.item').count() >= 2, h2s.join(', '));
+    check(`${name}: print sheet fits the viewport width`, await fits());
+    await page.screenshot({ path: join(out, `sheet-${name}.png`), fullPage: true });
     await ctx.close();
   }
   await browser.close();

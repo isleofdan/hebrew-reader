@@ -214,6 +214,42 @@ try {
   const quick = await api('POST', '/lookup', { surface: 'להתמודד', sentence: '' });
   check('quick lookup with an empty sentence builds the card and touches the spot', quick.status === 200 && quick.body.card.root === 'מ.ד.ד' && quick.body.spot.touches >= 2, JSON.stringify(quick.body).slice(0, 120));
 
+  // 10. the ask surface (step 6)
+  const asked = await api('POST', '/ask', { question: 'What does נאלץ take?' });
+  check('ask answers briefly with one link per reference the mock named, every url built from lib/references.js',
+    asked.status === 200 && /not sure/.test(asked.body.answer) && asked.body.links.length === 3
+    && asked.body.links.map((l) => l.reference).join(',') === 'pealim,wiktionary,academy'
+    && asked.body.links[0].url === 'https://www.pealim.com/search/?q=' + encodeURIComponent('אלצ')
+    && asked.body.links[1].url === 'https://he.wiktionary.org/wiki/' + encodeURIComponent('נאלץ')
+    && asked.body.links[2].url === 'https://hebrew-academy.org.il/?s=' + encodeURIComponent('נאלץ'), JSON.stringify(asked.body).slice(0, 200));
+  const askedPiece = await api('POST', '/ask', { question: "Which Nif'al forms are in this piece?", article_id: stored.id });
+  check("ask with an article: the piece's mapped words reach the model, so the Nif'al forms are answered from data",
+    askedPiece.body.answer.includes('ייקבעו') && askedPiece.body.answer.includes('שנאלצה') && !askedPiece.body.answer.includes('להתמודד') && askedPiece.body.links.every((l) => l.url.startsWith('https://www.pealim.com/')), askedPiece.body.answer);
+  bad2 = await api('POST', '/ask', { question: '' });
+  check('ask without a question refused naming the field', bad2.status === 400 && /question is required/.test(bad2.body.error), bad2.body.error);
+  bad2 = await api('POST', '/ask', { question: 'x', article_id: 'seven' });
+  check('ask with a bad article_id refused naming the shape', bad2.status === 400 && /whole number/.test(bad2.body.error), bad2.body.error);
+
+  // 11. the lesson sheet (step 7)
+  const sheet = await api('GET', '/make/lesson?articles=5&format=json');
+  check("lesson sheet lists the spots touched twice or more, Nif'al first, then non-verbs",
+    sheet.body.state === 'ok' && sheet.body.groups[0].title === "Nif'al" && sheet.body.groups[0].items.map((i) => i.spot_id).sort().join(',') === 'v:א.ל.צ:nifal,v:ק.ב.ע:nifal'
+    && sheet.body.groups.at(-1).title === 'Not verbs' && sheet.body.groups.at(-1).items.some((i) => i.spot_id === 'w:אמינות')
+    && !sheet.body.groups.flatMap((g) => g.items).some((i) => i.spot_id === 'v:מ.ד.ד:hitpael'), JSON.stringify(sheet.body.groups.map((g) => [g.title, g.items.map((i) => [i.spot_id, i.touches])])));
+  const first = sheet.body.groups[0].items[0];
+  check('each sheet item carries surfaces, root, binyan, meaning, one sentence, status and touches',
+    first.surfaces.length >= 1 && first.root && first.binyan === 'nifal' && first.meaning_en && first.sentence && first.status && first.touches >= 2, JSON.stringify(first).slice(0, 200));
+  check('sheet header names the articles by title and date', sheet.body.articles.length === 2 && sheet.body.articles.every((a) => a.title && a.date));
+  const mdRes = await fetch(`${base}/make/lesson?articles=5`, { headers: H });
+  const md = await mdRes.text();
+  check('lesson sheet as a Markdown download', mdRes.status === 200 && /text\/markdown/.test(mdRes.headers.get('content-type')) && /attachment; filename="lesson-sheet-\d{4}-\d{2}-\d{2}\.md"/.test(mdRes.headers.get('content-disposition'))
+    && md.startsWith('# Lesson sheet') && md.indexOf("## Nif'al") < md.indexOf('## Not verbs') && /root א\.ל\.צ/.test(md), md.slice(0, 120));
+  const none = await api('GET', '/make/lesson?articles=1&format=json');
+  const noneMd = await (await fetch(`${base}/make/lesson?articles=1`, { headers: H })).text();
+  check('nothing qualifies -> state "no data" and a one-line sheet saying so', none.body.state === 'no data' && none.body.count === 0 && /Nothing qualifies/.test(noneMd) && noneMd.trim().split('\n').filter((l) => l.trim()).length === 3, noneMd);
+  bad2 = await api('GET', '/make/lesson?articles=0');
+  check('lesson with a bad article count refused naming the range', bad2.status === 400 && /1 to 50/.test(bad2.body.error), bad2.body.error);
+
   // 6. fail closed
   const closed = start('node', ['server.js'], { PORT: '8794', DATA_DIR: dataDir, COOKIE_INSECURE: '1' });
   await up('http://127.0.0.1:8794/health');

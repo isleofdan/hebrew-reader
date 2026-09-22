@@ -16,6 +16,7 @@ const lookup = require('./lib/lookup');
 const spine = require('./lib/spine');
 const demand = require('./lib/demand');
 const askRefs = require('./lib/ask');
+const lesson = require('./lib/lesson');
 const { CATEGORIES } = require('./lib/categories');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, serveStatic } = require('./lib/http');
@@ -137,6 +138,24 @@ route('POST', /^\/demand\/show$/, async (req, res) => sendJson(res, 200, await d
 // { question, article_id? } -> { answer, links, references, state }
 route('POST', /^\/ask$/, async (req, res) => sendJson(res, 200, await askRefs.ask(await readJson(req))));
 
+// --- make from recent reading -----------------------------------------------
+
+// ?articles=<N, default 5>: a Markdown download of every spot touched two or
+// more times across the N most recent articles; &format=json for the print page.
+route('GET', /^\/make\/lesson$/, (req, res, g, url) => {
+  const sheet = lesson.build(url.searchParams.get('articles'));
+  if (url.searchParams.get('format') === 'json') return sendJson(res, 200, sheet);
+  const md = lesson.markdown(sheet);
+  const day = sheet.made_at.slice(0, 10);
+  res.writeHead(200, {
+    'content-type': 'text/markdown; charset=utf-8',
+    'content-disposition': `attachment; filename="lesson-sheet-${day}.md"`,
+    'cache-control': 'no-store',
+  });
+  res.end(md);
+  console.log(`lesson: ${sheet.count} word(s) from ${sheet.articles.length} article(s), as markdown`);
+});
+
 // --- articles ---------------------------------------------------------------
 
 route('GET', /^\/articles$/, (req, res) => sendJson(res, 200, db.listArticles()));
@@ -159,7 +178,7 @@ route('POST', /^\/articles$/, async (req, res) => {
 });
 
 function isApiPath(p) {
-  return /^\/(articles|lookup|spots|marks-for-article|categories|demand|ask)(\/|$)/.test(p);
+  return /^\/(articles|lookup|spots|marks-for-article|categories|demand|ask|make)(\/|$)/.test(p);
 }
 
 async function handle(req, res) {
