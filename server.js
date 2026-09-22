@@ -10,10 +10,12 @@ const path = require('node:path');
 const fs = require('node:fs');
 
 const auth = require('./lib/auth');
+const db = require('./lib/db');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, serveStatic } = require('./lib/http');
 
 const PORT = Number(process.env.PORT) || 8080;
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const PUBLIC = path.join(__dirname, 'public');
 const { APP_PASSWORD, COOKIE_SECRET } = process.env;
 const SECURE_COOKIE = process.env.COOKIE_INSECURE !== '1';
@@ -55,9 +57,8 @@ async function handleLogin(req, res) {
   try { body = await readJson(req); } catch (e) { return sendJson(res, e.status || 400, { error: e.message }); }
   if (!auth.passwordOk(body.passphrase, APP_PASSWORD)) {
     ratelimit.recordFailure(req);
-    const left = ratelimit.MAX_ATTEMPTS - Math.min(ratelimit.MAX_ATTEMPTS, 0);
-    const msg = 'Wrong passphrase.';
-    return wantsJson(req) ? sendJson(res, 401, { error: msg, attempts_allowed: left }) : loginPage(res, 401, msg);
+    const msg = `Wrong passphrase. ${ratelimit.MAX_ATTEMPTS} wrong tries in ${Math.round(ratelimit.WINDOW_MS / 60000)} minutes lock this address.`;
+    return wantsJson(req) ? sendJson(res, 401, { error: msg }) : loginPage(res, 401, msg);
   }
   ratelimit.clear(req);
   const headers = { 'set-cookie': auth.issueCookie(COOKIE_SECRET, { secure: SECURE_COOKIE }) };
@@ -104,6 +105,9 @@ async function handle(req, res) {
   if (serveStatic(res, PUBLIC, p)) return;
   return sendJson(res, 404, { error: `Nothing at ${p}.` });
 }
+
+db.open(DATA_DIR);
+console.log(`database: ${path.join(DATA_DIR, 'reader.db')}`);
 
 const server = http.createServer((req, res) => {
   handle(req, res).catch((e) => {
