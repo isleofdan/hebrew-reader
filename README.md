@@ -11,9 +11,12 @@ what preposition it governs, and which of his weakness categories it touches.
 Saving or marking a word records a "spot" on the map. Every card opened is a
 "touch" on that spot.
 
-It runs on a desktop screen and on an Android phone. It is the first of
-several surfaces; later sessions add an ask surface (dictionaries), a
-scheduled article hunt, and a phone drill.
+It runs on a desktop screen and on an Android phone. A phone page (`/phone`)
+hands him a sentence from something he has read with the verb blanked and
+asks for the form; an Ask box in the reader sends a question to the
+references (Pealim, Milog, Morfix, Wiktionary, the Academy) and links each
+claim; a lesson sheet gathers the words he keeps meeting. A scheduled
+article hunt is a later session.
 
 ## Running it
 
@@ -28,8 +31,8 @@ the environment variables, and how the app talks to the spine.
 ## Layout
 
 - `server.js` — one plain Node server: the passphrase gate, the JSON routes, static files.
-- `lib/` — database, auth, rate limit, article extraction, the word card (OpenRouter), the spine client, the category list.
-- `public/` — the pages: `index.html` (articles + add form), `read.html?id=…` (the reader), `login.html`.
+- `lib/` — database, auth, rate limit, article extraction, the word card (OpenRouter), the spine client, the category list, the demand, the ask surface and its reference list, the lesson sheet.
+- `public/` — the pages: `index.html` (articles + add form), `read.html?id=…` (the reader), `phone.html` (the demand and quick lookup), `sheet.html` (the print sheet), `login.html`; `card-ui.js` is the card shared by the reader and the phone page.
 - `scripts/` — local checks: smoke test, screenshots, mock servers for OpenRouter and the spine.
 - `docs/` — screenshots and session reports.
 

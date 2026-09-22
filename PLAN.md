@@ -107,3 +107,65 @@ sites (article-by-url was proven against a local page), the spine, Fly.
   `lib/lookup.js` and the category list in `lib/categories.js`.
 - "Ask about this root" opens two tabs (Pealim, Wiktionary); a browser that
   blocks the second popup shows only Pealim.
+
+## Close-out note — session hebrew-reader-two, 22 Sep 2026
+
+**What shipped (all seven steps of the brief),** on branch
+`claude/hebrew-satellite-brief-2sqmao`, each step its own commit, checked
+against the local mocks: 60 server checks (`npm run smoke`, up from 26) and
+40 page checks (`npm run screenshots`, up from 12). The session's baseline
+run printed 26 and 12, not the 25 and 14 the brief carried.
+
+**Decisions this session.**
+
+- **The `on_spine` rule.** `spots.on_spine` is set the first time a spine
+  `PUT` for that spot succeeds (the migration on start also sets it for
+  every spot already `shaky` or `solid`, which session one sent). A touch —
+  a card opened in the reader, a quick lookup, a demand Check or Show —
+  sends one `PUT` with `status` unchanged, `last_seen_at` now and `touches`
+  updated, only when the spot has `on_spine`. Spots without it stay local
+  (Dan, 22 Sep 2026). Every touch goes through `lib/lookup.js`, so there is
+  one place this happens.
+- **One model transport.** `lookup.chat()` carries every OpenRouter call
+  (the card, the demand translation, the ask). The card prompt string is
+  unchanged, as the brief required.
+- **The demand's sentence** is cut with the same `sentenceSpan` the reader
+  uses to build the card's context (`public/tokenize.js`), so a Check or
+  Show on the phone hits the card cache the reader filled.
+- **The proclitic list** accepted in front of a typed form:
+  `ו, ש, ה, כש, וש, וכש, מש, לכש` (`lib/demand.js`, `PROCLITICS`). Comparison
+  strips nikud, punctuation and spaces and keeps final-form letters as
+  themselves. Only the surface minus a proclitic is accepted, never the
+  surface plus one.
+- **Translations** are cached in `demand_translations` by a hash of the
+  gapped sentence; a refusal or an unreachable model is not cached, so the
+  next open tries once more.
+- **"Also from this piece"** lists the piece's words that are `shaky` or
+  `new`, as the reader's side list does; `solid` words are left out.
+- **The reference set** (`lib/references.js`): Pealim, Milog, Morfix,
+  Hebrew Wiktionary, the Hebrew Language Academy. The model names a
+  reference id and a term per claim; the server builds the URL. The model
+  never writes a URL.
+- **The lesson sheet** qualifies a spot on two or more touches across the
+  N most recent articles (default 5, at most 50). Groups: Nif'al, other
+  binyanim, not verbs. Markdown at `/make/lesson?articles=N` (a download);
+  `&format=json` feeds `public/sheet.html`, the print page.
+- **On phone the Ask column sits below the article** (the right column
+  already stacks under it below 900 px); the demand page is its own page at
+  `/phone` and works in a desktop window too.
+
+**Data model additions.** `spots.on_spine INTEGER NOT NULL DEFAULT 0`;
+`demand_translations(sentence_hash, sentence, translation_en, built_at)`.
+
+**New routes.** `GET /demand?after=`, `POST /demand/check`,
+`POST /demand/show`, `POST /ask`, `GET /make/lesson`, and the pages `/phone`
+and `/sheet.html`.
+
+**What could not be reached from the sandbox** (checked against mocks; the
+live proof is the deploy log and Dan's look): OpenRouter, the spine, Fly.
+
+**Open items.**
+- The deploy: Dan's "push to main", then the Actions run.
+- Real translations and ask answers are the model's; the prompts are in
+  `lib/demand.js` and `lib/ask.js`.
+- The scheduled hunt and its line on the phone page: a later session.
