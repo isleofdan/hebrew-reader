@@ -384,6 +384,29 @@ try {
     && (await orCalls()).last_guide_model === 'anthropic/claude-sonnet-4.6' && /not a valid model ID\); retrying once with anthropic\/claude-sonnet-4\.6/.test(server.log),
     JSON.stringify({ built_with: fellBack.guide.built_with, model: fellBack.guide.model, error: fellBack.guide_error }));
 
+  // the review pass (session five, step 3)
+  check('the review pass ran on the first build: one root corrected, the reviewed guide saved, the change listed',
+    built.guide.review && built.guide.review.state === 'applied' && built.guide.review.changes.length === 1 && /ס\.ל\.ם/.test(built.guide.review.changes[0])
+    && built.guide.sections.find((x) => x.kind === 'vocabulary').rows.some((r) => r.root === 'ס.ל.ם') && built.guide.review.refused.length === 0, JSON.stringify(built.guide.review));
+  {
+    await control({ review: 'add-item' });
+    await api('POST', `/lessons/${L1.body.id}/guide`, { rebuild: true });
+    const v = await until(L1.body.id, (x) => x.guide_state !== 'building' && !x.saving);
+    const rows = v.guide.sections.find((x) => x.kind === 'vocabulary').rows;
+    const phrase = L1.body.items.find((i) => /\s/.test(i));
+    check('a review that adds an item: the addition refused item for item, its correction kept',
+      v.guide.review.state === 'applied' && v.guide.review.refused.includes(`vocabulary row ${phrase}`) && v.guide.review.refused.includes(`card ${phrase}`)
+      && !rows.some((r) => r.he === phrase) && rows.some((r) => r.root === 'ס.ל.ם') && v.guide.cards.filter((c) => c[1] === phrase).length === 1,
+      JSON.stringify(v.guide.review));
+    await control({ review: 'decline' });
+    await api('POST', `/lessons/${L1.body.id}/guide`, { rebuild: true });
+    const w = await until(L1.body.id, (x) => x.guide_state !== 'building' && !x.saving);
+    check('a review that does not answer: the checked guide saved as it was, the reason kept',
+      w.guide_state === 'built' && w.guide.review.state === 'not run' && /the model declined/.test(w.guide.review.reason) && w.guide.sections.find((x) => x.kind === 'vocabulary').rows.some((r) => r.root === 'ס.ל.מ'),
+      JSON.stringify(w.guide.review));
+    await control({ review: 'fix-root' });
+  }
+
   // the five rule checks (session five, step 2): each failing once, then passing on the one rebuild
   check('the June guide passes all five checks on the first build: every line covered, first drill Nif\'al, points, flags, objects agree',
     built.guide.checks && built.guide.checks.passed.join(',') === 'coverage,drill,nikud,flags,objects' && built.guide.checks.failed_first.length === 0

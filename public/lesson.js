@@ -148,6 +148,7 @@ function drawGuide(guide) {
   if (guide.built_with === 'fallback') notes.push('Built with the fallback model.');
   notes.push(`Built ${new Date(guide.built_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}.`);
   box.append(el('p', 'caption', notes.join(' ')));
+  drawReview(box, guide.review);
   $('#links').classList.remove('hidden');
   const n = guide.cards.length;
   const cards = $('#cards-link');
@@ -157,6 +158,23 @@ function drawGuide(guide) {
   const sheet = $('#sheet-link');
   sheet.href = `/sheet.html?lesson=${LESSON_ID}`;
   sheet.classList.remove('hidden');
+}
+
+// The review pass under the guide: its corrections behind one tap, and what
+// it tried to add, refused. A review that did not run says why in one line.
+function drawReview(box, rv) {
+  if (!rv) return;
+  if (rv.state === 'not run') { box.append(el('p', 'caption review-line', `Not reviewed: ${rv.reason}`)); return; }
+  const n = rv.changes.length;
+  const d = el('details', 'review');
+  d.append(el('summary', '', rv.state === 'applied'
+    ? `Reviewed: ${n} correction${n === 1 ? '' : 's'}`
+    : `Reviewed, not applied: ${n} correction${n === 1 ? '' : 's'} proposed`));
+  if (rv.state === 'discarded') d.append(el('p', 'caption', rv.reason));
+  if (n) { const ol = el('ol', 'review-changes'); for (const c of rv.changes) ol.append(auto('li', c)); d.append(ol); }
+  else d.append(el('p', 'caption', 'The review found nothing to correct.'));
+  if (rv.refused.length) d.append(el('p', 'caption', `Refused as additions: ${rv.refused.join(', ')}.`));
+  box.append(d);
 }
 
 // The footer: what the lesson put on the map, and the spine outcome in the

@@ -39,7 +39,11 @@ let guides = 0;
 let lastGuideModel = null;
 // Set by a check through POST /control: model ids answered as not found.
 // guide_faults: one fault per guide call, in order (see mockGuide).
-const control = { unknown_models: [], guide_faults: [] };
+// review: what the review pass does — 'fix-root' (the default: one root
+// corrected), 'add-item' (the same, plus a vocabulary row and a card the
+// checked guide did not have), 'decline', or 'unchanged'.
+const control = { unknown_models: [], guide_faults: [], review: 'fix-root' };
+let reviews = 0;
 let lastGuideNote = null;
 
 const CATS = ['Nouns & Terms', 'Verbs', 'Expressions'];
@@ -85,7 +89,7 @@ function mockGuide(items, date, n, fault) {
   return g;
 }
 http.createServer((req, res) => {
-  if (req.url === '/calls') { res.end(JSON.stringify({ calls, guides, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote })); return; }
+  if (req.url === '/calls') { res.end(JSON.stringify({ calls, guides, reviews, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote })); return; }
   let raw = '';
   req.on('data', (c) => raw += c);
   req.on('end', () => {
@@ -137,6 +141,24 @@ http.createServer((req, res) => {
       answer = /nif.?al/i.test(user) && user.includes('map (surface')
         ? { answer: nifal.length ? `The Nif'al forms on your map in this piece: ${nifal.join(', ')}.` : 'No Nif\'al form of this piece is on your map yet.', links: nifal.map((w) => ({ claim: w, reference: 'pealim', term: w })) }
         : { answer: "נאלץ is the Nif'al of א.ל.צ, 'to be forced'; it takes ל- plus an infinitive (not sure about older usage with את).", links: [{ claim: "Nif'al of א.ל.צ", reference: 'pealim', term: 'אלצ' }, { claim: 'takes ל- plus an infinitive', reference: 'wiktionary', term: 'נאלץ' }, { claim: 'older usage', reference: 'academy', term: 'נאלץ' }] };
+    } else if (user.startsWith('Review: ')) {
+      reviews++;
+      const guide = JSON.parse(user.split('\n\nGuide:\n')[1]);
+      const items = user.split('one per line:\n')[1].split('\n\n')[0].split('\n').filter(Boolean);
+      const changes = [];
+      if (control.review === 'fix-root' || control.review === 'add-item') {
+        const row = guide.sections.find((x) => x.kind === 'vocabulary').rows.find((r) => r.root === 'ס.ל.מ');
+        row.root = 'ס.ל.ם';
+        changes.push(`${row.he}: root ס.ל.מ corrected to ס.ל.ם (final mem, the root of סולם)`);
+      }
+      if (control.review === 'add-item') {
+        const phrase = items.find((i) => /\s/.test(i));
+        guide.sections.find((x) => x.kind === 'vocabulary').rows.push({ he: phrase, pointed: phrase.replace(/^(.)/, '$1\u05b8'), en: 'added by the review', root: '', binyan: '', category: 'Expressions', flags: '⚠️ Spelling: added' });
+        guide.cards.push(['תוספת', 'תוספת', 'tosefet', 'added by the review', '', '', 'Expressions', 'noun', '', '', '⚠️ Spelling: added']);
+        guide.cards.push([phrase, phrase, 'x', 'added by the review', '', '', 'Expressions', 'phrase', '', '', '⚠️ Spelling: added']);
+        changes.push(`added ${phrase} to the vocabulary`);
+      }
+      answer = control.review === 'decline' ? { error: 'the reviewer declines in this mock' } : { guide, changes };
     } else if (user.startsWith('Lesson: ')) {
       guides++;
       lastGuideModel = body.model;
