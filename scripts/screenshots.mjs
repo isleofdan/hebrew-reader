@@ -386,6 +386,20 @@ try {
     }
     await page.emulateMedia({ colorScheme: 'light' });
 
+    // the lesson's study guide as a print sheet for the reMarkable
+    await page.goto(`${base}/lesson.html?id=${lessonId}`);
+    await page.waitForSelector('#sheet-link:not(.hidden)');
+    check(`${name}: the lesson page links its reMarkable sheet`, (await page.locator('#sheet-link').getAttribute('href')) === `/sheet.html?lesson=${lessonId}`);
+    await page.goto(`${base}/sheet.html?lesson=${lessonId}`);
+    await page.waitForSelector('#lesson-guide section');
+    await page.waitForTimeout(400);
+    const sheetHeads = await page.locator('#lesson-guide h3').evaluateAll((hs) => hs.map((h) => h.textContent));
+    check(`${name}: lesson sheet has no chrome, the guide's sections, the drill answers at the end`,
+      await page.locator('.topbar, nav, button, details').count() === 0 && sheetHeads.includes('תרגילי הטיה — Conjugation Drills') && sheetHeads.at(-1) === 'Answers to the drills'
+      && (await page.locator('#lesson-title').innerText()) === 'שיעור עם גיא — 15.6.2026' && await page.locator('#sheet').isHidden(), sheetHeads.join(' | '));
+    check(`${name}: lesson sheet fits the viewport width`, await fits());
+    await page.screenshot({ path: join(out, `sheet-lesson-${name}.png`), fullPage: true });
+
     // the print sheet: no chrome, Nif'al first
     await page.goto(`${base}/sheet.html?articles=5`);
     await page.waitForSelector('.item, #none:not(.hidden)');

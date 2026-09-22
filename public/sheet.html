@@ -36,9 +36,49 @@
   .error { color: #8a3b2a; }
   .write { grid-column: 1 / -1; height: 22pt; border-bottom: 1px solid var(--line); }
   @media print { .write { height: 26pt; } }
+  /* ?lesson=<id>: the study guide of a lesson from Guy, for the reMarkable */
+  .hidden { display: none; }
+  .guide section { margin: 0 0 12pt; }
+  .guide h3 { font-size: 13pt; margin: 14pt 0 6pt; border-bottom: 1px solid var(--line); padding-bottom: 3pt; unicode-bidi: plaintext; break-after: avoid; }
+  .guide p { margin: 0 0 5pt; font-size: 11pt; line-height: 1.5; }
+  .guide .prose, .guide .why, .guide .note, .guide .flags, .guide .paper-title { unicode-bidi: plaintext; white-space: pre-line; }
+  .guide .he { font-size: 13pt; }
+  .guide ul, .guide ol { margin: 0 0 6pt; padding-inline-start: 1.4em; font-size: 11pt; }
+  .guide li { margin-bottom: 3pt; }
+  .guide .examples, .guide .answers { list-style: none; padding: 0; }
+  .guide .en, .guide .muted, .guide .cue, .guide .lead { font-size: 9.5pt; color: var(--muted); }
+  .guide .for-guy { border: 1px solid var(--line); padding: 5pt 7pt; margin-top: 4pt; }
+  .guide .label { font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 700; }
+  .guide .drill { border: 1px solid var(--line); padding: 6pt 8pt; margin-bottom: 8pt; break-inside: avoid; }
+  .guide .drill-verb { font-size: 16pt; font-weight: 700; margin-inline-end: 8pt; }
+  .guide .conj { display: grid; grid-template-columns: repeat(auto-fill, minmax(38mm, 1fr)); gap: 5pt; margin: 4pt 0; }
+  .guide .tense { border: 1px dotted var(--line); padding: 3pt 5pt; }
+  .guide .forms { margin: 2pt 0 0; display: grid; grid-template-columns: auto 1fr; gap: 1pt 6pt; }
+  .guide .forms dt { font-size: 8.5pt; color: var(--muted); }
+  .guide .forms dd { margin: 0; text-align: right; }
+  .guide .exercises .sentence, .guide .examples .he, .guide .questions li { text-align: right; }
+  .guide .exercises li { margin-bottom: 8pt; }
+  .guide .paper-prompt { margin-bottom: 6pt; }
+  .guide .paper-title { font-weight: 700; font-size: 11pt; }
+  .guide table.vocab { border-collapse: collapse; width: 100%; font-size: 10pt; }
+  .guide .vocab th { text-align: start; font-size: 8.5pt; color: var(--muted); border-bottom: 1px solid var(--line); padding: 3pt; }
+  .guide .vocab td { border-bottom: 1px dotted var(--line); padding: 3pt; vertical-align: top; }
+  .guide .vocab td.he { text-align: right; }
+  .guide .questions { direction: rtl; }
+  .guide .questions li { margin-bottom: 14pt; }
+  .guide .expression { border-bottom: 1px dotted var(--line); padding-bottom: 4pt; margin-bottom: 5pt; break-inside: avoid; }
+  .guide .expr-he { font-weight: 700; margin-inline-end: 8pt; }
+  .guide .drill-head, .guide .expr-head { display: flex; gap: 8pt; flex-wrap: wrap; align-items: baseline; }
+  .guide .caption { display: none; }
 </style>
 </head>
 <body>
+<main class="sheet hidden" id="lesson-sheet">
+  <h1 id="lesson-title" dir="auto"></h1>
+  <p class="articles" id="lesson-meta"></p>
+  <div class="guide" id="lesson-guide"></div>
+  <p class="error" id="lesson-error"></p>
+</main>
 <main class="sheet" id="sheet">
   <h1>Lesson sheet</h1>
   <p class="articles" id="articles"></p>
@@ -47,10 +87,34 @@
   <p class="none hidden" id="none"></p>
   <p class="error" id="error"></p>
 </main>
+<script src="/guide-ui.js"></script>
 <script>
 'use strict';
+// ?lesson=<id>: the study guide of that lesson from Guy instead of the sheet
+// made from recent reading.
 (async function () {
   const $ = (s) => document.querySelector(s);
+  const id = new URLSearchParams(location.search).get('lesson');
+  if (!id) return;
+  $('#sheet').classList.add('hidden');
+  $('#lesson-sheet').classList.remove('hidden');
+  try {
+    const res = await fetch(`/lessons/${encodeURIComponent(id)}`, { headers: { accept: 'application/json' } });
+    if (res.status === 401) { location.href = '/login'; return; }
+    const v = await res.json();
+    if (!res.ok) throw new Error(v.error || `The server answered ${res.status}.`);
+    document.title = `${v.title} — study guide`;
+    $('#lesson-title').textContent = v.title;
+    $('#lesson-meta').textContent = `Study guide · ${v.items.length} items · ${v.source_name}`;
+    if (!v.guide) throw new Error('The study guide for this lesson is not built yet; open the lesson first.');
+    window.GuideUI.render($('#lesson-guide'), v.guide, { print: true });
+  } catch (e) {
+    $('#lesson-error').textContent = e.message;
+  }
+})();
+(async function () {
+  const $ = (s) => document.querySelector(s);
+  if (new URLSearchParams(location.search).get('lesson')) return;
   const n = new URLSearchParams(location.search).get('articles') || '';
   const he = (t) => { const s = document.createElement('span'); s.className = 'he'; s.textContent = t; return s; };
   let data;
