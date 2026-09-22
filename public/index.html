@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hebrew reader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">Hebrew reader</a>
+  <nav><a class="active" href="/">Articles</a></nav>
+  <span class="spacer"></span>
+  <a href="/logout" style="font-size:13px;color:var(--muted)">Sign out</a>
+</header>
+<main class="page">
+  <section class="panel">
+    <h2>Add an article</h2>
+    <label for="url">Address of the article</label>
+    <input id="url" type="url" placeholder="https://www.ynet.co.il/economy/article/…" dir="ltr">
+    <label for="text">Or paste the text (first line becomes the headline)</label>
+    <textarea id="text" placeholder="הדביקו כאן את הכתבה…"></textarea>
+    <div class="row">
+      <button class="btn primary" id="add">Add</button>
+      <span class="msg" id="add-msg"></span>
+    </div>
+  </section>
+  <section>
+    <ul class="articles" id="list"></ul>
+    <p class="empty hidden" id="empty">No articles yet. Add one above.</p>
+  </section>
+</main>
+<script src="/index.js"></script>
+</body>
+</html>

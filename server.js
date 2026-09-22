@@ -70,6 +70,17 @@ async function handleLogin(req, res) {
 const api = [];
 function route(method, pattern, run) { api.push({ method, pattern, run }); }
 
+// --- the map against an article --------------------------------------------
+
+// surface -> { spot_id, status, hint } for every surface the cards cache has
+// a spot for. The client tints the words it finds. An article no card was
+// ever opened in gets an empty map: every word plain, nothing said.
+route('GET', /^\/marks-for-article\/(?<id>\d+)$/, (req, res, { id }) => {
+  db.getArticle(id);
+  const surfaces = db.marksForSurfaces();
+  return sendJson(res, 200, { article_id: Number(id), surfaces, state: Object.keys(surfaces).length ? 'ok' : 'no data' });
+});
+
 // --- articles ---------------------------------------------------------------
 
 route('GET', /^\/articles$/, (req, res) => sendJson(res, 200, db.listArticles()));
