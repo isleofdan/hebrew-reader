@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hebrew reader — sign in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&display=swap">
+<style>
+  :root { --bg:#f6f4ee; --panel:#fbfaf6; --line:#c9c3b4; --text:#1f1e1a; --muted:#55524a; --accent:#2f6f6a; --danger:#8a3b2a; }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--bg); color:var(--text); font-family:'Assistant', system-ui, sans-serif; padding:16px; }
+  form { width:100%; max-width:380px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:24px; display:flex; flex-direction:column; gap:14px; }
+  h1 { margin:0; font-size:20px; color:var(--accent); }
+  p { margin:0; font-size:14px; color:var(--muted); line-height:1.5; }
+  label { font-size:13px; color:var(--muted); }
+  input { height:48px; padding:0 14px; border:1px solid var(--line); border-radius:8px; font:inherit; font-size:16px; background:#fff; width:100%; }
+  button { height:48px; border-radius:8px; border:1px solid var(--accent); background:var(--accent); color:#fff; font:inherit; font-size:16px; font-weight:600; cursor:pointer; }
+  .msg { font-size:14px; color:var(--danger); min-height:1em; }
+  .msg:empty { display:none; }
+</style>
+</head>
+<body>
+<form method="post" action="/login">
+  <h1>Hebrew reader</h1>
+  <p id="lead">One passphrase, one reader. The cookie lasts 30 days.</p>
+  <div class="msg" id="msg">{{MESSAGE}}</div>
+  <label for="passphrase">Passphrase</label>
+  <input id="passphrase" name="passphrase" type="password" autocomplete="current-password" autofocus required>
+  <button type="submit">Sign in</button>
+</form>
+</body>
+</html>

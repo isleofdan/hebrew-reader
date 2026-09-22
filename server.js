@@ -1,0 +1,117 @@
+'use strict';
+// The Hebrew reader: one plain Node server.
+//   /login (GET, POST), /logout, /health  — open
+//   everything else                        — behind the passphrase cookie
+// Fail closed: with APP_PASSWORD or COOKIE_SECRET unset, only the login page
+// serves, and it says the server is not configured.
+
+const http = require('node:http');
+const path = require('node:path');
+const fs = require('node:fs');
+
+const auth = require('./lib/auth');
+const ratelimit = require('./lib/ratelimit');
+const { sendJson, sendHtml, redirect, readJson, serveStatic } = require('./lib/http');
+
+const PORT = Number(process.env.PORT) || 8080;
+const PUBLIC = path.join(__dirname, 'public');
+const { APP_PASSWORD, COOKIE_SECRET } = process.env;
+const SECURE_COOKIE = process.env.COOKIE_INSECURE !== '1';
+const CONFIGURED = Boolean(APP_PASSWORD && COOKIE_SECRET);
+
+if (!CONFIGURED) {
+  const missing = ['APP_PASSWORD', 'COOKIE_SECRET'].filter((k) => !process.env[k]);
+  console.error(`not configured: ${missing.join(', ')} unset. Only the login page will serve.`);
+}
+
+const LOGIN_TEMPLATE = fs.readFileSync(path.join(PUBLIC, 'login.html'), 'utf8');
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function loginPage(res, status, message = '') {
+  sendHtml(res, status, LOGIN_TEMPLATE.replace('{{MESSAGE}}', escapeHtml(message)));
+}
+
+const NOT_CONFIGURED = 'This server is not configured: APP_PASSWORD or COOKIE_SECRET is unset. Set both and restart.';
+
+function wantsJson(req) {
+  return (req.headers.accept || '').includes('application/json')
+    || (req.headers['content-type'] || '').includes('application/json');
+}
+
+async function handleLogin(req, res) {
+  if (!CONFIGURED) {
+    return wantsJson(req) ? sendJson(res, 503, { error: NOT_CONFIGURED }) : loginPage(res, 503, NOT_CONFIGURED);
+  }
+  const wait = ratelimit.lockedFor(req);
+  if (wait > 0) {
+    const msg = `Too many wrong passphrases. Wait ${Math.ceil(wait / 60)} minute(s) and try again.`;
+    return wantsJson(req) ? sendJson(res, 429, { error: msg, retry_after_s: wait }, { 'retry-after': String(wait) })
+      : loginPage(res, 429, msg);
+  }
+  let body;
+  try { body = await readJson(req); } catch (e) { return sendJson(res, e.status || 400, { error: e.message }); }
+  if (!auth.passwordOk(body.passphrase, APP_PASSWORD)) {
+    ratelimit.recordFailure(req);
+    const left = ratelimit.MAX_ATTEMPTS - Math.min(ratelimit.MAX_ATTEMPTS, 0);
+    const msg = 'Wrong passphrase.';
+    return wantsJson(req) ? sendJson(res, 401, { error: msg, attempts_allowed: left }) : loginPage(res, 401, msg);
+  }
+  ratelimit.clear(req);
+  const headers = { 'set-cookie': auth.issueCookie(COOKIE_SECRET, { secure: SECURE_COOKIE }) };
+  return wantsJson(req) ? sendJson(res, 200, { ok: true }, headers) : redirect(res, '/', headers);
+}
+
+// Routes that need the cookie, added by later steps.
+const api = [];
+
+function isApiPath(p) {
+  return /^\/(articles|lookup|spots|marks-for-article)(\/|$)/.test(p);
+}
+
+async function handle(req, res) {
+  const url = new URL(req.url, 'http://x');
+  const p = url.pathname;
+
+  if (p === '/health') return sendJson(res, 200, { ok: true, configured: CONFIGURED });
+  if (p === '/login' && req.method === 'GET') return loginPage(res, CONFIGURED ? 200 : 503, CONFIGURED ? '' : NOT_CONFIGURED);
+  if (p === '/login' && req.method === 'POST') return handleLogin(req, res);
+  if (p === '/logout') return redirect(res, '/login', { 'set-cookie': auth.clearCookie({ secure: SECURE_COOKIE }) });
+
+  if (!CONFIGURED) return isApiPath(p) ? sendJson(res, 503, { error: NOT_CONFIGURED }) : loginPage(res, 503, NOT_CONFIGURED);
+  if (!auth.cookieOk(req, COOKIE_SECRET)) {
+    return isApiPath(p) ? sendJson(res, 401, { error: 'Sign in first: POST /login with the passphrase.' }) : redirect(res, '/login');
+  }
+
+  for (const route of api) {
+    const m = route.method === req.method && route.pattern.exec(p);
+    if (m) {
+      try {
+        return await route.run(req, res, m.groups || {}, url);
+      } catch (e) {
+        const status = e.status || 500;
+        if (status === 500) console.error(e);
+        return sendJson(res, status, { error: e.message });
+      }
+    }
+  }
+
+  if (isApiPath(p)) return sendJson(res, 404, { error: `No route ${req.method} ${p}.` });
+  if (p === '/') return serveStatic(res, PUBLIC, '/index.html') || sendJson(res, 404, { error: 'index.html is missing.' });
+  if (p === '/login.html') return redirect(res, '/login');
+  if (serveStatic(res, PUBLIC, p)) return;
+  return sendJson(res, 404, { error: `Nothing at ${p}.` });
+}
+
+const server = http.createServer((req, res) => {
+  handle(req, res).catch((e) => {
+    console.error(e);
+    if (!res.headersSent) sendJson(res, 500, { error: 'Server error.' });
+  });
+});
+
+server.listen(PORT, () => console.log(`hebrew-reader listening on ${PORT}${CONFIGURED ? '' : ' (NOT CONFIGURED)'}`));
+
+module.exports = { api };
