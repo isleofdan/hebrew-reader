@@ -54,9 +54,9 @@ function draw() {
     const a = document.createElement('a'); a.href = article.source_url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = host(article.source_url);
     meta.append(a);
   } else {
-    meta.append(document.createTextNode('pasted'));
+    const s = document.createElement('span'); s.textContent = 'pasted'; meta.append(s);
   }
-  meta.append(document.createTextNode(`· added ${when}`));
+  const added = document.createElement('span'); added.textContent = `· added ${when}`; meta.append(added);
   $('#headline').textContent = article.title;
   const body = $('#body');
   body.innerHTML = '';
