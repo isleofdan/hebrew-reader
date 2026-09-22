@@ -32,6 +32,9 @@ const known = {
   'שביתה': { surface: 'שביתה', lemma: 'שביתה', pos: 'noun', root: 'ש.ב.ת', binyan: null, tense: null, person_gender_number: 'fs', meaning_en: 'a strike', governs: null, categories: ['homophonous-spelling'], note: null },
   'להתבייש': { surface: 'להתבייש', lemma: 'התבייש', pos: 'verb', root: 'ב.ו.ש', binyan: 'hitpael', tense: 'infinitive', person_gender_number: null, meaning_en: 'to be ashamed', governs: 'ב-', categories: ['letter-order', 'preposition-government'], note: 'Not להתייבש (to dry out).' },
   'להתייבש': { surface: 'להתייבש', lemma: 'התייבש', pos: 'verb', root: 'י.ב.ש', binyan: 'hitpael', tense: 'infinitive', person_gender_number: null, meaning_en: 'to dry out', governs: null, categories: ['letter-order'], note: 'Not להתבייש (to be ashamed).' },
+  // the prefixed-tinting check (session five): a saved word met again with ו/ה/ב/ל/מ/ש in front
+  'הממסד': { surface: 'הממסד', lemma: 'ממסד', pos: 'noun', root: 'מ.ס.ד', binyan: null, tense: null, person_gender_number: 'ms', meaning_en: 'the establishment', governs: null, categories: ['homophonous-spelling'], note: 'ה- is the article; the word is ממסד.' },
+  'דם': { surface: 'דם', lemma: 'דם', pos: 'noun', root: 'ד.מ.מ', binyan: null, tense: null, person_gender_number: 'ms', meaning_en: 'blood', governs: null, categories: [], note: null },
   'נלחם': { surface: 'נלחם', lemma: 'נלחם', pos: 'verb', root: 'ל.ח.מ', binyan: 'nifal', tense: 'past', person_gender_number: '3ms', meaning_en: 'fought', governs: 'ב-', categories: ['conjugation', 'preposition-government'], note: "Nif'al; fights ב- (in), not 'against'." },
 };
 let calls = 0;

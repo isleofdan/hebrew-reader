@@ -29,6 +29,12 @@
 <div class="reader">
   <main class="article-col">
     <div class="article-meta" id="meta"></div>
+    <div class="confirm-bar hidden" id="delete-bar" role="alertdialog" aria-labelledby="delete-text">
+      <span class="confirm-text" id="delete-text"></span>
+      <button class="btn danger" type="button" data-act="delete">Delete</button>
+      <button class="btn" type="button" data-act="keep">Keep</button>
+      <p class="msg"></p>
+    </div>
     <h1 class="headline" id="headline"></h1>
     <div class="body" id="body"></div>
     <p class="msg" id="page-msg"></p>
@@ -92,6 +98,7 @@
   </section>
 </div>
 <script src="/tokenize.js"></script>
+<script src="/delete-ui.js"></script>
 <script src="/reader.js"></script>
 <script src="/card-ui.js"></script>
 <script src="/card.js"></script>

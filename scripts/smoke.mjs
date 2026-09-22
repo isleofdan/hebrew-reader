@@ -449,6 +449,47 @@ try {
     && /^The study guide could not be built: the model declined — /.test(failedGuide.guide_error), failedGuide.guide_error);
   }
 
+  {
+  // delete and prefixed tinting (session five, step 4)
+  const putCounts = async () => (await (await fetch(`http://127.0.0.1:${SPINE_PORT}/puts`)).json()).puts;
+  const touchCount = async () => (await spotRow('w:ממסד')).touches;
+  const art = await api('POST', '/articles', { text: 'בדיקה של מילים מהשיעור\nהמצב הוביל להסלמה ולא לשקט.\nהממסד שתק.' });
+  await api('POST', '/lookup', { surface: 'הממסד', sentence: 'הממסד שתק.', article_id: art.body.id });
+  await api('POST', '/spots/' + encodeURIComponent('w:ממסד'), { status: 'shaky' });
+  await api('POST', '/lookup', { surface: 'דם', sentence: 'דם', article_id: art.body.id });
+  await api('POST', '/spots/' + encodeURIComponent('w:דם'), { status: 'shaky' });
+  const para = 'הממסד שתק, והממסד חשש. לממסד אין תשובה, בממסד יודעים, מהממסד לא יצא דבר, ושהממסד יודע. הדם זרם, והדם נעצר.';
+  const art2 = await api('POST', '/articles', { text: `עוד בדיקה\n${para}` });
+  const m2 = (await api('GET', `/marks-for-article/${art2.body.id}`)).body;
+  const tint = (w) => (tok.markFor(w, m2.surfaces, m2.lemmas) || {}).status || 'plain';
+  const forms = ['הממסד', 'והממסד', 'לממסד', 'בממסד', 'מהממסד', 'ושהממסד'];
+  check('prefixed tinting: with הממסד saved, its ה/ו/ב/ל/מ/ש forms tint in a pasted paragraph',
+    forms.every((w) => tint(w) === 'shaky') && m2.lemmas['ממסד']?.status === 'shaky', forms.map((w) => `${w}:${tint(w)}`).join(' '));
+  check('a token of three letters is never stripped (הדם stays plain with דם saved); four letters are (והדם)',
+    tint('הדם') === 'plain' && tint('והדם') === 'shaky' && tint('שתק') === 'plain', `הדם:${tint('הדם')} והדם:${tint('והדם')}`);
+  check('one prefix only: two stacked prefixes are not stripped (לבממסד)', tint('לבממסד') === 'plain');
+  const spotsBefore = (await api('GET', '/spots')).body.items.length;
+  const tBefore = await touchCount();
+  const putsBefore = JSON.stringify(await putCounts());
+  const delArt = await api('DELETE', `/articles/${art.body.id}`);
+  const gone = await api('GET', `/articles/${art.body.id}`);
+  const m3 = (await api('GET', `/marks-for-article/${art2.body.id}`)).body;
+  check('delete an article: gone, its saved words still tinted elsewhere, touches and spots kept, nothing sent to the spine',
+    delArt.status === 200 && gone.status === 404 && m3.surfaces['הממסד']?.status === 'shaky' && (await api('GET', '/spots')).body.items.length === spotsBefore
+    && (await touchCount()) === tBefore && (await spotRow('w:ממסד')).touches >= 1 && JSON.stringify(await putCounts()) === putsBefore && /article \d+: deleted \(touches and spots kept\)/.test(server.log),
+    `${delArt.status} ${gone.status}`);
+  const lessonsBefore = (await api('GET', '/lessons')).body.items;
+  const L1id = lessonsBefore.find((l) => l.lesson_date === '2026-06-15').id;
+  const hBefore = await spotRow('w:הסלמה');
+  const delLesson = await api('DELETE', `/lessons/${L1id}`);
+  const hAfter = await spotRow('w:הסלמה');
+  check('delete a lesson: its guide and items go, the words it saved stay shaky with their touches, nothing sent to the spine',
+    delLesson.status === 200 && (await api('GET', `/lessons/${L1id}`)).status === 404 && (await api('GET', '/lessons')).body.items.length === lessonsBefore.length - 1
+    && hAfter.status === 'shaky' && hAfter.touches === hBefore.touches && JSON.stringify(await putCounts()) === putsBefore, `${delLesson.status} ${hBefore.touches}->${hAfter.touches}`);
+  const again404 = await api('DELETE', `/lessons/${L1id}`);
+  check('deleting what is not there answers 404 naming it', again404.status === 404 && /No lesson with id/.test(again404.body.error), again404.body.error);
+  }
+
   // 6. fail closed
   const closed = start('node', ['server.js'], { PORT: '8794', DATA_DIR: dataDir, COOKIE_INSECURE: '1' });
   await up('http://127.0.0.1:8794/health');

@@ -14,6 +14,7 @@ const POLL_MS = 3000;
 
 let lesson = null;
 let marks = {};
+let lemmas = {};      // lemma -> { spot_id, status, hint }, for prefixed forms
 let spans = [];
 
 async function api(method, path, body) {
@@ -66,6 +67,11 @@ function drawHead() {
   const meta = $('#meta');
   meta.innerHTML = '';
   meta.append(el('span', '', lesson.lesson_date ? dateOf(lesson.lesson_date) : ''), el('span', '', `· ${lesson.items.length} items`), el('span', '', `· ${lesson.source_name}`));
+  const del = el('button', 'linklike', 'Delete');
+  del.type = 'button';
+  del.id = 'delete';
+  window.DeleteUI.wire({ button: del, bar: $('#delete-bar'), what: 'lesson', path: () => `/lessons/${LESSON_ID}` });
+  meta.append(del);
 }
 
 function drawItems() {
@@ -81,7 +87,7 @@ function drawItems() {
 
 function applyTints() {
   for (const s of spans) {
-    const m = marks[s.dataset.surface];
+    const m = HebrewTokenize.markFor(s.dataset.surface, marks, lemmas);
     s.classList.remove('shaky', 'new');
     if (m && (m.status === 'shaky' || m.status === 'new')) s.classList.add(m.status);
   }
@@ -94,7 +100,7 @@ function drawSideList() {
   const seen = new Set();
   for (const s of spans) {
     const surface = s.dataset.surface;
-    const m = marks[surface];
+    const m = HebrewTokenize.markFor(surface, marks, lemmas);
     if (!m || m.status === 'solid' || seen.has(surface)) continue;
     seen.add(surface);
     const row = el('div');
@@ -128,6 +134,7 @@ function wireWords() {
 async function loadMarks() {
   const data = await api('GET', `/marks-for-lesson/${LESSON_ID}`);
   marks = data.surfaces || {};
+  lemmas = data.lemmas || {};
   applyTints();
 }
 
@@ -285,7 +292,7 @@ async function main() {
 
 window.Reader = {
   api, DESKTOP, HOVER, applyTints, loadMarks,
-  get marks() { return marks; }, set marks(v) { marks = v; },
+  get marks() { return marks; }, set marks(v) { marks = v; }, get lemmas() { return lemmas; },
   get article() { return null; },
   source: () => ({ lesson_id: LESSON_ID }),
   spans: () => spans,

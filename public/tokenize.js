@@ -3,7 +3,8 @@
 //
 // A word starts and ends with a Hebrew letter (nikud allowed) and may hold
 // a maqaf, a geresh/gershayim, or a hyphen inside (צה"ל, תל-אביב, על־פי).
-// Prefixed articles and prepositions stay part of the surface for now.
+// Prefixed articles and prepositions stay part of the surface; markFor()
+// below looks past one of them when tinting.
 // Punctuation, digits and Latin text are not words.
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -42,5 +43,36 @@
 
   function count(text) { return words(text).length; }
 
-  return { words: words, sentenceAt: sentenceAt, sentenceSpan: sentenceSpan, count: count, WORD: WORD };
+  // The one prefix list. PROCLITICS are the ones Dan may leave off when
+  // typing a form on the phone page (lib/demand.js). READING_PREFIXES adds,
+  // for tinting, the definite ה and the ב/ל/מ/כ family with ו or ש in front.
+  // Each entry is one prefix: a token is stripped of one entry, never two.
+  var PROCLITICS = ['ו', 'ש', 'ה', 'כש', 'וש', 'וכש', 'מש', 'לכש'];
+  var READING_PREFIXES = PROCLITICS.concat(['ב', 'ל', 'מ', 'כ', 'וה', 'וב', 'ול', 'ומ', 'וכ', 'שה', 'שב', 'של', 'שמ', 'מה'])
+    .sort(function (a, b) { return a.length - b.length; }); // the shortest reading first
+
+  function bare(s) { return String(s || '').normalize('NFC').replace(/[\u0591-\u05c7]/g, ''); }
+
+  // The mark a word on the page takes: the mark of its surface, or of a
+  // lemma it equals, or — for a token of four letters or more — of the
+  // token minus one listed prefix, compared with saved surfaces and lemmas.
+  // `marks` is surface -> mark, `lemmas` lemma -> mark. Reads only.
+  function markFor(surface, marks, lemmas) {
+    lemmas = lemmas || {};
+    var k = bare(surface);
+    var hit = marks[surface] || marks[k] || lemmas[k];
+    if (hit) return hit;
+    if (k.replace(/[^\u05d0-\u05ea]/g, '').length <= 3) return null;
+    for (var i = 0; i < READING_PREFIXES.length; i++) {
+      var p = READING_PREFIXES[i];
+      if (k.indexOf(p) !== 0 || k.length <= p.length + 1) continue;
+      var rest = k.slice(p.length);
+      hit = marks[rest] || lemmas[rest];
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  return { words: words, sentenceAt: sentenceAt, sentenceSpan: sentenceSpan, count: count, WORD: WORD,
+    PROCLITICS: PROCLITICS, READING_PREFIXES: READING_PREFIXES, markFor: markFor };
 });

@@ -11,6 +11,7 @@ const HOVER = window.matchMedia('(hover: hover) and (pointer: fine)');
 
 let article = null;
 let marks = {};          // surface -> { spot_id, status, hint }
+let lemmas = {};         // lemma -> { spot_id, status, hint }, for prefixed forms
 let spans = [];          // every word span on the page
 
 async function api(method, path, body) {
@@ -50,6 +51,17 @@ function fillWords(el, text) {
   return el;
 }
 
+// "Delete" in the meta line; the confirm is the bar under it.
+function deleteButton() {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'linklike';
+  b.id = 'delete';
+  b.textContent = 'Delete';
+  window.DeleteUI.wire({ button: b, bar: $('#delete-bar'), what: 'article', path: () => `/articles/${ARTICLE_ID}` });
+  return b;
+}
+
 function draw() {
   document.title = `${article.title} — Hebrew reader`;
   const meta = $('#meta');
@@ -74,12 +86,13 @@ function draw() {
   const counter = document.createElement('span');
   counter.textContent = `· ${spans.length} words`;
   meta.append(counter);
+  meta.append(deleteButton());
   applyTints();
 }
 
 function applyTints() {
   for (const s of spans) {
-    const m = marks[s.dataset.surface];
+    const m = HebrewTokenize.markFor(s.dataset.surface, marks, lemmas);
     s.classList.remove('shaky', 'new');
     if (m && (m.status === 'shaky' || m.status === 'new')) s.classList.add(m.status);
   }
@@ -92,7 +105,7 @@ function drawSideList() {
   const seen = new Set();
   for (const s of spans) {
     const surface = s.dataset.surface;
-    const m = marks[surface];
+    const m = HebrewTokenize.markFor(surface, marks, lemmas);
     if (!m || m.status === 'solid' || seen.has(surface)) continue;
     seen.add(surface);
     const row = document.createElement('div');
@@ -134,6 +147,7 @@ function wireWords() {
 async function loadMarks() {
   const data = await api('GET', `/marks-for-article/${ARTICLE_ID}`);
   marks = data.surfaces || {};
+  lemmas = data.lemmas || {};
   applyTints();
 }
 
@@ -151,5 +165,5 @@ async function main() {
   await loadMarks();
 }
 
-window.Reader = { api, get article() { return article; }, get marks() { return marks; }, set marks(v) { marks = v; }, applyTints, loadMarks, spans: () => spans, DESKTOP, HOVER };
+window.Reader = { api, get article() { return article; }, get marks() { return marks; }, set marks(v) { marks = v; }, get lemmas() { return lemmas; }, applyTints, loadMarks, spans: () => spans, DESKTOP, HOVER };
 main();

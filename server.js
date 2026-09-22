@@ -85,7 +85,7 @@ function route(method, pattern, run) { api.push({ method, pattern, run }); }
 route('GET', /^\/marks-for-article\/(?<id>\d+)$/, (req, res, { id }) => {
   db.getArticle(id);
   const surfaces = db.marksForSurfaces();
-  return sendJson(res, 200, { article_id: Number(id), surfaces, state: Object.keys(surfaces).length ? 'ok' : 'no data' });
+  return sendJson(res, 200, { article_id: Number(id), surfaces, lemmas: db.marksForLemmas(), state: Object.keys(surfaces).length ? 'ok' : 'no data' });
 });
 
 // --- the card ---------------------------------------------------------------
@@ -165,7 +165,13 @@ route('GET', /^\/articles$/, (req, res) => sendJson(res, 200, db.listArticles())
 
 route('GET', /^\/articles\/(?<id>\d+)$/, (req, res, { id }) => sendJson(res, 200, db.getArticle(id)));
 
-route('DELETE', /^\/articles\/(?<id>\d+)$/, (req, res, { id }) => sendJson(res, 200, db.deleteArticle(id)));
+// The article goes; its touches stay (without the article) and its spots keep
+// their status. Nothing is sent to the spine.
+route('DELETE', /^\/articles\/(?<id>\d+)$/, (req, res, { id }) => {
+  const out = db.deleteArticle(id);
+  console.log(`article ${id}: deleted (touches and spots kept)`);
+  return sendJson(res, 200, out);
+});
 
 // { text } (pasted) or { url }. Answers the stored article plus `thin` when a
 // url gave under 200 characters of main text and the raw page text was kept.
@@ -201,6 +207,13 @@ route('GET', /^\/lessons\/(?<id>\d+)$/, (req, res, { id }) => sendJson(res, 200,
 // Builds the guide on first open; { rebuild: true } replaces the one there.
 // The build runs in the background: 202 while it runs, 200 when the guide was
 // already there and no rebuild was asked for.
+// The lesson, its items and its guide go; its touches and spots stay.
+route('DELETE', /^\/lessons\/(?<id>\d+)$/, (req, res, { id }) => {
+  const out = guyLesson.remove(id);
+  console.log(`lesson ${id}: deleted (touches and spots kept)`);
+  return sendJson(res, 200, out);
+});
+
 route('POST', /^\/lessons\/(?<id>\d+)\/guide$/, async (req, res, { id }) => {
   const body = await readJson(req);
   const state = guyLesson.startGuide(id, { rebuild: body.rebuild === true || body.rebuild === 'true' });
@@ -211,7 +224,7 @@ route('POST', /^\/lessons\/(?<id>\d+)\/guide$/, async (req, res, { id }) => {
 route('GET', /^\/marks-for-lesson\/(?<id>\d+)$/, (req, res, { id }) => {
   db.getLesson(id);
   const surfaces = db.marksForSurfaces();
-  return sendJson(res, 200, { lesson_id: Number(id), surfaces, state: Object.keys(surfaces).length ? 'ok' : 'no data' });
+  return sendJson(res, 200, { lesson_id: Number(id), surfaces, lemmas: db.marksForLemmas(), state: Object.keys(surfaces).length ? 'ok' : 'no data' });
 });
 
 function isApiPath(p) {

@@ -35,6 +35,12 @@
       <a class="btn" id="sheet-link" href="#" target="_blank" rel="noopener">reMarkable sheet</a>
       <button class="btn" id="rebuild" type="button">Rebuild guide</button>
     </nav>
+    <div class="confirm-bar hidden" id="delete-bar" role="alertdialog" aria-labelledby="delete-text">
+      <span class="confirm-text" id="delete-text"></span>
+      <button class="btn danger" type="button" data-act="delete">Delete</button>
+      <button class="btn" type="button" data-act="keep">Keep</button>
+      <p class="msg"></p>
+    </div>
     <section class="lesson-block">
       <h2 class="list-title">Items</h2>
       <ol class="items" id="items"></ol>
@@ -90,6 +96,7 @@
 <script src="/tokenize.js"></script>
 <script src="/card-ui.js"></script>
 <script src="/guide-ui.js"></script>
+<script src="/delete-ui.js"></script>
 <script src="/lesson.js"></script>
 <script src="/card.js"></script>
 </body>
