@@ -22,8 +22,17 @@ http.createServer((req, res) => {
     if (!(req.headers.authorization || '').startsWith('Bearer ')) { res.writeHead(401, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: { message: 'No auth credentials found' } })); return; }
     const body = JSON.parse(raw);
     const user = body.messages.find((m) => m.role === 'user').content;
-    const surface = /Surface: (\S+)/.exec(user)[1];
-    const answer = known[surface] || { error: `unknown word ${surface} in this mock` };
+    let answer;
+    if (user.startsWith('Sentence: ')) {
+      // a translation for the demand page: only the sample article's sentence is known
+      const sentence = user.slice('Sentence: '.length);
+      answer = sentence.includes('בשנים האחרונות')
+        ? { translation_en: 'The company, which … in recent years to deal with a falling market share.' }
+        : { error: 'this mock translates only the sample sentence' };
+    } else {
+      const surface = /Surface: (\S+)/.exec(user)[1];
+      answer = known[surface] || { error: `unknown word ${surface} in this mock` };
+    }
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ id: 'mock', model: body.model, choices: [{ message: { role: 'assistant', content: JSON.stringify(answer) } }] }));
   });

@@ -25,16 +25,22 @@
   }
 
   // The sentence around offset `at` in `text`: from the previous sentence
-  // end (. ! ? or a line break) to the next one, trimmed.
-  function sentenceAt(text, at) {
+  // end (. ! ? or a line break) to the next one. Gershayim, geresh and maqaf
+  // never end a sentence. Answers { start, end, sentence } with the
+  // offsets of the trimmed sentence inside `text`.
+  function sentenceSpan(text, at) {
     var start = at, end = at;
     while (start > 0 && !/[.!?\n]/.test(text[start - 1])) start--;
     while (end < text.length && !/[.!?\n]/.test(text[end])) end++;
     if (end < text.length && /[.!?]/.test(text[end])) end++;
-    return text.slice(start, end).trim();
+    while (start < end && /\s/.test(text[start])) start++;
+    while (end > start && /\s/.test(text[end - 1])) end--;
+    return { start: start, end: end, sentence: text.slice(start, end) };
   }
+
+  function sentenceAt(text, at) { return sentenceSpan(text, at).sentence; }
 
   function count(text) { return words(text).length; }
 
-  return { words: words, sentenceAt: sentenceAt, count: count, WORD: WORD };
+  return { words: words, sentenceAt: sentenceAt, sentenceSpan: sentenceSpan, count: count, WORD: WORD };
 });

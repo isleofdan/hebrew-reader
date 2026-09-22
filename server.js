@@ -14,6 +14,7 @@ const db = require('./lib/db');
 const articles = require('./lib/articles');
 const lookup = require('./lib/lookup');
 const spine = require('./lib/spine');
+const demand = require('./lib/demand');
 const { CATEGORIES } = require('./lib/categories');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, serveStatic } = require('./lib/http');
@@ -115,6 +116,21 @@ route('POST', /^\/spots\/(?<id>.+)$/, async (req, res, { id }) => {
   return sendJson(res, 200, { spot, spine: recorded });
 });
 
+// --- the demand (the phone page) --------------------------------------------
+
+// One item: a sentence Dan has read with the verb blanked. ?after=<spot id>
+// skips that spot. No item -> { state: "no data", reason }.
+route('GET', /^\/demand$/, async (req, res, g, url) => {
+  const after = url.searchParams.get('after') || null;
+  return sendJson(res, 200, await demand.next({ after }));
+});
+
+// { spot_id, article_id, surface, typed } -> { ok, surface, card, spot, spine }
+route('POST', /^\/demand\/check$/, async (req, res) => sendJson(res, 200, await demand.check(await readJson(req))));
+
+// { spot_id, article_id, surface } -> { surface, card, spot, spine }
+route('POST', /^\/demand\/show$/, async (req, res) => sendJson(res, 200, await demand.show(await readJson(req))));
+
 // --- articles ---------------------------------------------------------------
 
 route('GET', /^\/articles$/, (req, res) => sendJson(res, 200, db.listArticles()));
@@ -137,7 +153,7 @@ route('POST', /^\/articles$/, async (req, res) => {
 });
 
 function isApiPath(p) {
-  return /^\/(articles|lookup|spots|marks-for-article|categories)(\/|$)/.test(p);
+  return /^\/(articles|lookup|spots|marks-for-article|categories|demand)(\/|$)/.test(p);
 }
 
 async function handle(req, res) {
@@ -170,6 +186,7 @@ async function handle(req, res) {
   if (isApiPath(p)) return sendJson(res, 404, { error: `No route ${req.method} ${p}.` });
   if (p === '/') return serveStatic(res, PUBLIC, '/index.html') || sendJson(res, 404, { error: 'index.html is missing.' });
   if (p === '/login.html') return redirect(res, '/login');
+  if (p === '/phone') return serveStatic(res, PUBLIC, '/phone.html') || sendJson(res, 404, { error: 'phone.html is missing.' });
   if (serveStatic(res, PUBLIC, p)) return;
   return sendJson(res, 404, { error: `Nothing at ${p}.` });
 }
