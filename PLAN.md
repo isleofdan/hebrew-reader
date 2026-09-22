@@ -69,3 +69,41 @@ The spine was cloned read-only into this session; nothing in it was changed.
 | `PORT` | listen port, default 8080 |
 | `COOKIE_INSECURE` | `1` only for local plain-http runs |
 | `LOGIN_WINDOW_MS` | only for tests; the rate-limit window (default 15 minutes) |
+
+## Close-out note — session hebrew-reader-one, 22 Sep 2026
+
+**What stands.** Steps 1–8 of the brief are built, checked locally, and
+pushed on branch `claude/hebrew-satellite-brief-v5bwp0`: the passphrase gate,
+the data model, article import by paste or url, the reader page with tints
+and the side list, the word card through OpenRouter with a context cache,
+spots and touches, marks to the spine, and the deploy workflow. 25 smoke
+checks and 14 page checks pass (`npm run smoke`, `npm run screenshots`);
+screenshots at phone and desktop are in `docs/screenshots/`.
+
+**Step 4.1 finding.** The spine's `PUT /api/marks/:app/:item_id` behind
+`SPINE_TOKEN` (see above). Step 7 is wired and proven against a mock that
+enforces the spine's key rules.
+
+**Secrets, by name only.** Repository: `FLY_API_TOKEN`, `APP_PASSWORD`,
+`OPENROUTER_API_KEY`, and optionally `SPINE_TOKEN`. On Fly, set by the
+workflow: `APP_PASSWORD`, `OPENROUTER_API_KEY`, `COOKIE_SECRET` (generated),
+`SPINE_TOKEN` (only if the repository has it).
+
+**Divergence from the brief: the branch.** The brief said to work on `main`.
+This session was bound by its runner to the branch above and cannot push to
+`main` without Dan's word. GitHub registers a `workflow_dispatch` workflow
+only once it is on the default branch, so the deploy could not be run from
+the branch. The first deploy happens when the branch lands on `main`.
+
+**What could not be reached from the sandbox** (so it was checked against
+mocks and is Dan's to confirm on the live site): OpenRouter, the Israeli news
+sites (article-by-url was proven against a local page), the spine, Fly.
+
+**Open items.**
+- First deploy: merge or push the branch to `main`, then read the Actions run.
+- `SPINE_TOKEN` as a repository secret so marks reach the spine (the app
+  says "saved here; spine not configured" until then).
+- Real-word quality of the card is the model's; the prompt is in
+  `lib/lookup.js` and the category list in `lib/categories.js`.
+- "Ask about this root" opens two tabs (Pealim, Wiktionary); a browser that
+  blocks the second popup shows only Pealim.
