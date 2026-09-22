@@ -15,8 +15,10 @@ It runs on a desktop screen and on an Android phone. A phone page (`/phone`)
 hands him a sentence from something he has read with the verb blanked and
 asks for the form; an Ask box in the reader sends a question to the
 references (Pealim, Milog, Morfix, Wiktionary, the Academy) and links each
-claim; a lesson sheet gathers the words he keeps meeting. A scheduled
-article hunt is a later session.
+claim; a lesson sheet gathers the words he keeps meeting. Lessons from his
+tutor Guy come in as PDFs: the app makes the study guide and the flashcards
+by Dan's own lesson instructions (`docs/guy-lessons/`) and saves each
+single-word item to the map. A scheduled article hunt is a later session.
 
 ## Running it
 
@@ -32,8 +34,8 @@ the environment variables, and how the app talks to the spine.
 
 - `server.js` — one plain Node server: the passphrase gate, the JSON routes, static files.
 - `lib/` — database, auth, rate limit, article extraction, the word card (OpenRouter), the spine client, the category list, the demand, the ask surface and its reference list, the lesson sheet.
-- `public/` — the pages: `index.html` (articles + add form), `read.html?id=…` (the reader), `phone.html` (the demand and quick lookup), `sheet.html` (the print sheet), `login.html`; `card-ui.js` is the card shared by the reader and the phone page.
-- `scripts/` — local checks: smoke test, screenshots, mock servers for OpenRouter and the spine.
+- `public/` — the pages: `index.html` (articles + add form), `read.html?id=…` (the reader), `phone.html` (the demand and quick lookup), `sheet.html` (the print sheet; `?lesson=` for a lesson's guide), `lesson.html?id=…` (a lesson from Guy and its study guide), `cards.html?lesson=…` (its flashcards), `login.html`; `card-ui.js` is the card shared by the reader, the lesson page and the phone page, `guide-ui.js` the study guide shared by the lesson page and its print sheet.
+- `scripts/` — local checks: smoke test, screenshots, mock servers for OpenRouter and the spine; sample lesson PDFs in `scripts/fixtures/`, made by `make-fixtures.mjs`.
 - `docs/` — screenshots and session reports.
 
 Deploys go through the GitHub Actions workflow in `.github/workflows/deploy.yml`, never from a session.
