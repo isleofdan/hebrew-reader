@@ -91,14 +91,24 @@ textarea { min-height: 140px; font-family: var(--serif); direction: rtl; line-he
 .msg { font-size: 14px; color: var(--muted); min-height: 1.2em; }
 .msg.error { color: var(--danger); }
 .msg:empty { display: none; }
-.articles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.articles li a { display: block; padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; text-decoration: none; color: var(--text); }
-.articles li a:hover { border-color: var(--accent); }
-.articles .title { font-family: var(--serif); font-size: 20px; direction: rtl; text-align: right; }
-.articles .meta { font-size: 13px; color: var(--muted); margin-top: 4px; }
-.articles .thin { font-size: 13px; color: var(--muted); margin-top: 6px; display: flex; align-items: center; gap: 6px; }
-.articles .thin i { width: 10px; height: 10px; border-radius: 50%; background: var(--line-strong); flex-shrink: 0; }
+.articles, .lessons { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.articles li a, .lessons li a { display: block; padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; text-decoration: none; color: var(--text); }
+.articles li a:hover, .lessons li a:hover { border-color: var(--accent); }
+.articles .title, .lessons .title { font-family: var(--serif); font-size: 20px; direction: rtl; text-align: right; }
+.articles .meta, .lessons .meta { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.articles .thin, .lessons .thin { font-size: 13px; color: var(--muted); margin-top: 6px; display: flex; align-items: center; gap: 6px; }
+.articles .thin i, .lessons .thin i { width: 10px; height: 10px; border-radius: 50%; background: var(--line-strong); flex-shrink: 0; }
 .empty { font-size: 15px; color: var(--muted); }
+.add-row { display: flex; flex-direction: column; gap: 24px; }
+.add-lesson input[type=file] { font: inherit; font-size: 15px; color: var(--text); max-width: 100%; }
+.list-block { display: flex; flex-direction: column; gap: 10px; }
+.list-title { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.list-block .empty { margin: 0; }
+@media (min-width: 900px) {
+  .add-row { flex-direction: row; align-items: stretch; }
+  .add-row > .panel:first-child { flex: 3 1 0; }
+  .add-row > .add-lesson { flex: 2 1 0; }
+}
 
 /* reader */
 .reader { display: flex; min-height: calc(100vh - 57px); }

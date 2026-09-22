@@ -17,9 +17,10 @@ const spine = require('./lib/spine');
 const demand = require('./lib/demand');
 const askRefs = require('./lib/ask');
 const lesson = require('./lib/lesson');
+const guyLesson = require('./lib/guy-lesson');
 const { CATEGORIES } = require('./lib/categories');
 const ratelimit = require('./lib/ratelimit');
-const { sendJson, sendHtml, redirect, readJson, serveStatic } = require('./lib/http');
+const { sendJson, sendHtml, redirect, readJson, readFile, serveStatic } = require('./lib/http');
 
 const PORT = Number(process.env.PORT) || 8080;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -177,8 +178,22 @@ route('POST', /^\/articles$/, async (req, res) => {
   return sendJson(res, 201, { ...stored, thin: drafted.thin });
 });
 
+// --- lessons from Guy ------------------------------------------------------
+
+route('GET', /^\/lessons$/, (req, res) => sendJson(res, 200, db.listLessons()));
+
+// A PDF as multipart/form-data, field "file", at most 5 MB. Answers 201 with
+// the lesson and a note saying where its title and date came from; 200 with
+// the lesson already stored when the same items were uploaded before.
+route('POST', /^\/lessons$/, async (req, res) => {
+  const { fileName, bytes } = await readFile(req, 'file', guyLesson.MAX_BYTES + 64 * 1024);
+  const out = await guyLesson.add({ fileName, bytes });
+  const { text, ...lessonOut } = out.lesson;
+  return sendJson(res, out.created ? 201 : 200, { ...lessonOut, created: out.created, title_from: out.from || null, note: out.note });
+});
+
 function isApiPath(p) {
-  return /^\/(articles|lookup|spots|marks-for-article|categories|demand|ask|make)(\/|$)/.test(p);
+  return /^\/(articles|lookup|spots|marks-for-article|marks-for-lesson|categories|demand|ask|make|lessons)(\/|$)/.test(p);
 }
 
 async function handle(req, res) {

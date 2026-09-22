@@ -23,6 +23,7 @@
   <a href="/logout" style="font-size:13px;color:var(--muted)">Sign out</a>
 </header>
 <main class="page">
+  <div class="add-row">
   <section class="panel">
     <h2>Add an article</h2>
     <label for="url">Address of the article</label>
@@ -34,7 +35,23 @@
       <span class="msg" id="add-msg"></span>
     </div>
   </section>
-  <section>
+  <section class="panel add-lesson">
+    <h2>Add a lesson (PDF)</h2>
+    <label for="lesson-file">A lesson PDF from Guy — one word, phrase or sentence per line</label>
+    <input id="lesson-file" type="file" accept="application/pdf,.pdf">
+    <div class="row">
+      <button class="btn primary" id="add-lesson">Add lesson</button>
+      <span class="msg" id="lesson-msg"></span>
+    </div>
+  </section>
+  </div>
+  <section class="list-block">
+    <h2 class="list-title">Lessons from Guy</h2>
+    <ul class="lessons" id="lessons"></ul>
+    <p class="empty hidden" id="lessons-empty">No lessons yet. Add a PDF above.</p>
+  </section>
+  <section class="list-block">
+    <h2 class="list-title">Articles</h2>
     <ul class="articles" id="list"></ul>
     <p class="empty hidden" id="empty">No articles yet. Add one above.</p>
   </section>
