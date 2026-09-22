@@ -441,6 +441,27 @@ try {
       && !gc.irregular({ root: 'ס.ל.ם', binyan: "Hif'il" }) && gc.irregular({ root: 'ק.ב.ע', binyan: 'nifal' }) && gc.binyanKey("Pa'al (present)") === 'paal');
   }
 
+  // "try again" on a word the card could not identify (session five, step 5)
+  {
+    const c0 = (await orCalls()).calls;
+    const miss = await api('POST', `/lessons/${L1.body.id}/retry`, { surface: 'הנהלה' });
+    const c1 = (await orCalls()).calls;
+    const still = (await api('GET', `/lessons/${L1.body.id}`)).body.saved;
+    check('try again that fails again: one model call, the card\'s own error, the word still listed',
+      miss.status === 422 && /unknown word הנהלה/.test(miss.body.error) && c1 - c0 === 1 && still.failed.length === 1 && still.failed[0].surface === 'הנהלה', `${miss.status} ${miss.body.error} calls ${c1 - c0}`);
+    await control({ extra_cards: { 'הנהלה': { surface: 'הנהלה', lemma: 'הנהלה', pos: 'noun', root: 'נ.ה.ל', binyan: null, tense: null, person_gender_number: 'fs', meaning_en: 'management, the board', governs: null, categories: [], note: null } } });
+    const putsB = await putCounts();
+    const hit = await api('POST', `/lessons/${L1.body.id}/retry`, { surface: 'הנהלה' });
+    const c2 = (await orCalls()).calls;
+    const putsA = await putCounts();
+    check('try again that succeeds: one model call, saved shaky and sent to the spine like the others, out of the list',
+      hit.status === 200 && hit.body.result === 'saved' && c2 - c1 === 1 && hit.body.saved.failed.length === 0 && hit.body.saved.words === saved.words + 1
+      && (await spotRow('w:הנהלה')).status === 'shaky' && (putsA['w:הנהלה'] || 0) - (putsB['w:הנהלה'] || 0) === 1
+      && (await api('GET', `/lessons/${L1.body.id}`)).body.saved.failed.length === 0, JSON.stringify(hit.body).slice(0, 200));
+    const notListed = await api('POST', `/lessons/${L1.body.id}/retry`, { surface: 'הסלמה' });
+    check('try again on a word that is not in the list is refused, naming it', notListed.status === 404 && /הסלמה is not among/.test(notListed.body.error), notListed.body.error);
+  }
+
   // the model refusing the guide
   await api('POST', `/lessons/${L3.body.id}/guide`, {});
   const failedGuide = await until(L3.body.id, (v) => v.guide_state !== 'building');

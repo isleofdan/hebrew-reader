@@ -220,6 +220,14 @@ route('POST', /^\/lessons\/(?<id>\d+)\/guide$/, async (req, res, { id }) => {
   return sendJson(res, state === 'building' ? 202 : 200, guyLesson.view(id));
 });
 
+// { surface } -> one more lookup of a word the card could not identify; on
+// success it is saved like the lesson's other words. Answers { surface,
+// result, saved }; a second failure answers the card's own error.
+route('POST', /^\/lessons\/(?<id>\d+)\/retry$/, async (req, res, { id }) => {
+  const body = await readJson(req);
+  return sendJson(res, 200, await guyLesson.retryWord(id, body.surface));
+});
+
 // The same surface map as an article's, for the lesson page's tints.
 route('GET', /^\/marks-for-lesson\/(?<id>\d+)$/, (req, res, { id }) => {
   db.getLesson(id);

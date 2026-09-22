@@ -224,6 +224,7 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 .items li::marker { font-family: var(--sans); font-size: 13px; color: var(--muted); }
 .saved-line { margin: 0; font-size: 13px; color: var(--muted); }
 .saved-line:empty { display: none; }
+.saved-line .he { font-family: var(--serif); font-size: 16px; color: var(--text); unicode-bidi: isolate; }
 .guide { display: flex; flex-direction: column; gap: 22px; font-size: 16px; line-height: 1.55; }
 .guide section { display: flex; flex-direction: column; gap: 10px; }
 .guide h3 { margin: 0; font-size: 18px; font-weight: 700; border-bottom: 1px solid var(--line); padding-bottom: 6px; unicode-bidi: plaintext; }

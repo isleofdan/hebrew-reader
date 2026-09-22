@@ -188,15 +188,53 @@ function drawReview(box, rv) {
 // card footer's own wording.
 function drawSaved(v) {
   const line = $('#saved-line');
+  line.innerHTML = '';
   if (v.saving) { line.textContent = "Saving the lesson's words to your map…"; return; }
   const s = v.saved;
-  if (!s) { line.textContent = ''; return; }
+  if (!s) return;
   const bits = [`${s.words} word${s.words === 1 ? '' : 's'} saved`, `${s.phrases} phrase${s.phrases === 1 ? '' : 's'} kept in the guide only`];
   if (s.touched) bits.push(`${s.touched} already on your map, touched`);
-  if (s.failed.length) bits.push(`${s.failed.length} could not be looked up (${s.failed.map((f) => f.surface).join(', ')})`);
   const outcome = ['unreachable', 'not configured', 'recorded'].find((o) => s.spine[o]);
   if (outcome) bits.push(window.CardUI.spineLine(outcome));
-  line.textContent = bits.join(' · ');
+  line.append(el('span', '', bits.join(' · ')));
+  if (!s.failed.length) return;
+  // The words the card could not identify, each with one "try again": one
+  // lookup when tapped, never on its own.
+  const box = el('span', 'failed-words');
+  box.append(el('span', '', ` · ${s.failed.length} could not be identified: `));
+  s.failed.forEach((f, i) => {
+    const w = el('span', 'failed-word');
+    w.append(he('span', f.surface));
+    const b = el('button', 'linklike', 'try again');
+    b.type = 'button';
+    b.dataset.surface = f.surface;
+    b.title = f.error;
+    b.addEventListener('click', () => retry(b, f.surface));
+    w.append(document.createTextNode(' '), b);
+    box.append(w);
+    if (i < s.failed.length - 1) box.append(document.createTextNode(', '));
+  });
+  line.append(box);
+}
+
+async function retry(button, surface) {
+  button.disabled = true;
+  button.textContent = 'trying…';
+  const msg = $('#retry-msg');
+  msg.className = 'msg';
+  msg.textContent = '';
+  try {
+    const out = await api('POST', `/lessons/${LESSON_ID}/retry`, { surface });
+    lesson.saved = out.saved;
+    drawSaved(lesson);
+    msg.textContent = `${surface}: ${out.result === 'saved' ? 'identified and saved to your map' : 'identified; already on your map'}.`;
+    await loadMarks();
+  } catch (e) {
+    msg.className = 'msg error';
+    msg.textContent = `${surface}: ${e.status ? e.message : 'the server could not be reached; try again in a moment.'}`;
+    button.disabled = false;
+    button.textContent = 'try again';
+  }
 }
 
 let pollTimer = null;

@@ -45,7 +45,9 @@ let lastGuideModel = null;
 // review: what the review pass does — 'fix-root' (the default: one root
 // corrected), 'add-item' (the same, plus a vocabulary row and a card the
 // checked guide did not have), 'decline', or 'unchanged'.
-const control = { unknown_models: [], guide_faults: [], review: 'fix-root' };
+// extra_cards: surface -> card, answered from now on (a word the mock did
+// not know, known on the second try).
+const control = { unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {} };
 let reviews = 0;
 let lastGuideNote = null;
 
@@ -174,7 +176,7 @@ http.createServer((req, res) => {
         : mockGuide(items, date, guides, control.guide_faults.shift());
     } else {
       const surface = /Surface: (\S+)/.exec(user)[1];
-      answer = known[surface] || { error: `unknown word ${surface} in this mock` };
+      answer = known[surface] || control.extra_cards[surface] || { error: `unknown word ${surface} in this mock` };
     }
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ id: 'mock', model: body.model, choices: [{ message: { role: 'assistant', content: JSON.stringify(answer) } }] }));
