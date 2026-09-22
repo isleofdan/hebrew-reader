@@ -13,6 +13,7 @@ const auth = require('./lib/auth');
 const db = require('./lib/db');
 const articles = require('./lib/articles');
 const lookup = require('./lib/lookup');
+const spine = require('./lib/spine');
 const { CATEGORIES } = require('./lib/categories');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, serveStatic } = require('./lib/http');
@@ -110,7 +111,8 @@ route('POST', /^\/spots\/(?<id>.+)$/, async (req, res, { id }) => {
   const body = await readJson(req);
   const spot = db.setSpotStatus(decodeURIComponent(id), body.status);
   console.log(`spot ${spot.id}: ${spot.status}`);
-  return sendJson(res, 200, { spot });
+  const recorded = await spine.recordMark(spot, { lastArticleTitle: db.lastArticleTitle(spot.id) });
+  return sendJson(res, 200, { spot, spine: recorded });
 });
 
 // --- articles ---------------------------------------------------------------
