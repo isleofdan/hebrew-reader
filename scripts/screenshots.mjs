@@ -369,6 +369,17 @@ try {
       check(`${name} ${scheme}: a saved lesson word is tinted amber, and the page fits`, await page.locator('#items .w.shaky', { hasText: 'הסלמה' }).count() > 0 && await fits());
       check(`${name} ${scheme}: text on the lesson page is legible`, contrast(await paint(page.locator('#items li').first(), 'color'), await ground()) >= 7);
       await page.screenshot({ path: join(out, `lesson-${scheme}-${name}.png`), fullPage: true });
+      // session five: the review under the guide, opened
+      const review = page.locator('.guide details.review');
+      await review.locator('summary').click();
+      await review.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await page.waitForTimeout(200);
+      const reviewText = await review.innerText();
+      check(`${name} ${scheme}: "Reviewed: 1 correction" opens to the correction, legible, and the page fits`,
+        /^Reviewed: 1 correction\b/.test(reviewText) && /ס\.ל\.ם/.test(reviewText) && await review.evaluate((el) => el.open)
+        && contrast(await paint(review.locator('li').first(), 'color'), await ground()) >= 7 && await fits(), reviewText.replace(/\s+/g, ' ').slice(0, 120));
+      await page.screenshot({ path: join(out, `lesson-review-${scheme}-${name}.png`) });
+
       if (scheme === 'light') {
         const w = page.locator('#items .w', { hasText: 'נחתם' }).first();
         await w.evaluate((el) => el.scrollIntoView({ block: 'start' }));
@@ -379,6 +390,40 @@ try {
         await page.screenshot({ path: join(out, `lesson-card-${name}.png`) });
       }
 
+      // the reader: a pasted article with the lesson's words in prefixed forms
+      const PREFIXED_TITLE = 'בדיקה של מילים מהשיעור';
+      const PREFIXED_TEXT = `${PREFIXED_TITLE}\nהחשש מפני ההסלמה גבר השבוע. הדובר אמר שהממשלה פועלת כדי למנוע את ההסלמה ולהחזיר את השקט, והזכיר את ההסכם שנחתם בשנה שעברה ביו״ש.`;
+      const listed = (await (await ctx.request.get(`${base}/articles`)).json()).items;
+      const probe = listed.find((a) => a.title === PREFIXED_TITLE) || await (await ctx.request.post(`${base}/articles`, { data: { text: PREFIXED_TEXT } })).json();
+      await page.goto(`${base}/read.html?id=${probe.id}`);
+      await page.waitForSelector('.body .w.shaky');
+      await page.waitForTimeout(300);
+      const tinted = await page.locator('.w.shaky').evaluateAll((ws) => ws.map((w) => w.dataset.surface));
+      check(`${name} ${scheme}: lesson words tint in prefixed forms — ההסלמה, שנחתם, ביו״ש amber`,
+        ['ההסלמה', 'שנחתם', 'ביו״ש'].every((w) => tinted.includes(w)) && !tinted.includes('השבוע') && await fits(), tinted.join(' '));
+      await page.screenshot({ path: join(out, `reader-prefixed-${scheme}-${name}.png`) });
+
+      // Delete, and its one confirm
+      await page.click('#delete');
+      const bar = page.locator('#delete-bar');
+      await bar.waitFor({ state: 'visible' });
+      const yes = bar.locator('[data-act=delete]');
+      check(`${name} ${scheme}: Delete asks once, in the page — "Delete this article? Saved words stay." — legibly`,
+        (await bar.locator('.confirm-text').innerText()) === 'Delete this article? Saved words stay.' && contrast(await paint(yes, 'color'), await paint(yes, 'backgroundColor')) >= 4.5
+        && contrast(await paint(bar.locator('.confirm-text'), 'color'), await ground()) >= 7 && await fits());
+      await page.screenshot({ path: join(out, `reader-delete-confirm-${scheme}-${name}.png`) });
+      await bar.locator('[data-act=keep]').click();
+      check(`${name} ${scheme}: Keep closes the confirm and deletes nothing`, await bar.isHidden() && (await ctx.request.get(`${base}/articles/${probe.id}`)).status() === 200);
+      if (scheme === 'dark' && name === 'phone') {
+        await page.click('#delete');
+        await yes.click();
+        await page.waitForURL(`${base}/`);
+        const marks = await (await ctx.request.get(`${base}/marks-for-lesson/${lessonId}`)).json();
+        check(`${name}: Delete then Delete removes the article, back on the list; the lesson's words stay amber`,
+          (await ctx.request.get(`${base}/articles/${probe.id}`)).status() === 404 && marks.surfaces['הסלמה']?.status === 'shaky');
+      } else {
+        await ctx.request.delete(`${base}/articles/${probe.id}`); // the next run finds the list as it was
+      }
       await page.goto(`${base}/cards.html?lesson=${lessonId}`);
       await page.waitForSelector('#flash:not(.hidden)');
       await page.waitForTimeout(400);

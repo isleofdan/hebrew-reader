@@ -269,7 +269,7 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 .guide .vocab .flags { font-size: 13px; color: var(--muted); margin-top: 2px; }
 .guide details.review { border-top: 1px solid var(--line); padding-top: 8px; }
 .guide details.review summary { font-size: 14px; font-weight: 600; }
-.guide .review-changes { margin-top: 6px; font-size: 14px; }
+.guide .review-changes { margin-top: 6px; font-size: 14px; list-style-position: inside; padding-inline-start: 0; }
 .guide .review-changes li { unicode-bidi: plaintext; }
 .guide .guys-lines { margin: 0; display: flex; flex-direction: column; gap: 2px; }
 .guide .guys-lines .he { text-align: right; font-size: 16px; }

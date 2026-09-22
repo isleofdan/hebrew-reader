@@ -154,7 +154,7 @@ http.createServer((req, res) => {
       if (control.review === 'fix-root' || control.review === 'add-item') {
         const row = guide.sections.find((x) => x.kind === 'vocabulary').rows.find((r) => r.root === 'ס.ל.מ');
         row.root = 'ס.ל.ם';
-        changes.push(`${row.he}: root ס.ל.מ corrected to ס.ל.ם (final mem, the root of סולם)`);
+        changes.push(`Root of ${row.he} corrected from ס.ל.מ to ס.ל.ם (a final mem; the root of סולם, a ladder).`);
       }
       if (control.review === 'add-item') {
         const phrase = items.find((i) => /\s/.test(i));
