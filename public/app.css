@@ -97,6 +97,18 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
   .topbar nav a.phone { order: -1; }
 }
 
+/* the ask surface (reader right column; below the article on phone) */
+.ask { display: flex; flex-direction: column; gap: 8px; }
+.ask h2 label { font: inherit; color: inherit; cursor: text; }
+.ask textarea { min-height: 0; font-family: var(--sans); direction: ltr; line-height: 1.4; font-size: 15px; padding: 8px 10px; }
+.ask .btn { height: 40px; font-size: 14px; }
+.ask-answer { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; line-height: 1.5; }
+.ask-answer .answer { margin: 0; }
+.ask-answer .he { direction: rtl; unicode-bidi: isolate; font-family: var(--serif); font-size: 16px; }
+.ask-answer .links { margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.ask-answer .links .claim { color: var(--muted); }
+.ask-answer .links .term { direction: rtl; unicode-bidi: isolate; font-family: var(--serif); font-size: 15px; }
+
 /* the card */
 .card { background: var(--panel); border: 1px solid var(--line-strong); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
 .card .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }

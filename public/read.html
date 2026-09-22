@@ -43,6 +43,18 @@
         <div class="foot"></div>
       </section>
     </div>
+    <section class="ask" id="ask">
+      <h2><label for="ask-q">Ask</label></h2>
+      <textarea id="ask-q" rows="2" placeholder="a root, a form, a question about this piece…"></textarea>
+      <div class="row">
+        <button class="btn" id="ask-go">Ask the references</button>
+        <span class="msg" id="ask-msg"></span>
+      </div>
+      <div class="ask-answer hidden" id="ask-answer">
+        <p class="answer" id="ask-text"></p>
+        <ul class="links" id="ask-links"></ul>
+      </div>
+    </section>
     <section>
       <h2>This piece against your map</h2>
       <div class="side-list" id="side-list"></div>
@@ -70,5 +82,6 @@
 <script src="/reader.js"></script>
 <script src="/card-ui.js"></script>
 <script src="/card.js"></script>
+<script src="/ask.js"></script>
 </body>
 </html>

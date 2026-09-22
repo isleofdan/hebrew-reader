@@ -29,6 +29,13 @@ http.createServer((req, res) => {
       answer = sentence.includes('בשנים האחרונות')
         ? { translation_en: 'The company, which … in recent years to deal with a falling market share.' }
         : { error: 'this mock translates only the sample sentence' };
+    } else if (user.startsWith('Question: ')) {
+      // the ask surface: a fixed answer naming two references; with an article
+      // context it lists the Nif'al forms the context carries
+      const nifal = [...user.matchAll(/^- (\S+): root \S+, nifal/gm)].map((m) => m[1]);
+      answer = /nif.?al/i.test(user) && user.includes('map (surface')
+        ? { answer: nifal.length ? `The Nif'al forms on your map in this piece: ${nifal.join(', ')}.` : 'No Nif\'al form of this piece is on your map yet.', links: nifal.map((w) => ({ claim: w, reference: 'pealim', term: w })) }
+        : { answer: "נאלץ is the Nif'al of א.ל.צ, 'to be forced'; it takes ל- plus an infinitive (not sure about older usage with את).", links: [{ claim: "Nif'al of א.ל.צ", reference: 'pealim', term: 'אלצ' }, { claim: 'takes ל- plus an infinitive', reference: 'wiktionary', term: 'נאלץ' }, { claim: 'older usage', reference: 'academy', term: 'נאלץ' }] };
     } else {
       const surface = /Surface: (\S+)/.exec(user)[1];
       answer = known[surface] || { error: `unknown word ${surface} in this mock` };

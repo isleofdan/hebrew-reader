@@ -15,6 +15,7 @@ const articles = require('./lib/articles');
 const lookup = require('./lib/lookup');
 const spine = require('./lib/spine');
 const demand = require('./lib/demand');
+const askRefs = require('./lib/ask');
 const { CATEGORIES } = require('./lib/categories');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, serveStatic } = require('./lib/http');
@@ -131,6 +132,11 @@ route('POST', /^\/demand\/check$/, async (req, res) => sendJson(res, 200, await 
 // { spot_id, article_id, surface } -> { surface, card, spot, spine }
 route('POST', /^\/demand\/show$/, async (req, res) => sendJson(res, 200, await demand.show(await readJson(req))));
 
+// --- the ask surface --------------------------------------------------------
+
+// { question, article_id? } -> { answer, links, references, state }
+route('POST', /^\/ask$/, async (req, res) => sendJson(res, 200, await askRefs.ask(await readJson(req))));
+
 // --- articles ---------------------------------------------------------------
 
 route('GET', /^\/articles$/, (req, res) => sendJson(res, 200, db.listArticles()));
@@ -153,7 +159,7 @@ route('POST', /^\/articles$/, async (req, res) => {
 });
 
 function isApiPath(p) {
-  return /^\/(articles|lookup|spots|marks-for-article|categories|demand)(\/|$)/.test(p);
+  return /^\/(articles|lookup|spots|marks-for-article|categories|demand|ask)(\/|$)/.test(p);
 }
 
 async function handle(req, res) {
