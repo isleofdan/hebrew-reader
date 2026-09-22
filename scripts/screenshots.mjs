@@ -3,7 +3,8 @@
 // the card and after a save, a card opened from the headline, the index with
 // a thin article, the phone page in its three states (gap open, after a right
 // Check, after Show), the ask box with and without links, and every page on
-// both grounds, light and dark.
+// both grounds, light and dark; and the lessons from Guy: the index with a
+// lesson, the lesson page with its guide, the flashcards front and back.
 //   node scripts/screenshots.mjs
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
@@ -190,7 +191,7 @@ try {
     await page.waitForTimeout(400);
     const item1 = await page.evaluate(() => window.Phone.item);
     const formLine = await page.locator('#demand-form-line').innerText();
-    check(`${name}: phone shows the sentence with its gap and the root/binyan/tense/person line`, item1 && await page.locator('#demand-sentence .gap:empty').count() === 1 && /root .+ · (Nif'al|Hitpa'el|Pa'al)/.test(formLine), formLine);
+    check(`${name}: phone shows the sentence with its gap and the root/binyan/tense/person line`, item1 && await page.locator('#demand-sentence .gap:empty').count() === 1 && /root .+ · (Pa'al|Nif'al|Pi'el|Pu'al|Hif'il|Huf'al|Hitpa'el)/.test(formLine), formLine);
     check(`${name}: phone sentence is right-to-left`, (await page.locator('#demand-sentence').evaluate((el) => getComputedStyle(el).direction)) === 'rtl');
     const fits = async () => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
     check(`${name}: phone page fits the viewport width (nothing clipped)`, await fits());
@@ -315,6 +316,75 @@ try {
     check(`${name}: the browser's own chrome is told which ground this is`, /^#/.test(chrome || ''), chrome);
     await page.goto(`${base}/read.html?id=${stored.id}`);
     await page.waitForSelector('.body .w');
+
+    // lessons from Guy: the index with a lesson, the lesson page with its
+    // guide, the flashcards front and back — light and dark
+    if (name === 'desktop') {
+      await page.goto(`${base}/`);
+      await page.setInputFiles('#lesson-file', join(here, 'fixtures', 'Daniel HEB 15jun26.pdf'));
+      await page.click('#add-lesson');
+      await page.locator('#lesson-msg', { hasText: 'Added' }).waitFor({ timeout: 10000 });
+      check(`${name}: "Add lesson" uploads the PDF and says where the title came from`, /Title and date read from the file name/.test(await page.locator('#lesson-msg').innerText()));
+    }
+    const lessonId = (await (await ctx.request.get(`${base}/lessons`)).json()).items[0].id;
+    for (const scheme of ['light', 'dark']) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.goto(`${base}/`);
+      await page.waitForSelector('.lessons li');
+      await page.waitForTimeout(400);
+      const row = await page.locator('.lessons li').first().innerText();
+      check(`${name} ${scheme}: index lists the lesson with its title and date`, row.includes('שיעור עם גיא — 15.6.2026') && row.includes('15 Jun 2026') && await fits(), row.replace(/\s+/g, ' '));
+      await page.screenshot({ path: join(out, `index-lesson-${scheme}-${name}.png`) });
+
+      await page.goto(`${base}/lesson.html?id=${lessonId}`);
+      await page.waitForSelector('.guide section', { timeout: 15000 });
+      await page.locator('#saved-line', { hasText: 'saved' }).waitFor({ timeout: 15000 });
+      await page.waitForSelector('#items .w.shaky');
+      await page.waitForTimeout(400);
+      const heads = await page.locator('.guide h3').evaluateAll((hs) => hs.map((h) => h.textContent));
+      const firstItem = page.locator('#items li').first().locator('.w');
+      const [xFirst, xLast] = [await firstItem.first().boundingBox(), await firstItem.last().boundingBox()];
+      check(`${name} ${scheme}: lesson page shows every item right-to-left, first word on the right`, await page.locator('#items li').count() === 10
+        && (await page.locator('#items').evaluate((el) => getComputedStyle(el).direction)) === 'rtl' && xFirst.x > xLast.x);
+      check(`${name} ${scheme}: the guide draws the instructions' sections`, heads.includes('תרגילי הטיה — Conjugation Drills') && heads.includes('עבודה על נייר — Thinking on Paper')
+        && heads.includes('מילים מרכזיות — Core Vocabulary') && heads.includes('שאלות הבנה — Comprehension Questions') && heads.includes('ביטויים חשובים — Key Expressions'), heads.join(' | '));
+      const savedLine = await page.locator('#saved-line').innerText();
+      check(`${name} ${scheme}: footer says what the lesson saved and the spine outcome`, /\d words? saved · 5 phrases kept in the guide only/.test(savedLine) && /recorded on the spine/.test(savedLine), savedLine);
+      check(`${name} ${scheme}: a saved lesson word is tinted amber, and the page fits`, await page.locator('#items .w.shaky', { hasText: 'הסלמה' }).count() > 0 && await fits());
+      check(`${name} ${scheme}: text on the lesson page is legible`, contrast(await paint(page.locator('#items li').first(), 'color'), await ground()) >= 7);
+      await page.screenshot({ path: join(out, `lesson-${scheme}-${name}.png`), fullPage: true });
+      if (scheme === 'light') {
+        const w = page.locator('#items .w', { hasText: 'נחתם' }).first();
+        await w.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+        if (isMobile) await w.tap(); else { await w.hover(); await page.waitForTimeout(500); }
+        const lcard = page.locator(isMobile ? '#card-phone' : '#card-desktop');
+        await lcard.locator('.meaning:not(:empty)').waitFor({ timeout: 10000 });
+        check(`${name}: a lesson word opens the reader's card`, /was signed/.test(await lcard.innerText()) && /ח\.ת\.מ/.test(await lcard.innerText()));
+        await page.screenshot({ path: join(out, `lesson-card-${name}.png`) });
+      }
+
+      await page.goto(`${base}/cards.html?lesson=${lessonId}`);
+      await page.waitForSelector('#flash:not(.hidden)');
+      await page.waitForTimeout(400);
+      const front = await page.locator('#flash .front').innerText();
+      check(`${name} ${scheme}: cards page shows the capped count, the Hebrew right-to-left, no transliteration on the front`,
+        (await page.locator('#counter').innerText()) === '1 / 10' && !/translit-/.test(front) && (await page.locator('#f-word').evaluate((el) => getComputedStyle(el).direction)) === 'rtl' && await fits(), front.replace(/\s+/g, ' '));
+      await page.screenshot({ path: join(out, `cards-front-${scheme}-${name}.png`) });
+      await page.click('#flash');
+      await page.waitForSelector('#flash .back:not(.hidden)');
+      const back = await page.locator('#flash .back').innerText();
+      check(`${name} ${scheme}: tap flips to the meaning, still no transliteration unless asked`, /meaning of/.test(back) && !/translit-/.test(back) && await fits(), back.replace(/\s+/g, ' ').slice(0, 100));
+      await page.screenshot({ path: join(out, `cards-back-${scheme}-${name}.png`) });
+      if (scheme === 'light') {
+        await page.click('#translit');
+        check(`${name}: Transliteration shows it on the back when asked`, /translit-0/.test(await page.locator('#flash .back').innerText()));
+        await page.click('#know');
+        check(`${name}: Know it only moves on`, (await page.locator('#counter').innerText()) === '2 / 10' && await page.locator('#flash .front:not(.hidden)').count() === 1);
+        await page.selectOption('#cat', 'Verbs');
+        check(`${name}: the category filter narrows the deck`, /^1 \/ [1-9]$/.test(await page.locator('#counter').innerText()) && (await page.locator('#f-cat').innerText()).toUpperCase() === 'VERBS');
+      }
+    }
+    await page.emulateMedia({ colorScheme: 'light' });
 
     // the print sheet: no chrome, Nif'al first
     await page.goto(`${base}/sheet.html?articles=5`);

@@ -280,6 +280,99 @@ try {
   bad2 = await api('GET', '/make/lesson?articles=0');
   check('lesson with a bad article count refused naming the range', bad2.status === 400 && /1 to 50/.test(bad2.body.error), bad2.body.error);
 
+  {
+  // 12. lessons from Guy (session four)
+  const req = createRequire(import.meta.url);
+  const guy = req(join(root, 'lib', 'guy-lesson.js'));
+  const fixtures = join(here, 'fixtures');
+  const upload = async (file, as) => {
+    const form = new FormData();
+    form.append('file', new Blob([readFileSync(join(fixtures, file))], { type: 'application/pdf' }), as || file);
+    const res = await fetch(`${base}/lessons`, { method: 'POST', headers: { cookie, accept: 'application/json' }, body: form });
+    return { status: res.status, body: await res.json() };
+  };
+  const guideCalls = async () => (await (await fetch(`http://127.0.0.1:${OR_PORT}/calls`)).json()).guides;
+  const putCounts = async () => (await (await fetch(`http://127.0.0.1:${SPINE_PORT}/puts`)).json()).puts;
+  const until = async (id, done) => { for (let i = 0; i < 100; i++) { const v = (await api('GET', `/lessons/${id}`)).body; if (done(v)) return v; await wait(100); } throw new Error(`lesson ${id} never settled`); };
+  const L1 = await upload('Daniel HEB 15jun26.pdf');
+  check('lesson upload "Daniel HEB 15jun26": title and date from the file name, 10 items',
+    L1.status === 201 && L1.body.title === 'שיעור עם גיא — 15.6.2026' && L1.body.lesson_date === '2026-06-15' && L1.body.title_from === 'file name pattern' && L1.body.items.length === 10, JSON.stringify(L1.body).slice(0, 200));
+  check('the sentence the PDF wrapped onto two lines is one item',
+    L1.body.items.includes('הממשלה נאלצה לדחות את ההצבעה על התקציב לשבוע הבא בגלל מחלוקת חריפה בין שותפות הקואליציה על חלוקת הכספים'), L1.body.items[8]);
+  const L2 = await upload('Daniel Hebrew 24feb26.pdf');
+  check('lesson upload "Daniel Hebrew 24feb26": 24 Feb 2026, 6 items', L2.status === 201 && L2.body.lesson_date === '2026-02-24' && L2.body.title === 'שיעור עם גיא — 24.2.2026' && L2.body.items.length === 6, JSON.stringify(L2.body).slice(0, 160));
+  const L3 = await upload('Daniel Guy 10FEB2025.pdf');
+  check('lesson upload "Daniel Guy 10FEB2025": 10 Feb 2025, 5 items', L3.status === 201 && L3.body.lesson_date === '2025-02-10' && L3.body.items.length === 5, JSON.stringify(L3.body).slice(0, 160));
+  const other = guy.nameAndDate('Daniel Guy 21oct2024.pdf'), plainName = guy.nameAndDate('my notes.pdf', '2026-09-22');
+  check('file-name patterns: "Daniel Guy 21oct2024" read; any other name keeps the file name and today',
+    other.lesson_date === '2024-10-21' && plainName.title === 'my notes' && plainName.lesson_date === '2026-09-22' && plainName.from === 'file name', JSON.stringify([other, plainName]));
+  const refused = await upload('notes two lines.pdf');
+  check('a PDF with two Hebrew lines is refused, naming the count', refused.status === 422 && /^Only 2 Hebrew items were found in notes two lines\.pdf; a lesson needs at least 5\./.test(refused.body.error), refused.body.error);
+  const notPdf = await (async () => { const f = new FormData(); f.append('file', new Blob(['hello']), 'notes.pdf'); const r2 = await fetch(`${base}/lessons`, { method: 'POST', headers: { cookie }, body: f }); return { status: r2.status, body: await r2.json() }; })();
+  check('a file that is not a PDF is refused in one line', notPdf.status === 400 && notPdf.body.error === 'notes.pdf is not a PDF.', notPdf.body.error);
+  const again = await upload('Daniel HEB 15jun26.pdf', 'copy.pdf');
+  check('the same lesson uploaded again answers the one already there', again.status === 200 && again.body.created === false && again.body.id === L1.body.id);
+  const lessons = (await api('GET', '/lessons')).body;
+  check('the index lists the lessons newest first', lessons.items.map((l) => l.lesson_date).join(',') === '2026-06-15,2026-02-24,2025-02-10', lessons.items.map((l) => l.lesson_date).join(','));
+
+  // the guide: built once on first open, cached, rebuilt whole
+  await api('POST', '/spots/' + encodeURIComponent('v:א.ל.צ:nifal'), { status: 'solid' });
+  const alzBefore = await spotRow('v:א.ל.צ:nifal');
+  const putsBefore = await putCounts();
+  const g0 = await guideCalls();
+  const first = await api('POST', `/lessons/${L1.body.id}/guide`, {});
+  check('first open starts the guide build (202, building)', first.status === 202 && first.body.guide_state === 'building', JSON.stringify(first.body).slice(0, 120));
+  const built = await until(L1.body.id, (v) => v.guide_state !== 'building' && !v.saving);
+  const kinds = built.guide.sections.map((x) => x.kind).join(',');
+  check("the guide has the instructions' sections in their order",
+    built.guide_state === 'built' && kinds === 'topics,grammar,drills,paper,vocabulary,questions,expressions', kinds);
+  check('what the model added outside the lesson is dropped and counted',
+    built.guide.dropped.cards === 1 && built.guide.dropped.vocabulary === 1 && built.guide.dropped.expressions === 1 && built.guide.cards.length === 10
+    && !built.guide.cards.some((c) => c[1] === 'מומצא'), JSON.stringify(built.guide.dropped));
+  check('each card has the eleven fields of the instructions', built.guide.cards.every((c) => c.length === 11));
+  const g1 = await guideCalls();
+  const second = await api('POST', `/lessons/${L1.body.id}/guide`, {});
+  await api('GET', `/lessons/${L1.body.id}`);
+  check('second open costs no model call: the guide is served from the lesson', g1 - g0 === 1 && second.status === 200 && second.body.guide_state === 'built' && (await guideCalls()) === g1, `guide calls ${g1 - g0} then ${(await guideCalls()) - g1}`);
+  const shaped = guy.shapeGuide({ sections: [], cards: Array.from({ length: 40 }, () => ['הסלמה', 'הסלמה', '', 'escalation', '', '', 'Nouns', 'noun', '', '', '']) }, { text: 'הסלמה', title: 't', lesson_date: null });
+  check('at most 35 cards are kept, the rest counted', shaped.cards.length === 35 && shaped.dropped.over_cap === 5);
+
+  // the words
+  const saved = built.saved;
+  check('single-word items saved, phrases kept in the guide only, the unknown word named',
+    saved && saved.words === 3 && saved.touched === 1 && saved.phrases === 5 && saved.failed.length === 1 && saved.failed[0].surface === 'הנהלה' && saved.spine.recorded === 4, JSON.stringify(saved));
+  const putsAfter = await putCounts();
+  const newPuts = Object.fromEntries(Object.entries(putsAfter).map(([k, n]) => [k, n - (putsBefore[k] || 0)]).filter(([, n]) => n));
+  check('one spine PUT per saved word and one for the touched word, none for a phrase',
+    JSON.stringify(Object.keys(newPuts).sort()) === JSON.stringify(['v:ח.ת.מ:nifal', 'v:א.ל.צ:nifal', 'w:הסלמה', 'w:יו״ש'].sort()) && Object.values(newPuts).every((n) => n === 1), JSON.stringify(newPuts));
+  const hasla = (await (await fetch(`http://127.0.0.1:${SPINE_PORT}/api/marks?app=hebrew-reader`, { headers: { authorization: 'Bearer test-spine-token' } })).json()).items.find((m) => m.item_id === 'w:הסלמה');
+  check("a saved word is shaky on the spine with the lesson's title", hasla?.status === 'shaky' && hasla.fields.last_article_title === 'שיעור עם גיא — 15.6.2026', JSON.stringify(hasla));
+  const alzAfter = await spotRow('v:א.ל.צ:nifal');
+  check('a solid word in the lesson stays solid and is touched once', alzAfter.status === 'solid' && alzAfter.touches === alzBefore.touches + 1, `${alzBefore.status}/${alzBefore.touches} -> ${alzAfter.status}/${alzAfter.touches}`);
+  const lm = await api('GET', `/marks-for-lesson/${L1.body.id}`);
+  check('the lesson page tints the saved words', lm.body.surfaces['הסלמה']?.status === 'shaky' && lm.body.surfaces['יו״ש']?.status === 'shaky');
+  const tap = await api('POST', '/lookup', { surface: 'הסלמה', sentence: 'הסלמה', lesson_id: L1.body.id });
+  check('a tap on a lesson word is served from the card the save built', tap.status === 200 && tap.body.cached === true && tap.body.spot.id === 'w:הסלמה');
+  bad2 = await api('POST', '/lookup', { surface: 'הסלמה', sentence: 'הסלמה', lesson_id: 999 });
+  check('a lookup against a lesson that is not there is refused', bad2.status === 404 && /No lesson with id 999/.test(bad2.body.error), bad2.body.error);
+
+  // rebuild replaces, never merges, and does not save the words again
+  const oldBuilt = built.guide.built_at;
+  const putsBeforeRebuild = await putCounts();
+  const rb = await api('POST', `/lessons/${L1.body.id}/guide`, { rebuild: true });
+  const rebuilt = await until(L1.body.id, (v) => v.guide_state !== 'building' && !v.saving);
+  const topics = rebuilt.guide.sections.find((x) => x.kind === 'topics').items;
+  check('rebuild replaces the guide whole', rb.status === 202 && rebuilt.guide.built_at !== oldBuilt && topics.some((t) => /build 2/.test(t)) && !topics.some((t) => /build 1/.test(t)) && rebuilt.guide.sections.length === 7, topics.join(' | '));
+  check('rebuild does not save the words again', JSON.stringify(rebuilt.saved) === JSON.stringify(saved) && JSON.stringify(await putCounts()) === JSON.stringify(putsBeforeRebuild));
+
+  // the model refusing the guide
+  await api('POST', `/lessons/${L3.body.id}/guide`, {});
+  const failedGuide = await until(L3.body.id, (v) => v.guide_state !== 'building');
+  check('the model refusing leaves the raw items and one line, nothing saved',
+    failedGuide.guide_state === 'failed' && failedGuide.guide === null && failedGuide.saved === null && failedGuide.items.length === 5
+    && /^The study guide could not be built: the model declined — /.test(failedGuide.guide_error), failedGuide.guide_error);
+  }
+
   // 6. fail closed
   const closed = start('node', ['server.js'], { PORT: '8794', DATA_DIR: dataDir, COOKIE_INSECURE: '1' });
   await up('http://127.0.0.1:8794/health');
