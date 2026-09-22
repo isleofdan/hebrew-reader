@@ -45,6 +45,8 @@ textarea { min-height: 140px; font-family: var(--serif); direction: rtl; line-he
 .articles li a:hover { border-color: var(--accent); }
 .articles .title { font-family: var(--serif); font-size: 20px; direction: rtl; text-align: right; }
 .articles .meta { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.articles .thin { font-size: 13px; color: var(--muted); margin-top: 6px; display: flex; align-items: center; gap: 6px; }
+.articles .thin i { width: 10px; height: 10px; border-radius: 50%; background: var(--line-strong); flex-shrink: 0; }
 .empty { font-size: 15px; color: var(--muted); }
 
 /* reader */

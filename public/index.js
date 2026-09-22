@@ -27,7 +27,14 @@ async function load() {
     const t = document.createElement('div'); t.className = 'title'; t.textContent = a.title;
     const m = document.createElement('div'); m.className = 'meta';
     m.textContent = `${a.source_url ? host(a.source_url) : 'pasted'} · ${new Date(a.added_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} · ${a.chars.toLocaleString()} characters`;
-    link.append(t, m); li.append(link); list.append(li);
+    link.append(t, m);
+    if (a.thin) {
+      const thin = document.createElement('div'); thin.className = 'thin';
+      const mark = document.createElement('i'); mark.setAttribute('aria-hidden', 'true');
+      thin.append(mark, document.createTextNode('thin — the page gave little text; paste the article instead'));
+      link.append(thin);
+    }
+    li.append(link); list.append(li);
   }
 }
 
