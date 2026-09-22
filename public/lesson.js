@@ -145,6 +145,7 @@ function drawGuide(guide) {
   const notes = [];
   if (left.length) notes.push(`Left out as not in the lesson: ${left.join(', ')}.`);
   if (d.over_cap) notes.push(`${d.over_cap} card${d.over_cap === 1 ? '' : 's'} over the 35-card cap left out.`);
+  if (guide.built_with === 'fallback') notes.push('Built with the fallback model.');
   notes.push(`Built ${new Date(guide.built_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}.`);
   box.append(el('p', 'caption', notes.join(' ')));
   $('#links').classList.remove('hidden');

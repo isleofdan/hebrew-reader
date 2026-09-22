@@ -365,6 +365,25 @@ try {
   check('rebuild replaces the guide whole', rb.status === 202 && rebuilt.guide.built_at !== oldBuilt && topics.some((t) => /build 2/.test(t)) && !topics.some((t) => /build 1/.test(t)) && rebuilt.guide.sections.length === 7, topics.join(' | '));
   check('rebuild does not save the words again', JSON.stringify(rebuilt.saved) === JSON.stringify(saved) && JSON.stringify(await putCounts()) === JSON.stringify(putsBeforeRebuild));
 
+  // the guide model, and the fallback when OpenRouter does not know it (session five, step 1)
+  const lookupLib = req(join(root, 'lib', 'lookup.js'));
+  const orCalls = async () => (await (await fetch(`http://127.0.0.1:${OR_PORT}/calls`)).json());
+  const control = (c) => fetch(`http://127.0.0.1:${OR_PORT}/control`, { method: 'POST', body: JSON.stringify(c) });
+  check('the guide is built by the guide model, not the card model',
+    (await orCalls()).last_guide_model === 'anthropic/claude-opus-4.6' && rebuilt.guide.model === 'anthropic/claude-opus-4.6' && rebuilt.guide.built_with === 'guide model' && lookupLib.MODEL === 'anthropic/claude-sonnet-4.6',
+    `${(await orCalls()).last_guide_model} / ${rebuilt.guide.built_with}`);
+  check("OpenRouter's two model-not-found answers are recognized, other errors are not",
+    lookupLib.modelMissing(400, 'anthropic/claude-opus-4.6 is not a valid model ID') && lookupLib.modelMissing(404, 'No endpoints found for anthropic/claude-opus-4.6.')
+    && !lookupLib.modelMissing(400, 'max_tokens is too large') && !lookupLib.modelMissing(429, 'Rate limit exceeded'));
+  await control({ unknown_models: ['anthropic/claude-opus-4.6'] });
+  await api('POST', `/lessons/${L1.body.id}/guide`, { rebuild: true });
+  const fellBack = await until(L1.body.id, (v) => v.guide_state !== 'building' && !v.saving);
+  await control({ unknown_models: [] });
+  check('a guide model OpenRouter does not know: the same build retried once with the card model, marked "fallback"',
+    fellBack.guide_state === 'built' && !fellBack.guide_error && fellBack.guide.built_with === 'fallback' && fellBack.guide.model === 'anthropic/claude-sonnet-4.6'
+    && (await orCalls()).last_guide_model === 'anthropic/claude-sonnet-4.6' && /not a valid model ID\); retrying once with anthropic\/claude-sonnet-4\.6/.test(server.log),
+    JSON.stringify({ built_with: fellBack.guide.built_with, model: fellBack.guide.model, error: fellBack.guide_error }));
+
   // the model refusing the guide
   await api('POST', `/lessons/${L3.body.id}/guide`, {});
   const failedGuide = await until(L3.body.id, (v) => v.guide_state !== 'building');

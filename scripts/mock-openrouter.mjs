@@ -36,6 +36,9 @@ const known = {
 };
 let calls = 0;
 let guides = 0;
+let lastGuideModel = null;
+// Set by a check through POST /control: model ids answered as not found.
+const control = { unknown_models: [] };
 
 const CATS = ['Nouns & Terms', 'Verbs', 'Expressions'];
 function mockGuide(items, date, n) {
@@ -63,13 +66,20 @@ function mockGuide(items, date, n) {
   };
 }
 http.createServer((req, res) => {
-  if (req.url === '/calls') { res.end(JSON.stringify({ calls, guides })); return; }
+  if (req.url === '/calls') { res.end(JSON.stringify({ calls, guides, last_guide_model: lastGuideModel })); return; }
   let raw = '';
   req.on('data', (c) => raw += c);
   req.on('end', () => {
+    if (req.url === '/control') { Object.assign(control, JSON.parse(raw || '{}')); res.end(JSON.stringify(control)); return; }
     calls++;
     if (!(req.headers.authorization || '').startsWith('Bearer ')) { res.writeHead(401, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: { message: 'No auth credentials found' } })); return; }
     const body = JSON.parse(raw);
+    if (control.unknown_models.includes(body.model)) {
+      // OpenRouter's own answer to a model id it does not list
+      res.writeHead(400, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: { message: `${body.model} is not a valid model ID`, code: 400 } }));
+      return;
+    }
     const user = body.messages.find((m) => m.role === 'user').content;
     let answer;
     if (user.startsWith('Sentence: ')) {
@@ -110,6 +120,7 @@ http.createServer((req, res) => {
         : { answer: "נאלץ is the Nif'al of א.ל.צ, 'to be forced'; it takes ל- plus an infinitive (not sure about older usage with את).", links: [{ claim: "Nif'al of א.ל.צ", reference: 'pealim', term: 'אלצ' }, { claim: 'takes ל- plus an infinitive', reference: 'wiktionary', term: 'נאלץ' }, { claim: 'older usage', reference: 'academy', term: 'נאלץ' }] };
     } else if (user.startsWith('Lesson: ')) {
       guides++;
+      lastGuideModel = body.model;
       const date = (/Lesson date: (\S+)/.exec(user) || [])[1] || 'unknown';
       const items = user.split('one per line:\n')[1].split('\n').filter(Boolean);
       answer = items.some((i) => i.includes('סירוב'))
