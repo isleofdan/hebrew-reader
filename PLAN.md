@@ -233,3 +233,38 @@ from 40).
 - Whether Dan's phone browser stops forcing its own dark colors now that the
   app declares both grounds: expected, not proven, until he looks.
 - The scheduled article hunt: a later session.
+
+## Lessons from Guy — session hebrew-reader-four
+
+### The instructions, and how they reach the model
+
+Dan's שיעורי גיא project instructions were filed on the spine card as one
+note, `# GUY LESSON INSTRUCTIONS — 22 Sep 2026`, holding five files. The note
+is committed unchanged at `docs/guy-lessons/`. `lib/guy-lesson-prompt.js`
+reads every note in that folder at start, splits it on its
+`=== FILE: <name> ===` lines, and quotes every file in full in the system
+message; then one closing block, "How these instructions apply in this app",
+asks for a JSON answer instead of two files and forbids items that are not in
+the lesson. `.dockerignore` now leaves out only `docs/screenshots` and
+`docs/reports`, so the instructions ship in the image.
+
+### Instruction → JSON field
+
+| Instruction (file) | JSON field | Rendered as |
+|---|---|---|
+| Study Guide Format: `# שיעור עם גיא — [Date]` (Hebrew_Lesson_Tools) | `title`, `date` | lesson page header |
+| `## Lesson Topics` | `sections[kind=topics].items` | "Lesson topics" |
+| `## [Grammar Topic N]` + "non-technical explanation suitable for sharing with Guy" | `sections[kind=grammar]`: `topic`, `explanation`, `examples[{he,en}]`, `for_guy` | one section per topic, Guy's order |
+| `## תרגילי הטיה` + Conjugation Drill Format + Register §1 (1-2 verbs, Nif'al and deviations first, compare Pa'al) | `sections[kind=drills].verbs[]`: `verb`, `root`, `binyan`, `why`, `table[{tense, forms[{person, he}]}]`, `deviations`, `paal_comparison`, `exercises[{sentence, cue, answer}]` | tables and blank-filling exercises, answers behind a tap |
+| Thinking on Paper: section between Core Vocabulary and the Drills, 1-2 prompts, seven types, name the Register categories | `sections[kind=paper].prompts[]`: `type`, `anchor`, `prompt`, `categories` | "עבודה על נייר — Thinking on Paper", placed after the drills and before the vocabulary |
+| `## מילים מרכזיות` table: Hebrew, English, Root, Binyan, Category | `sections[kind=vocabulary].rows[]` | a table |
+| `## שאלות הבנה` (in Hebrew) | `sections[kind=questions].items` | a numbered list, right-to-left |
+| `## ביטויים חשובים` with usage notes and difficulty flags | `sections[kind=expressions].items[]`: `he`, `en`, `usage`, `flags` | a list |
+| Data Format: array-of-arrays, 11 fields in order | `cards[]`, each 11 strings | the flashcards page |
+| Notes-field flag conventions (⚠️ Prep / Confusable / Spelling / Construction / Idiom) | `cards[][10]` | the card's expandable notes |
+| Size management: 35 cards maximum | server keeps the first 35 | "N cards" |
+| Flashcard features: nikud toggle, category filter, card flip, expandable notes, mobile layout, `dir="rtl"`, per-category accent | cards page | as named; accents reuse the palette's four existing line colors |
+
+The server keeps a card, a vocabulary row or an expression only when its
+Hebrew (nikud stripped) is found in the lesson's own text, so an item the
+model added is dropped and the page says how many were.

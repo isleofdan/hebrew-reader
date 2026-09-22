@@ -2,7 +2,8 @@ node_modules
 data
 .git
 .github
-docs
+docs/screenshots
+docs/reports
 scripts
 *.db
 *.db-wal
