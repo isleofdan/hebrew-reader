@@ -281,6 +281,21 @@ function drawGuide(guide) {
   cards.classList.toggle('hidden', !n);
 }
 
+// The footer: what the lesson put on the map, and the spine outcome in the
+// card footer's own wording.
+function drawSaved(v) {
+  const line = $('#saved-line');
+  if (v.saving) { line.textContent = "Saving the lesson's words to your map…"; return; }
+  const s = v.saved;
+  if (!s) { line.textContent = ''; return; }
+  const bits = [`${s.words} word${s.words === 1 ? '' : 's'} saved`, `${s.phrases} phrase${s.phrases === 1 ? '' : 's'} kept in the guide only`];
+  if (s.touched) bits.push(`${s.touched} already on your map, touched`);
+  if (s.failed.length) bits.push(`${s.failed.length} could not be looked up (${s.failed.map((f) => f.surface).join(', ')})`);
+  const outcome = ['unreachable', 'not configured', 'recorded'].find((o) => s.spine[o]);
+  if (outcome) bits.push(window.CardUI.spineLine(outcome));
+  line.textContent = bits.join(' · ');
+}
+
 let pollTimer = null;
 
 // Draws whatever state the guide is in, and asks again while it is building.
@@ -310,13 +325,15 @@ function showGuideState(v) {
     msg.textContent = '';
     rebuild.textContent = 'Rebuild guide';
   }
+  drawSaved(v);
+  if (v.saving && v.guide_state !== 'building') pollTimer = setTimeout(refresh, POLL_MS);
 }
 
 async function refresh() {
   try {
     const v = await api('GET', `/lessons/${LESSON_ID}`);
     showGuideState(v);
-    if (v.guide_state !== 'building') await loadMarks();
+    if (v.guide_state !== 'building' && !v.saving) await loadMarks();
   } catch (e) {
     $('#guide-msg').className = 'msg error';
     $('#guide-msg').textContent = e.message;

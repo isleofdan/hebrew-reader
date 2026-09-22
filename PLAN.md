@@ -268,3 +268,25 @@ the lesson. `.dockerignore` now leaves out only `docs/screenshots` and
 The server keeps a card, a vocabulary row or an expression only when its
 Hebrew (nikud stripped) is found in the lesson's own text, so an item the
 model added is dropped and the page says how many were.
+
+### The word rule, and what a lesson puts on the map
+
+An item that is exactly one token after the shared tokenizer
+(`public/tokenize.js`) is a **word**; anything else is a **phrase** and stays
+in the guide and the cards only. After the first guide that builds, each word
+goes through the reader's own card path (`lookup.lookup`, same cache, same
+spot id), its sentence being the item itself — which is how the lesson page
+cuts it, so a later tap is a cache hit. Then:
+
+- a spot not yet on the map (absent, or `new`, met but never marked) is saved
+  `shaky` and sent to the spine with one `PUT`; `fields.last_article_title`
+  is the lesson's title (`db.lastArticleTitle` now reads the latest touch of
+  an article or a lesson);
+- a `shaky` or `solid` spot is touched (one more touch, sent to the spine if
+  it is there) and keeps its status;
+- two items landing on the same spot count once.
+
+The result is kept on the lesson (`lessons.saved_json`: words, touched,
+phrases, failed, spine outcomes) and drawn in the lesson page's footer. When
+every word fails because the model cannot be reached, nothing is recorded, and
+the next guide build tries the words again. Touches carry `touches.lesson_id`.

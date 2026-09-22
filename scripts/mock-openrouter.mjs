@@ -25,6 +25,14 @@ const known = {
   'מקדם': { surface: 'מקדם', lemma: 'קידם', pos: 'verb', root: 'ק.ד.מ', binyan: 'piel', tense: 'present', person_gender_number: 'ms', meaning_en: 'is promoting', governs: null, categories: ['conjugation'], note: "Pi'el present of ק.ד.מ; the headline's verb." },
   'רפורמה': { surface: 'רפורמה', lemma: 'רפורמה', pos: 'noun', root: null, binyan: null, tense: null, person_gender_number: 'fs', meaning_en: 'a reform', governs: null, categories: [], note: null },
   'ייקבעו': { surface: 'ייקבעו', lemma: 'נקבע', pos: 'verb', root: 'ק.ב.ע', binyan: 'nifal', tense: 'future', person_gender_number: '3p', meaning_en: 'will be set', governs: null, categories: ['conjugation'], note: "Nif'al future with the doubled yod spelling." },
+  // single-word items of the sample lessons (scripts/fixtures); הנהלה is left unknown on purpose
+  'הסלמה': { surface: 'הסלמה', lemma: 'הסלמה', pos: 'noun', root: 'ס.ל.מ', binyan: null, tense: null, person_gender_number: 'fs', meaning_en: 'escalation', governs: null, categories: [], note: null },
+  'יו״ש': { surface: 'יו״ש', lemma: 'יו״ש', pos: 'proper-noun', root: null, binyan: null, tense: null, person_gender_number: null, meaning_en: 'Judea and Samaria (the West Bank)', governs: null, categories: [], note: 'An acronym: יהודה ושומרון.' },
+  'נחתם': { surface: 'נחתם', lemma: 'נחתם', pos: 'verb', root: 'ח.ת.מ', binyan: 'nifal', tense: 'past', person_gender_number: '3ms', meaning_en: 'was signed', governs: null, categories: ['conjugation', 'homophonous-spelling'], note: "Nif'al past of ח.ת.מ." },
+  'שביתה': { surface: 'שביתה', lemma: 'שביתה', pos: 'noun', root: 'ש.ב.ת', binyan: null, tense: null, person_gender_number: 'fs', meaning_en: 'a strike', governs: null, categories: ['homophonous-spelling'], note: null },
+  'להתבייש': { surface: 'להתבייש', lemma: 'התבייש', pos: 'verb', root: 'ב.ו.ש', binyan: 'hitpael', tense: 'infinitive', person_gender_number: null, meaning_en: 'to be ashamed', governs: 'ב-', categories: ['letter-order', 'preposition-government'], note: 'Not להתייבש (to dry out).' },
+  'להתייבש': { surface: 'להתייבש', lemma: 'התייבש', pos: 'verb', root: 'י.ב.ש', binyan: 'hitpael', tense: 'infinitive', person_gender_number: null, meaning_en: 'to dry out', governs: null, categories: ['letter-order'], note: 'Not להתבייש (to be ashamed).' },
+  'נלחם': { surface: 'נלחם', lemma: 'נלחם', pos: 'verb', root: 'ל.ח.מ', binyan: 'nifal', tense: 'past', person_gender_number: '3ms', meaning_en: 'fought', governs: 'ב-', categories: ['conjugation', 'preposition-government'], note: "Nif'al; fights ב- (in), not 'against'." },
 };
 let calls = 0;
 let guides = 0;
