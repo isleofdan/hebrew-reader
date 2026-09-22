@@ -18,12 +18,12 @@ All seven steps of the brief are built, checked against the local mocks, and pus
 
 **Designed, not yet proven live** (the sandbox reaches no outside site): OpenRouter answering the translation and ask prompts, the spine taking the touch PUTs, the deploy. The live proof is the Actions run after Dan's "push to main" and Dan's look, recorded below.
 
-## The deploy and Dan's look
+## The deploy and Dan's look (done, 22 Sep 2026)
 
-_Pending at the time of writing. This section is updated when the push to main and Dan's checks are done._
-
-- GitHub Actions deploy run after "push to main": pending.
-- Dan's look: (1) open https://hebrew-reader-dan.fly.dev/phone on the phone and try one Check; (2) open an article on the desktop and open one card, then check that `list_marks app=hebrew-reader` shows that spot's touch count rose: pending.
+- **Deploy.** Dan said "push to main"; `main` was fast-forwarded to the branch (same history, no merge commit). GitHub Actions run 4 went green in 71 seconds, every step including "Check the live site answers". Session two is live at https://hebrew-reader-dan.fly.dev.
+- **Phone page, first open.** With no verb on Dan's map yet, `/phone` said "No verb on your map is shaky or new yet; open a few verb cards in the reader first." — the no-data state, nothing invented. Dan's phone browser forces a dark theme on the page (the app ships none); readable, but not the designed look.
+- **Desktop card → spine.** Dan opened the card on שיקום in the reader; the footer said "recorded on the spine". `list_marks app=hebrew-reader` then showed שיקום at 3 touches with `last_seen_at` a minute earlier (it had 1 touch when session one closed). A second word Dan had saved while reading, עצרת, was on the spine too. **Touches reach the spine live.**
+- **Phone Check.** After Dan opened verb cards (roots נ.צ.ל, פ.ח.ת, ח.ו.ל), `/phone` gave a sentence for ח.ו.ל, Hitpa'el, past, 3mp, with the blank and the form line. Dan typed חתחלו and Check said "not that — try again or Show"; Show revealed שהתחוללו with its card. The matcher was right (התחוללו or שהתחוללו would have passed; the ש- proclitic rule applies) and the miss was real. The page also chose the least recently touched verb first (נ.צ.ל before פ.ח.ת), as designed.
 
 ## What the brief got wrong (carry into the next brief)
 
@@ -46,7 +46,8 @@ _Pending at the time of writing. This section is updated when the push to main a
 - Touches to the spine only for spots already on the spine (from the Personal Shipyard chat, 22 Sep 2026; carried into the brief).
 - Prefixed forms stay separate surfaces in the reader; the demand accepts the form minus a proclitic when typed (the brief's list).
 - The card prompt is untouched; Dan judges card quality over a few days.
-- "Push to main": pending Dan's word.
+- "Push to main" (22 Sep 2026, in the session). Main deployed; run 4 green.
+- Dan's live look: phone no-data state, desktop card → spine touch count, phone Check and Show — all as designed.
 
 ## What the next brief needs to contain
 
@@ -62,6 +63,7 @@ _Pending at the time of writing. This section is updated when the push to main a
 2. **The demand's "no data" when every verb is solid.** Once Dan marks his verbs solid, the phone page says so and offers nothing. Should solid verbs come back after a long gap? Recommended: no; solid means solid, and the brief rules out due dates. The reader adds new shaky verbs as he reads.
 3. **Translation quality.** The demand's English line is the model's; a wrong one misleads more than none. Should the page show it at all until Dan has seen a few? Recommended: show it; Dan reports a bad one and the next session either tightens the prompt in `lib/demand.js` or adds a "hide translations" toggle.
 4. **Lesson sheet window.** Fixed at the five most recent articles from the buttons. Recommended: leave the buttons at 5; the URL takes `?articles=N` for any other window.
+5. **Dark theme on the phone.** Dan's phone browser forces dark colors on the page; the app has no dark theme, so the tints (amber, blue, green) lose meaning there. Recommended: a later session adds a proper dark theme (a `prefers-color-scheme: dark` block in `app.css` with the same tints on a dark ground) rather than fighting the browser; small, self-contained, no data change.
 
 ## Screenshots
 
