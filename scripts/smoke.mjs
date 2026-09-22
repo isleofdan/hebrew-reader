@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
+import { createRequire } from 'node:module';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
@@ -17,6 +18,18 @@ const tok = (await import('../public/tokenize.js')).default;
 const PORT = 8790, OR_PORT = 8791, SPINE_PORT = 8792, PAGE_PORT = 8793;
 const PASS = 'open-sesame';
 const dataDir = mkdtempSync(join(tmpdir(), 'hr-smoke-'));
+
+// A database in session one's shape (no spots.on_spine), with one shaky and
+// one new spot already in it, so the migration on start can be checked.
+{
+  const Database = createRequire(import.meta.url)(join(root, 'node_modules', 'better-sqlite3'));
+  const old = new Database(join(dataDir, 'reader.db'));
+  old.exec(`CREATE TABLE spots (id TEXT PRIMARY KEY, kind TEXT NOT NULL, root TEXT, binyan TEXT, lemma TEXT,
+              status TEXT NOT NULL CHECK (status IN ('new','shaky','solid')), categories_json TEXT NOT NULL DEFAULT '[]', updated_at TEXT NOT NULL);
+            INSERT INTO spots VALUES ('v:ק.ב.ע:nifal', 'verb', 'ק.ב.ע', 'nifal', 'נקבע', 'shaky', '["conjugation"]', '2026-09-22T00:00:00.000Z');
+            INSERT INTO spots VALUES ('w:ישן', 'word', null, null, 'ישן', 'new', '[]', '2026-09-22T00:00:00.000Z');`);
+  old.close();
+}
 const kids = [];
 function start(cmd, args, env = {}) {
   const k = spawn(cmd, args, { cwd: root, env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -130,6 +143,76 @@ try {
   const mark = onSpine.items.find((m) => m.item_id === 'v:א.ל.צ:nifal');
   check('spine holds the mark with status solid and the fields', mark?.status === 'solid' && mark.fields.root === 'א.ל.צ' && mark.fields.binyan === 'nifal' && mark.fields.last_article_title === sampleTitle && mark.fields.touches === 2, JSON.stringify(mark));
   check('server log proves the cache hit and the spine record', /cache hit for "נאלצה"/.test(server.log) && /spine: recorded v:א\.ל\.צ:nifal as shaky/.test(server.log));
+
+  // 7. touches to the spine (step 1 of session two)
+  const spotRow = async (id) => (await api('GET', '/spots/' + encodeURIComponent(id))).body;
+  check('migration on start added on_spine and set it for the old shaky spot, not the old new one',
+    /added spots\.on_spine/.test(server.log) && (await spotRow('v:ק.ב.ע:nifal')).on_spine === true && (await spotRow('w:ישן')).on_spine === false);
+  check('a spot the spine recorded has on_spine; a spot never sent does not', (await spotRow('v:א.ל.צ:nifal')).on_spine === true && (await spotRow('w:אמינות')).on_spine === false);
+  const puts = async () => (await (await fetch(`http://127.0.0.1:${SPINE_PORT}/puts`)).json()).puts;
+  const p0 = await puts();
+  const touch1 = await api('POST', '/lookup', { surface: 'נאלצה', sentence, article_id: stored.id });
+  const p1 = await puts();
+  const markAfter = (await (await fetch(`http://127.0.0.1:${SPINE_PORT}/api/marks?app=hebrew-reader`, { headers: { authorization: 'Bearer test-spine-token' } })).json()).items.find((m) => m.item_id === 'v:א.ל.צ:nifal');
+  check('card opened on a marked spot: exactly one PUT, touches up by one, last_seen_at set, status unchanged, answer says recorded',
+    p1['v:א.ל.צ:nifal'] - p0['v:א.ל.צ:nifal'] === 1 && markAfter.fields.touches === 3 && touch1.body.spot.touches === 3 && markAfter.status === 'solid'
+    && typeof markAfter.last_seen_at === 'string' && markAfter.last_seen_at > mark.last_seen_at && touch1.body.spine === 'recorded',
+    `puts ${JSON.stringify(p1)}, touches ${markAfter.fields.touches}`);
+  await api('POST', '/lookup', { surface: 'באמינות', sentence, article_id: stored.id });
+  const p2 = await puts();
+  check('card opened on an unmarked spot: no PUT', !p2['w:אמינות'] && Object.values(p2).reduce((a, b) => a + b, 0) === Object.values(p1).reduce((a, b) => a + b, 0), JSON.stringify(p2));
+  check('server log names the touch on the spine', /spine: recorded touch 3 on v:א\.ל\.צ:nifal/.test(server.log));
+
+  // 8. thin flag on the index (step 2)
+  const thinArticle = await api('POST', '/articles', { text: 'כותרת קצרה\nטקסט קצר מאוד.' });
+  const list = (await api('GET', '/articles')).body.items;
+  check('index lists the short article as thin and the others not', list.find((x) => x.id === thinArticle.body.id)?.thin === true && list.filter((x) => x.id !== thinArticle.body.id).every((x) => x.thin === false), JSON.stringify(list.map((x) => [x.id, x.chars, x.thin])));
+  await api('DELETE', `/articles/${thinArticle.body.id}`);
+
+  // 9. the demand (step 3)
+  //    at this point: v:א.ל.צ:nifal solid (excluded), v:ק.ב.ע:nifal shaky with no touch, no other verb
+  let d = await api('GET', '/demand');
+  check('demand with no verb sentence on record: state "no data" in one sentence', d.body.state === 'no data' && /sentence on record/.test(d.body.reason), d.body.reason);
+  const sentOf = (w) => tok.sentenceAt(stored.text, stored.text.indexOf(w));
+  await api('POST', '/lookup', { surface: 'להתמודד', sentence: sentOf('להתמודד'), article_id: stored.id });   // v:מ.ד.ד:hitpael, new, touched first
+  await api('POST', '/lookup', { surface: 'ייקבעו', sentence: sentOf('ייקבעו'), article_id: stored.id });      // v:ק.ב.ע:nifal, shaky, touched later
+  d = await api('GET', '/demand');
+  check('demand chooses the shaky verb before the new one, though the new one was touched earlier', d.body.state === 'ok' && d.body.spot_id === 'v:ק.ב.ע:nifal' && d.body.surface === 'ייקבעו', JSON.stringify(d.body).slice(0, 200));
+  check('demand item: sentence with the gap, root, binyan, tense, person, meaning, article title', d.body.sentence.includes('…') && !d.body.sentence.includes('ייקבעו') && d.body.root === 'ק.ב.ע' && d.body.binyan === 'nifal' && d.body.tense === 'future' && d.body.person_gender_number === '3p' && d.body.meaning_en && d.body.article_title === sampleTitle && d.body.article_id === stored.id);
+  check('demand: translation the model refuses -> null, the Hebrew stands alone', d.body.translation_en === null);
+  check('demand lists the other mapped words of the piece (shaky and new), not the gap word', d.body.also.some((w) => w.surface === 'להתמודד') && d.body.also.some((w) => w.surface === 'באמינות') && !d.body.also.some((w) => w.surface === 'ייקבעו'), JSON.stringify(d.body.also.map((w) => w.surface)));
+  await api('POST', '/spots/' + encodeURIComponent('v:א.ל.צ:nifal'), { status: 'shaky' });
+  await api('POST', '/lookup', { surface: 'שנאלצה', sentence: sentOf('שנאלצה'), article_id: stored.id });      // v:א.ל.צ:nifal, shaky, touched now
+  await api('POST', '/lookup', { surface: 'ייקבעו', sentence: sentOf('ייקבעו'), article_id: stored.id });      // ק.ב.ע touched again: א.ל.צ is now the least recent shaky
+  const c3 = await calls();
+  d = await api('GET', '/demand');
+  check('demand chooses the least recently touched shaky verb', d.body.spot_id === 'v:א.ל.צ:nifal' && d.body.surface === 'שנאלצה', JSON.stringify(d.body).slice(0, 160));
+  check('demand: translation from one model call, with the gap kept', d.body.translation_en?.includes('…') && (await calls()) - c3 === 1, d.body.translation_en);
+  const d1 = d.body;
+  d = await api('GET', '/demand');
+  check('the same item again is served from the translation cache (no model call)', (await calls()) - c3 === 1);
+  d = await api('GET', `/demand?after=${encodeURIComponent('v:א.ל.צ:nifal')}`);
+  check('demand ?after skips that spot and gives the next', d.body.spot_id === 'v:ק.ב.ע:nifal', d.body.spot_id);
+  const item = { spot_id: d1.spot_id, article_id: d1.article_id, surface: d1.surface };
+  const pc0 = (await puts())['v:א.ל.צ:nifal'];
+  let chk = await api('POST', '/demand/check', { ...item, typed: 'שנאלצה' });
+  check('check accepts the bare surface, answers the card', chk.body.ok === true && chk.body.surface === 'שנאלצה' && chk.body.card?.root === 'א.ל.צ' && chk.body.spot?.status === 'shaky');
+  chk = await api('POST', '/demand/check', { ...item, typed: ' נֶאֶלְצָה ' });
+  check('check accepts the surface minus its ש- proclitic, with nikud and spaces ignored', chk.body.ok === true);
+  chk = await api('POST', '/demand/check', { ...item, typed: 'נאלץ' });
+  check('check rejects the wrong form (ok false), nothing revealed but the card', chk.body.ok === false && chk.status === 200);
+  const shown = await api('POST', '/demand/show', item);
+  check('show reveals exactly the surface the article held', shown.body.surface === 'שנאלצה' && shown.body.card?.surface === 'שנאלצה');
+  const pc1 = (await puts())['v:א.ל.צ:nifal'];
+  check('each Check and the Show recorded a touch, each reaching the spine (four PUTs)', pc1 - pc0 === 4 && shown.body.spot.touches === chk.body.spot.touches + 1, `puts ${pc1 - pc0}`);
+  let bad2 = await api('POST', '/demand/check', item);
+  check('check without typed refused naming the field', bad2.status === 400 && /typed is required/.test(bad2.body.error), bad2.body.error);
+  bad2 = await api('POST', '/demand/check', { ...item, surface: 'אין', typed: 'x' });
+  check('check with a surface not in the article refused naming it', bad2.status === 400 && /not a word of article/.test(bad2.body.error), bad2.body.error);
+  bad2 = await api('POST', '/demand/show', { spot_id: 'v:אין:paal', article_id: stored.id, surface: 'x' });
+  check('show with an unknown spot refused', bad2.status === 404 && /No spot/.test(bad2.body.error), bad2.body.error);
+  const quick = await api('POST', '/lookup', { surface: 'להתמודד', sentence: '' });
+  check('quick lookup with an empty sentence builds the card and touches the spot', quick.status === 200 && quick.body.card.root === 'מ.ד.ד' && quick.body.spot.touches >= 2, JSON.stringify(quick.body).slice(0, 120));
 
   // 6. fail closed
   const closed = start('node', ['server.js'], { PORT: '8794', DATA_DIR: dataDir, COOKIE_INSECURE: '1' });

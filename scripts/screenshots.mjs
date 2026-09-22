@@ -1,6 +1,7 @@
 // Captures the pages at phone (412×915) and desktop (1280×800) into
-// docs/screenshots/, against the local mocks, and checks the on-screen word
-// count against the stored text.
+// docs/screenshots/, against the local mocks: login, index, the reader with
+// the card and after a save, the index with a thin article, and the phone
+// page in its three states (gap open, after a right Check, after Show).
 //   node scripts/screenshots.mjs
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
@@ -97,6 +98,58 @@ try {
     check(`${name}: still amber after reload`, await page.locator('.body .w.shaky', { hasText: target }).count() > 0);
     await page.waitForTimeout(300);
     await page.screenshot({ path: join(out, `reader-marked-${name}.png`) });
+
+    // the index with one thin article: the grey mark on that row only
+    const thin = await (await ctx.request.post(`${base}/articles`, { data: { text: 'כותרת קצרה\nטקסט קצר מאוד.' } })).json();
+    await page.goto(`${base}/`);
+    await page.waitForSelector('.articles li .thin');
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: join(out, `index-thin-${name}.png`) });
+    const thinRows = await page.locator('.articles li:has(.thin)').count();
+    const thinText = await page.locator('.articles li .thin').first().innerText();
+    check(`${name}: index marks the thin article only, with the words`, thinRows === 1 && await page.locator('.articles li').count() >= 2 && /thin — the page gave little text; paste the article instead/.test(thinText), thinText);
+    check(`${name}: index header has the phone link${isMobile ? ', shown first' : ''}`, await page.locator('.topbar nav a.phone').count() === 1
+      && (!isMobile || (await page.locator('.topbar nav a').evaluateAll((as) => as.map((a) => a.getBoundingClientRect().left)))[1] < (await page.locator('.topbar nav a').evaluateAll((as) => as.map((a) => a.getBoundingClientRect().left)))[0]));
+    await ctx.request.delete(`${base}/articles/${thin.id}`);
+
+    // the phone page: gap open -> wrong Check -> right Check -> Next -> Show
+    if (name === 'desktop') {
+      // a second and third verb so Next has somewhere to go
+      for (const w of ['להתמודד', 'ייקבעו']) {
+        const at = stored.text.indexOf(w);
+        await ctx.request.post(`${base}/lookup`, { data: { surface: w, sentence: tok.sentenceAt(stored.text, at), article_id: stored.id } });
+      }
+    }
+    await page.goto(`${base}/phone`);
+    await page.waitForSelector('#demand-sentence .gap');
+    await page.waitForTimeout(400);
+    const item1 = await page.evaluate(() => window.Phone.item);
+    const formLine = await page.locator('#demand-form-line').innerText();
+    check(`${name}: phone shows the sentence with its gap and the root/binyan/tense/person line`, item1 && await page.locator('#demand-sentence .gap:empty').count() === 1 && /root .+ · (Nif'al|Hitpa'el|Pa'al)/.test(formLine), formLine);
+    check(`${name}: phone sentence is right-to-left`, (await page.locator('#demand-sentence').evaluate((el) => getComputedStyle(el).direction)) === 'rtl');
+    const fits = async () => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
+    check(`${name}: phone page fits the viewport width (nothing clipped)`, await fits());
+    await page.screenshot({ path: join(out, `phone-gap-${name}.png`) });
+    await page.fill('#answer', 'שגוי');
+    await page.click('#check');
+    await page.locator('#answer-msg', { hasText: 'not that' }).waitFor({ timeout: 5000 });
+    check(`${name}: wrong form -> "not that — try again or Show", text kept`, (await page.locator('#answer').inputValue()) === 'שגוי' && await page.locator('#demand-sentence .gap:empty').count() === 1);
+    await page.fill('#answer', item1.surface);
+    await page.click('#check');
+    await page.locator('#card-demand:not(.idle) .meaning:not(:empty)').waitFor({ timeout: 10000 });
+    await page.waitForTimeout(300);
+    check(`${name}: right form -> green fill with the surface, the card under it`, (await page.locator('#demand-sentence .gap.right').innerText()) === item1.surface && /root/.test(await page.locator('#card-demand').innerText()));
+    check(`${name}: phone page still fits after the card opened`, await fits());
+    await page.screenshot({ path: join(out, `phone-check-${name}.png`) });
+    await page.click('#next');
+    await page.waitForFunction((prev) => window.Phone.item && window.Phone.item.spot_id !== prev, item1.spot_id, { timeout: 5000 });
+    const item2 = await page.evaluate(() => window.Phone.item);
+    check(`${name}: Next -> a different spot with its gap open`, item2.spot_id !== item1.spot_id && await page.locator('#demand-sentence .gap:empty').count() === 1, `${item1.spot_id} -> ${item2.spot_id}`);
+    await page.click('#show');
+    await page.locator('#card-demand:not(.idle) .meaning:not(:empty)').waitFor({ timeout: 10000 });
+    await page.waitForTimeout(300);
+    check(`${name}: Show -> plain fill with the surface, the card under it`, (await page.locator('#demand-sentence .gap.shown').innerText()) === item2.surface);
+    await page.screenshot({ path: join(out, `phone-show-${name}.png`) });
     await ctx.close();
   }
   await browser.close();
