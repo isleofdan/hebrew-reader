@@ -2,6 +2,13 @@
 // known surfaces and an {"error"} for anything it does not know. Counts calls
 // so a test can prove the second lookup was served from the cache.
 //   node scripts/mock-openrouter.mjs [port]
+//
+// The ask surface has four shapes a question can force, so the page can be
+// checked against each. A question containing:
+//   "no reference"  -> an answer with an empty links list
+//   "in plain text" -> plain text instead of JSON
+//   "a recipe"      -> {"error": ...}, the model declining
+//   "while it is down" -> the socket dropped, so the call is unreachable
 import http from 'node:http';
 
 const port = Number(process.argv[2]) || 8791;
@@ -10,6 +17,8 @@ const known = {
   'שנאלצה': { surface: 'שנאלצה', lemma: 'נאלץ', pos: 'verb', root: 'א.ל.צ', binyan: 'nifal', tense: 'past', person_gender_number: '3fs', meaning_en: 'which was forced to', governs: 'ל-', categories: ['conjugation', 'preposition-government'], note: "Prefix ש- on the Nif'al past of א.ל.צ." },
   'באמינות': { surface: 'באמינות', lemma: 'אמינות', pos: 'noun', root: 'א.מ.נ', binyan: null, tense: null, person_gender_number: 'fs', meaning_en: 'reliability (with ב-)', governs: null, categories: ['homophonous-spelling'], note: null },
   'להתמודד': { surface: 'להתמודד', lemma: 'התמודד', pos: 'verb', root: 'מ.ד.ד', binyan: 'hitpael', tense: 'infinitive', person_gender_number: null, meaning_en: 'to cope, to deal with', governs: 'עם', categories: ['preposition-government'], note: null },
+  'מקדם': { surface: 'מקדם', lemma: 'קידם', pos: 'verb', root: 'ק.ד.מ', binyan: 'piel', tense: 'present', person_gender_number: 'ms', meaning_en: 'is promoting', governs: null, categories: ['conjugation'], note: "Pi'el present of ק.ד.מ; the headline's verb." },
+  'רפורמה': { surface: 'רפורמה', lemma: 'רפורמה', pos: 'noun', root: null, binyan: null, tense: null, person_gender_number: 'fs', meaning_en: 'a reform', governs: null, categories: [], note: null },
   'ייקבעו': { surface: 'ייקבעו', lemma: 'נקבע', pos: 'verb', root: 'ק.ב.ע', binyan: 'nifal', tense: 'future', person_gender_number: '3p', meaning_en: 'will be set', governs: null, categories: ['conjugation'], note: "Nif'al future with the doubled yod spelling." },
 };
 let calls = 0;
@@ -32,6 +41,23 @@ http.createServer((req, res) => {
     } else if (user.startsWith('Question: ')) {
       // the ask surface: a fixed answer naming two references; with an article
       // context it lists the Nif'al forms the context carries
+      const question = user.slice('Question: '.length).split('\n')[0];
+      if (/while it is down/i.test(question)) { req.socket.destroy(); return; }
+      if (/in plain text/i.test(question)) {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ id: 'mock', model: body.model, choices: [{ message: { role: 'assistant', content: "נאלץ is the Nif'al of א.ל.צ, 'to be forced'. Nothing here needs a reference." } }] }));
+        return;
+      }
+      if (/a recipe/i.test(question)) {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ id: 'mock', model: body.model, choices: [{ message: { role: 'assistant', content: JSON.stringify({ error: 'that is not a question about Hebrew' }) } }] }));
+        return;
+      }
+      if (/no reference/i.test(question)) {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ id: 'mock', model: body.model, choices: [{ message: { role: 'assistant', content: JSON.stringify({ answer: 'No Nif\'al verb form appears among the words of this piece on your map.', links: [] }) } }] }));
+        return;
+      }
       const nifal = [...user.matchAll(/^- (\S+): root \S+, nifal/gm)].map((m) => m[1]);
       answer = /nif.?al/i.test(user) && user.includes('map (surface')
         ? { answer: nifal.length ? `The Nif'al forms on your map in this piece: ${nifal.join(', ')}.` : 'No Nif\'al form of this piece is on your map yet.', links: nifal.map((w) => ({ claim: w, reference: 'pealim', term: w })) }

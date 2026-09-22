@@ -225,6 +225,19 @@ try {
   const askedPiece = await api('POST', '/ask', { question: "Which Nif'al forms are in this piece?", article_id: stored.id });
   check("ask with an article: the piece's mapped words reach the model, so the Nif'al forms are answered from data",
     askedPiece.body.answer.includes('ייקבעו') && askedPiece.body.answer.includes('שנאלצה') && !askedPiece.body.answer.includes('להתמודד') && askedPiece.body.links.every((l) => l.url.startsWith('https://www.pealim.com/')), askedPiece.body.answer);
+  const askNone = await api('POST', '/ask', { question: "Which Nif'al forms are here, with no reference to give?", article_id: stored.id });
+  check('an answer with nothing to link is an answer, not a failure (links [], state ok)',
+    askNone.status === 200 && /No Nif'al verb form appears/.test(askNone.body.answer) && Array.isArray(askNone.body.links) && askNone.body.links.length === 0
+    && askNone.body.state === 'ok' && askNone.body.links_state === 'no data', JSON.stringify(askNone.body).slice(0, 160));
+  const askPlain = await api('POST', '/ask', { question: 'Answer this one in plain text, please.' });
+  check('a plain-text reply (not JSON) is the answer, with no links and no failure line',
+    askPlain.status === 200 && /to be forced/.test(askPlain.body.answer) && askPlain.body.links.length === 0 && askPlain.body.state === 'ok', JSON.stringify(askPlain.body).slice(0, 160));
+  const askDeclined = await api('POST', '/ask', { question: 'Give me a recipe for shakshuka.' });
+  check('the model declining is the failure line and it says declined', askDeclined.status === 422
+    && /^The references could not be asked: the model declined — /.test(askDeclined.body.error), askDeclined.body.error);
+  const askDown = await api('POST', '/ask', { question: 'Ask the desk while it is down.' });
+  check('an unreachable model is the failure line and it names unreachable', askDown.status === 502
+    && /^The references could not be asked: OpenRouter is unreachable/.test(askDown.body.error), askDown.body.error);
   bad2 = await api('POST', '/ask', { question: '' });
   check('ask without a question refused naming the field', bad2.status === 400 && /question is required/.test(bad2.body.error), bad2.body.error);
   bad2 = await api('POST', '/ask', { question: 'x', article_id: 'seven' });
