@@ -327,6 +327,22 @@ try {
       check(`${name}: "Add lesson" uploads the PDF and says where the title came from`, /Title and date read from the file name/.test(await page.locator('#lesson-msg').innerText()));
     }
     const lessonId = (await (await ctx.request.get(`${base}/lessons`)).json()).items[0].id;
+    if (name === 'desktop') {
+      // the connection drops once while the guide is building: the page says
+      // so, keeps asking, and draws the guide when it is there
+      const form = new FormData();
+      form.append('file', new Blob([readFileSync(join(here, 'fixtures', 'Daniel Hebrew 24feb26.pdf'))], { type: 'application/pdf' }), 'Daniel Hebrew 24feb26.pdf');
+      const second = await (await fetch(`${base}/lessons`, { method: 'POST', headers: { cookie: (await ctx.cookies()).map((c) => `${c.name}=${c.value}`).join('; ') }, body: form })).json();
+      let gets = 0;
+      await page.route(`**/lessons/${second.id}`, (route) => (route.request().method() === 'GET' && ++gets === 2 ? route.abort('internetdisconnected') : route.continue()));
+      await page.addInitScript(() => { window.__msgs = []; document.addEventListener('DOMContentLoaded', () => { const m = document.querySelector('#guide-msg'); if (m) new MutationObserver(() => window.__msgs.push(m.textContent)).observe(m, { childList: true, characterData: true, subtree: true }); }); });
+      await page.goto(`${base}/lesson.html?id=${second.id}`);
+      await page.waitForSelector('.guide section', { timeout: 15000 });
+      const msgs = await page.evaluate(() => window.__msgs);
+      check(`${name}: a dropped connection mid-build is said, retried, and the guide still draws`,
+        gets >= 3 && msgs.some((m) => /Lost touch with the server/.test(m)) && !msgs.some((m) => /Failed to fetch/.test(m)) && (await page.locator('#guide-msg').innerText()) === '', JSON.stringify(msgs));
+      await page.unroute(`**/lessons/${second.id}`);
+    }
     for (const scheme of ['light', 'dark']) {
       await page.emulateMedia({ colorScheme: scheme });
       await page.goto(`${base}/`);

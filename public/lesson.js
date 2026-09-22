@@ -207,21 +207,38 @@ function showGuideState(v) {
   if (v.saving && v.guide_state !== 'building') pollTimer = setTimeout(refresh, POLL_MS);
 }
 
+// Asks the server for the guide's state. A missed answer (the phone dropped
+// its connection, the server restarting) does not stop the asking: the page
+// says so and tries again. A build the server no longer knows about (it
+// restarted mid-build) is started again.
 async function refresh() {
+  let v;
   try {
-    const v = await api('GET', `/lessons/${LESSON_ID}`);
-    showGuideState(v);
-    if (v.guide_state !== 'building' && !v.saving) await loadMarks();
+    v = await api('GET', `/lessons/${LESSON_ID}`);
   } catch (e) {
-    $('#guide-msg').className = 'msg error';
-    $('#guide-msg').textContent = e.message;
+    if (e.status) { $('#guide-msg').className = 'msg error'; $('#guide-msg').textContent = e.message; return; }
+    $('#guide-msg').className = 'msg';
+    $('#guide-msg').textContent = 'Lost touch with the server for a moment; trying again…';
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(refresh, POLL_MS);
+    return;
   }
+  if (v.guide_state === 'none') { await build(false); return; }
+  showGuideState(v);
+  if (v.guide_state !== 'building' && !v.saving) await loadMarks().catch(() => {});
 }
 
 async function build(rebuild) {
   try {
     showGuideState(await api('POST', `/lessons/${LESSON_ID}/guide`, { rebuild }));
   } catch (e) {
+    if (!e.status) {
+      $('#guide-msg').className = 'msg';
+      $('#guide-msg').textContent = 'Lost touch with the server for a moment; trying again…';
+      clearTimeout(pollTimer);
+      pollTimer = setTimeout(refresh, POLL_MS);
+      return;
+    }
     $('#guide-msg').className = 'msg error';
     $('#guide-msg').textContent = e.message;
   }
