@@ -1,7 +1,9 @@
 // Captures the pages at phone (412×915) and desktop (1280×800) into
 // docs/screenshots/, against the local mocks: login, index, the reader with
-// the card and after a save, the index with a thin article, and the phone
-// page in its three states (gap open, after a right Check, after Show).
+// the card and after a save, a card opened from the headline, the index with
+// a thin article, the phone page in its three states (gap open, after a right
+// Check, after Show), the ask box with and without links, and every page on
+// both grounds, light and dark.
 //   node scripts/screenshots.mjs
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
@@ -36,13 +38,55 @@ const exe = existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium
 let failed = 0;
 const check = (name, ok, detail = '') => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`); if (!ok) failed++; };
 
+// What the browser actually painted, measured. Text against its ground is
+// WCAG contrast; one tint against another is a perceived difference
+// (CIEDE2000), because amber and blue differ by hue, not by lightness.
+const rgb = (css) => (css.match(/\d+(\.\d+)?/g) || ['0', '0', '0']).slice(0, 3).map(Number).map((c) => c / 255);
+const lin = (c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+function contrast(a, b) {
+  const L = (css) => { const [r, g, bl] = rgb(css).map(lin); return 0.2126 * r + 0.7152 * g + 0.0722 * bl; };
+  const [hi, lo] = [L(a), L(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+function lab(css) {
+  const [r, g, b] = rgb(css).map(lin);
+  const f = (t) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  const x = f((0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047);
+  const y = f(0.2126 * r + 0.7152 * g + 0.0722 * b);
+  const z = f((0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883);
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+}
+function dE2000(c1, c2) {
+  const [L1, a1, b1] = lab(c1), [L2, a2, b2] = lab(c2);
+  const rad = Math.PI / 180, deg = 180 / Math.PI;
+  const C1 = Math.hypot(a1, b1), C2 = Math.hypot(a2, b2), Cb = (C1 + C2) / 2;
+  const G = 0.5 * (1 - Math.sqrt(Math.pow(Cb, 7) / (Math.pow(Cb, 7) + Math.pow(25, 7))) || 0);
+  const a1p = (1 + G) * a1, a2p = (1 + G) * a2;
+  const C1p = Math.hypot(a1p, b1), C2p = Math.hypot(a2p, b2);
+  const h1p = (Math.atan2(b1, a1p) * deg + 360) % 360, h2p = (Math.atan2(b2, a2p) * deg + 360) % 360;
+  const dLp = L2 - L1, dCp = C2p - C1p;
+  const dhp = C1p * C2p === 0 ? 0 : ((h2p - h1p + 180) % 360) - 180;
+  const dHp = 2 * Math.sqrt(C1p * C2p) * Math.sin((dhp * rad) / 2);
+  const Lbp = (L1 + L2) / 2, Cbp = (C1p + C2p) / 2;
+  let hbp;
+  if (C1p * C2p === 0) hbp = h1p + h2p;
+  else if (Math.abs(h1p - h2p) <= 180) hbp = (h1p + h2p) / 2;
+  else hbp = h1p + h2p < 360 ? (h1p + h2p + 360) / 2 : (h1p + h2p - 360) / 2;
+  const T = 1 - 0.17 * Math.cos((hbp - 30) * rad) + 0.24 * Math.cos(2 * hbp * rad) + 0.32 * Math.cos((3 * hbp + 6) * rad) - 0.2 * Math.cos((4 * hbp - 63) * rad);
+  const Sl = 1 + (0.015 * Math.pow(Lbp - 50, 2)) / Math.sqrt(20 + Math.pow(Lbp - 50, 2));
+  const Sc = 1 + 0.045 * Cbp, Sh = 1 + 0.015 * Cbp * T;
+  const Rt = -Math.sin(2 * 30 * Math.exp(-Math.pow((hbp - 275) / 25, 2)) * rad) * 2 * Math.sqrt(Math.pow(Cbp, 7) / (Math.pow(Cbp, 7) + Math.pow(25, 7)));
+  return Math.sqrt(Math.pow(dLp / Sl, 2) + Math.pow(dCp / Sc, 2) + Math.pow(dHp / Sh, 2) + Rt * (dCp / Sc) * (dHp / Sh));
+}
+const paint = (locator, prop) => locator.evaluate((el, p) => getComputedStyle(el)[p], prop);
+
 try {
   await up(`${base}/health`);
   const browser = await chromium.launch({ executablePath: exe });
   const sample = readFileSync(join(here, 'sample-article.txt'), 'utf8');
 
   // each viewport works a different Nif'al verb so the second run does not find the first run's mark
-  for (const [name, viewport, isMobile, target, rootRe] of [['desktop', { width: 1280, height: 800 }, false, 'שנאלצה', /א\.ל\.צ/], ['phone', { width: 412, height: 915 }, true, 'ייקבעו', /ק\.ב\.ע/]]) {
+  for (const [name, viewport, isMobile, target, rootRe, headTarget] of [['desktop', { width: 1280, height: 800 }, false, 'שנאלצה', /א\.ל\.צ/, 'מקדם'], ['phone', { width: 412, height: 915 }, true, 'ייקבעו', /ק\.ב\.ע/, 'רפורמה']]) {
     const ctx = await browser.newContext({ viewport, isMobile, hasTouch: isMobile, deviceScaleFactor: isMobile ? 2 : 1, locale: 'en-GB', ignoreHTTPSErrors: true });
     const page = await ctx.newPage();
     page.on('pageerror', (e) => { console.log('page error:', e.message); failed++; });
@@ -98,6 +142,27 @@ try {
     check(`${name}: still amber after reload`, await page.locator('.body .w.shaky', { hasText: target }).count() > 0);
     await page.waitForTimeout(300);
     await page.screenshot({ path: join(out, `reader-marked-${name}.png`) });
+
+    // a word in the headline: same spans, same card, same tint, same touch
+    const headWords = await page.locator('.headline .w').count();
+    check(`${name}: every headline word is its own span`, headWords === tok.count(stored.title), `${headWords} spans, ${tok.count(stored.title)} words in the headline`);
+    const headWord = page.locator('.headline .w', { hasText: headTarget }).first();
+    if (isMobile) await headWord.tap(); else { await headWord.hover(); await page.waitForTimeout(500); }
+    await card.locator('.meaning:not(:empty)').waitFor({ timeout: 10000 });
+    const headText = await card.innerText();
+    check(`${name}: a headline word opens the same card`, headText.includes(headTarget) && /[a-z]/.test(headText), headText.replace(/\s+/g, ' ').slice(0, 120));
+    await card.locator('[data-act=shaky]').click();
+    await card.locator('.foot', { hasText: /recorded on the spine|saved/ }).waitFor({ timeout: 5000 });
+    check(`${name}: headline word tinted amber after save`, await headWord.evaluate((el) => el.classList.contains('shaky')));
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: join(out, `reader-headline-${name}.png`) });
+    await page.reload();
+    await page.waitForSelector('.headline .w.shaky');
+    check(`${name}: headline word still amber after reload`, await page.locator('.headline .w.shaky', { hasText: headTarget }).count() > 0);
+    const headSentence = await page.locator('.headline .w', { hasText: headTarget }).first().evaluate((el) => el.dataset.sentence);
+    check(`${name}: the touch from the headline carries the headline as its sentence`, headSentence === stored.title, headSentence);
+    const headMarks = await (await ctx.request.get(`${base}/marks-for-article/${stored.id}`)).json();
+    check(`${name}: the headline word is on the map, saved from the headline`, headMarks.surfaces[headTarget] && headMarks.surfaces[headTarget].status === 'shaky', JSON.stringify(headMarks.surfaces[headTarget]));
 
     // the index with one thin article: the grey mark on that row only
     const thin = await (await ctx.request.post(`${base}/articles`, { data: { text: 'כותרת קצרה\nטקסט קצר מאוד.' } })).json();
@@ -165,6 +230,83 @@ try {
     await page.locator('#ask').scrollIntoViewIfNeeded();
     await page.waitForTimeout(300);
     await page.screenshot({ path: join(out, `reader-ask-${name}.png`) });
+
+    // an answer with nothing to link, and one the model sent as plain text:
+    // both are answers, and no failure line appears under the button
+    const askThis = async (question) => {
+      await page.fill('#ask-q', question);
+      await page.click('#ask-go');
+      await page.locator('#ask-msg', { hasText: 'asking…' }).waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
+      await page.waitForTimeout(400);
+      return { shown: await page.locator('#ask-answer:not(.hidden)').count() === 1, answer: await page.locator('#ask-text').innerText().catch(() => ''), msg: await page.locator('#ask-msg').innerText().catch(() => '') };
+    };
+    const noLinks = await askThis('Which forms are here that need no reference?');
+    check(`${name}: an answer with no links draws as an answer, with no failure line`, noLinks.shown && /No Nif'al verb form appears/.test(noLinks.answer) && noLinks.msg.trim() === ''
+      && /Nothing here to look up/.test(await page.locator('#ask-links').innerText()), `${noLinks.answer.slice(0, 60)} | msg: ${noLinks.msg}`);
+    await page.locator('#ask').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: join(out, `reader-ask-no-links-${name}.png`) });
+    const plain = await askThis('Answer this one in plain text, please.');
+    check(`${name}: a plain-text reply draws as an answer too`, plain.shown && /to be forced/.test(plain.answer) && plain.msg.trim() === '', `${plain.answer.slice(0, 60)} | msg: ${plain.msg}`);
+    const down = await askThis('Ask the desk while it is down.');
+    check(`${name}: an unreachable model is the only thing that draws the failure line, and it names it`,
+      !down.shown && /could not be asked/.test(down.msg) && /unreachable/.test(down.msg), down.msg);
+
+    // light and dark: the device's own setting, then the switch
+    const ground = () => paint(page.locator('body'), 'backgroundColor');
+    const attr = () => page.evaluate(() => document.documentElement.getAttribute('data-theme'));
+    const pressed = () => page.locator('.theme button[aria-pressed=true]').innerText();
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto(`${base}/read.html?id=${stored.id}`);
+    await page.waitForSelector('.body .w');
+    const darkGround = await ground();
+    check(`${name}: a fresh page follows the device — Device is the active position, dark ground, nothing written`, (await pressed()) === 'Device' && (await attr()) === null && contrast(await paint(page.locator('body'), 'color'), darkGround) >= 7,
+      `${darkGround} / text ${(await paint(page.locator('body'), 'color'))} at ${contrast(await paint(page.locator('body'), 'color'), darkGround).toFixed(1)}:1`);
+    // the two tints, measured on the dark ground
+    await ctx.request.post(`${base}/lookup`, { data: { surface: 'באמינות', sentence: tok.sentenceAt(stored.text, stored.text.indexOf('באמינות')), article_id: stored.id } });
+    await page.reload();
+    await page.waitForSelector('.body .w.shaky');
+    await page.waitForSelector('.body .w.new');
+    for (const [where, dark] of [['dark', true], ['light', false]]) {
+      await page.emulateMedia({ colorScheme: dark ? 'dark' : 'light' });
+      await page.waitForTimeout(200);
+      const g = await ground();
+      const shaky = await paint(page.locator('.body .w.shaky').first(), 'backgroundColor');
+      const met = await paint(page.locator('.body .w.new').first(), 'backgroundColor');
+      const ink = await paint(page.locator('.body .w.shaky').first(), 'color');
+      check(`${name}: on the ${where} ground the word over each tint stays legible`, contrast(ink, shaky) >= 4.5 && contrast(ink, met) >= 4.5,
+        `shaky ${contrast(ink, shaky).toFixed(1)}:1, met ${contrast(ink, met).toFixed(1)}:1`);
+      check(`${name}: on the ${where} ground the two tints are apart from each other and from the page`, dE2000(shaky, met) >= 10 && dE2000(shaky, g) >= 10 && dE2000(met, g) >= 10,
+        `shaky/met ${dE2000(shaky, met).toFixed(1)}, shaky/ground ${dE2000(shaky, g).toFixed(1)}, met/ground ${dE2000(met, g).toFixed(1)} (dE2000)`);
+      await page.waitForTimeout(200);
+      await page.screenshot({ path: join(out, `reader-${where}-${name}.png`) });
+      await page.goto(`${base}/phone`);
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: join(out, `phone-${where}-${name}.png`) });
+      await page.goto(`${base}/read.html?id=${stored.id}`);
+      await page.waitForSelector('.body .w');
+    }
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.click('.theme button[data-theme-choice=light]');
+    const litGround = await ground();
+    check(`${name}: Light holds against a device asking for dark`, (await attr()) === 'light' && contrast('rgb(0,0,0)', litGround) >= 10, litGround);
+    await page.reload();
+    await page.waitForSelector('.body .w');
+    check(`${name}: the choice survives a reload`, (await attr()) === 'light' && (await ground()) === litGround && (await pressed()) === 'Light');
+    await page.goto(`${base}/phone`);
+    await page.waitForTimeout(400);
+    check(`${name}: and carries to the other pages`, (await attr()) === 'light' && (await ground()) === litGround);
+    await page.click('.theme button[data-theme-choice=dark]');
+    check(`${name}: Dark holds against a device asking for light`, (await attr()) === 'dark');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.waitForTimeout(200);
+    check(`${name}: Dark stays dark when the device changes its mind`, (await ground()) === darkGround, await ground());
+    await page.click('.theme button[data-theme-choice=device]');
+    await page.waitForTimeout(200);
+    check(`${name}: Device gives the page back to the device`, (await attr()) === null && (await ground()) === litGround && (await pressed()) === 'Device');
+    const chrome = await page.locator('meta[name="theme-color"]').getAttribute('content');
+    check(`${name}: the browser's own chrome is told which ground this is`, /^#/.test(chrome || ''), chrome);
+    await page.goto(`${base}/read.html?id=${stored.id}`);
+    await page.waitForSelector('.body .w');
 
     // the print sheet: no chrome, Nif'al first
     await page.goto(`${base}/sheet.html?articles=5`);
