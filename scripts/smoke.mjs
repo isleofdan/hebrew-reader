@@ -214,6 +214,23 @@ try {
   const quick = await api('POST', '/lookup', { surface: 'להתמודד', sentence: '' });
   check('quick lookup with an empty sentence builds the card and touches the spot', quick.status === 200 && quick.body.card.root === 'מ.ד.ד' && quick.body.spot.touches >= 2, JSON.stringify(quick.body).slice(0, 120));
 
+  // 9b. a headline word is a word of the piece (step 3)
+  const asRead = `${stored.title}\n${stored.text}`;
+  const headWord = 'מקדם';
+  const headSentence = tok.sentenceAt(asRead, asRead.indexOf(headWord));
+  check('the headline is its own sentence, so a headline word carries the headline', headSentence === stored.title, headSentence);
+  const cHead0 = await calls();
+  const headLook = await api('POST', '/lookup', { surface: headWord, sentence: headSentence, article_id: stored.id });
+  check('a headline word opens a card and records a touch, as a body word does',
+    headLook.status === 200 && headLook.body.card.root === 'ק.ד.מ' && headLook.body.spot.id === 'v:ק.ד.מ:piel' && headLook.body.spot.touches === 1, JSON.stringify(headLook.body.spot));
+  const headShow = await api('POST', '/demand/show', { spot_id: 'v:ק.ד.מ:piel', article_id: stored.id, surface: headWord });
+  check('the demand accepts that headline word instead of refusing it as not a word of the article',
+    headShow.status === 200 && headShow.body.surface === headWord && headShow.body.spot.touches === 2, headShow.body.error || JSON.stringify(headShow.body.spot));
+  check('the demand cut the same sentence the reader did (the headline), so the card came from the cache',
+    (await calls()) - cHead0 === 1, `${(await calls()) - cHead0} model call(s) for two touches`);
+  const askHead = await api('POST', '/ask', { question: 'Please list my map for this piece.', article_id: stored.id });
+  check("the headline's mapped words reach the ask surface too, not only the body's", /מקדם/.test(askHead.body.answer) && /שנאלצה/.test(askHead.body.answer), askHead.body.answer);
+
   // 10. the ask surface (step 6)
   const asked = await api('POST', '/ask', { question: 'What does נאלץ take?' });
   check('ask answers briefly with one link per reference the mock named, every url built from lib/references.js',

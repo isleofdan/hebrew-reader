@@ -9,6 +9,7 @@
 //   "in plain text" -> plain text instead of JSON
 //   "a recipe"      -> {"error": ...}, the model declining
 //   "while it is down" -> the socket dropped, so the call is unreachable
+//   "list my map"   -> every surface the article context carried, echoed back
 import http from 'node:http';
 
 const port = Number(process.argv[2]) || 8791;
@@ -56,6 +57,12 @@ http.createServer((req, res) => {
       if (/no reference/i.test(question)) {
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ id: 'mock', model: body.model, choices: [{ message: { role: 'assistant', content: JSON.stringify({ answer: 'No Nif\'al verb form appears among the words of this piece on your map.', links: [] }) } }] }));
+        return;
+      }
+      if (/list my map/i.test(question)) {
+        const surfaces = [...user.matchAll(/^- (\S+): /gm)].map((m) => m[1]);
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ id: 'mock', model: body.model, choices: [{ message: { role: 'assistant', content: JSON.stringify({ answer: `On your map in this piece: ${surfaces.join(', ')}.`, links: [] }) } }] }));
         return;
       }
       const nifal = [...user.matchAll(/^- (\S+): root \S+, nifal/gm)].map((m) => m[1]);

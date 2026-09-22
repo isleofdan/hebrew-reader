@@ -1,6 +1,8 @@
 'use strict';
 // The reader page: draws the article right-to-left, tints each word from the
-// map, and opens the card on hover (desktop) or tap (phone).
+// map, and opens the card on hover (desktop) or tap (phone). The headline is
+// drawn the same way as the body, so its words tint, open a card and record
+// a touch exactly as the body's do.
 
 const $ = (s) => document.querySelector(s);
 const ARTICLE_ID = Number(new URLSearchParams(location.search).get('id'));
@@ -27,22 +29,25 @@ function host(u) { try { return new URL(u).host.replace(/^www\./, ''); } catch {
 
 // --- drawing ------------------------------------------------------------------
 
-function renderParagraph(text) {
-  const p = document.createElement('p');
+// Every word of `text` as its own span inside `el`, with the sentence it
+// stands in. The headline and each paragraph go through here, so a headline
+// word carries the same markup, the same tint and the same card as a body
+// word, and its sentence is the headline.
+function fillWords(el, text) {
   let last = 0;
   for (const w of HebrewTokenize.words(text)) {
-    if (w.start > last) p.append(document.createTextNode(text.slice(last, w.start)));
+    if (w.start > last) el.append(document.createTextNode(text.slice(last, w.start)));
     const s = document.createElement('span');
     s.className = 'w';
     s.dataset.surface = w.surface;
     s.dataset.sentence = HebrewTokenize.sentenceAt(text, w.start);
     s.textContent = w.surface;
-    p.append(s);
+    el.append(s);
     spans.push(s);
     last = w.end;
   }
-  if (last < text.length) p.append(document.createTextNode(text.slice(last)));
-  return p;
+  if (last < text.length) el.append(document.createTextNode(text.slice(last)));
+  return el;
 }
 
 function draw() {
@@ -57,12 +62,14 @@ function draw() {
     const s = document.createElement('span'); s.textContent = 'pasted'; meta.append(s);
   }
   const added = document.createElement('span'); added.textContent = `· added ${when}`; meta.append(added);
-  $('#headline').textContent = article.title;
+  spans = [];
+  const headline = $('#headline');
+  headline.innerHTML = '';
+  fillWords(headline, article.title);
   const body = $('#body');
   body.innerHTML = '';
-  spans = [];
   for (const para of article.text.split(/\n+/)) {
-    if (para.trim()) body.append(renderParagraph(para));
+    if (para.trim()) body.append(fillWords(document.createElement('p'), para));
   }
   const counter = document.createElement('span');
   counter.textContent = `· ${spans.length} words`;
@@ -108,18 +115,19 @@ function open(span) {
 
 function wireWords() {
   let hoverTimer = null;
-  $('#body').addEventListener('click', (e) => {
-    const s = e.target.closest('.w');
-    if (s) open(s);
-  });
-  if (HOVER.matches) {
-    $('#body').addEventListener('mouseover', (e) => {
+  for (const el of [$('#headline'), $('#body')]) {
+    el.addEventListener('click', (e) => {
+      const s = e.target.closest('.w');
+      if (s) open(s);
+    });
+    if (!HOVER.matches) continue;
+    el.addEventListener('mouseover', (e) => {
       const s = e.target.closest('.w');
       if (!s) return;
       clearTimeout(hoverTimer);
       hoverTimer = setTimeout(() => open(s), 350);
     });
-    $('#body').addEventListener('mouseout', () => clearTimeout(hoverTimer));
+    el.addEventListener('mouseout', () => clearTimeout(hoverTimer));
   }
 }
 
