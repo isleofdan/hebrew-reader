@@ -12,6 +12,8 @@ const fs = require('node:fs');
 const auth = require('./lib/auth');
 const db = require('./lib/db');
 const articles = require('./lib/articles');
+const lookup = require('./lib/lookup');
+const { CATEGORIES } = require('./lib/categories');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, serveStatic } = require('./lib/http');
 
@@ -81,6 +83,36 @@ route('GET', /^\/marks-for-article\/(?<id>\d+)$/, (req, res, { id }) => {
   return sendJson(res, 200, { article_id: Number(id), surfaces, state: Object.keys(surfaces).length ? 'ok' : 'no data' });
 });
 
+// --- the card ---------------------------------------------------------------
+
+// { surface, sentence, article_id } -> { card, spot, cached }.
+route('POST', /^\/lookup$/, async (req, res) => {
+  const body = await readJson(req);
+  const articleId = body.article_id ? Number(body.article_id) : null;
+  if (articleId) db.getArticle(articleId);
+  const answer = await lookup.lookup({ surface: body.surface, sentence: body.sentence, article_id: articleId });
+  return sendJson(res, 200, answer);
+});
+
+route('GET', /^\/categories$/, (req, res) => sendJson(res, 200, { items: CATEGORIES, state: 'ok' }));
+
+// --- spots (the map) --------------------------------------------------------
+
+route('GET', /^\/spots$/, (req, res, g, url) => {
+  const status = url.searchParams.get('status');
+  return sendJson(res, 200, db.listSpots(status ? { status } : {}));
+});
+
+route('GET', /^\/spots\/(?<id>.+)$/, (req, res, { id }) => sendJson(res, 200, db.requireSpot(decodeURIComponent(id))));
+
+// { status } -> the spot. Status must be one of new, shaky, solid.
+route('POST', /^\/spots\/(?<id>.+)$/, async (req, res, { id }) => {
+  const body = await readJson(req);
+  const spot = db.setSpotStatus(decodeURIComponent(id), body.status);
+  console.log(`spot ${spot.id}: ${spot.status}`);
+  return sendJson(res, 200, { spot });
+});
+
 // --- articles ---------------------------------------------------------------
 
 route('GET', /^\/articles$/, (req, res) => sendJson(res, 200, db.listArticles()));
@@ -103,7 +135,7 @@ route('POST', /^\/articles$/, async (req, res) => {
 });
 
 function isApiPath(p) {
-  return /^\/(articles|lookup|spots|marks-for-article)(\/|$)/.test(p);
+  return /^\/(articles|lookup|spots|marks-for-article|categories)(\/|$)/.test(p);
 }
 
 async function handle(req, res) {
