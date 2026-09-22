@@ -290,3 +290,57 @@ The result is kept on the lesson (`lessons.saved_json`: words, touched,
 phrases, failed, spine outcomes) and drawn in the lesson page's footer. When
 every word fails because the model cannot be reached, nothing is recorded, and
 the next guide build tries the words again. Touches carry `touches.lesson_id`.
+
+## Close-out note — session hebrew-reader-four, 22 Sep 2026
+
+Lessons from Guy, on branch `claude/hebrew-satellite-brief-ot8uh7`,
+fast-forwarded onto `main` twice on Dan's word (deploy runs 9 and 10, both
+green). All six steps of the brief shipped, the print sheet included. Checks
+against the local mocks: 94 server checks (`npm run smoke`, from 69) and 132
+page checks (`npm run screenshots`, from 84).
+
+**Proven live by Dan, 22 Sep 2026:** the June 2026 PDF uploaded as 39 items
+with title and date from the file name, the items read correctly; the guide
+built with every section of the instructions and 33 cards (one invented card
+dropped); 10 words saved, 27 phrases kept, 2 not identified (עדה, עדתי),
+recorded on the spine; six of the lesson's words amber in a pasted article.
+
+**The title-and-date patterns.** `Daniel (HEB|Hebrew|Guy) <d><mon><yy|yyyy>`,
+case-insensitive (`Daniel HEB 15jun26`, `Daniel Hebrew 24feb26`,
+`Daniel Guy 10FEB2025`, `Daniel Guy 21oct2024`). Title `שיעור עם גיא — 15.6.2026`:
+the date is written the Hebrew way because an English month name inside a
+right-to-left line is reordered into "Jun 2026 15". Any other name: title =
+file name, date = upload date, and the upload says so.
+
+**The item rule.** One item per printed line; a line is joined to the next
+only when it runs the full width of the text block (90% of the block and 60%
+of the page) and does not end in . ! ? or : — the mark of a sentence the PDF
+wrapped. Lines with no Hebrew are left out and counted.
+
+**The guide is built in the background.** A real guide takes a minute or
+more; the lesson page asks for its state every three seconds, and a missed
+answer (Dan's phone showed "Failed to fetch" on the first real lesson) is said
+and retried, never the end of asking. A build the server lost to a restart is
+started again.
+
+**Skipped instruction lines** (they cannot apply inside the app): the two
+output files and their names (`lesson-[date]-flashcards.html`,
+`lesson-[date]-study-guide.md`), the save path `/mnt/user-data/outputs/`,
+"present to user", the vanilla-HTML/no-React file spec and the 15 KB size
+target (the app draws the cards itself), the `#f8fafc` background (the app's
+palette stays; category accents reuse its four line colors), and the "known"
+marking under progress tracking (the brief: Know it and Not yet only move on).
+The Thinking-on-Paper section sits after the drills and before the
+vocabulary, which is "between" them in the Study Guide Format's own order.
+
+**Open items.**
+- Articles (and lessons) have no delete button; Dan's check left a test
+  article in the list.
+- A lesson word tints only in its exact spelling; a prefixed form (והממסד)
+  stays plain — the reader's surface rule, older than this session.
+- Words the card cannot identify (עדה, עדתי) are named in the footer with no
+  way to retry.
+- Guide quality against the project's past outputs: session five. First
+  observation: the להסלים drill calls the verb intransitive, then drills it
+  with an object (הממשלה ___ את המצב).
+- The Dropbox folder and bulk import: session five.
