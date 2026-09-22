@@ -367,6 +367,7 @@ try {
       const savedLine = await page.locator('#saved-line').innerText();
       check(`${name} ${scheme}: footer says what the lesson saved and the spine outcome`, /\d words? saved · 5 phrases kept in the guide only/.test(savedLine) && /recorded on the spine/.test(savedLine), savedLine);
       check(`${name} ${scheme}: a saved lesson word is tinted amber, and the page fits`, await page.locator('#items .w.shaky', { hasText: 'הסלמה' }).count() > 0 && await fits());
+      check(`${name} ${scheme}: no "For Guy" box anywhere on the lesson page`, !/For Guy/i.test(await page.locator('#guide').innerText()));
       check(`${name} ${scheme}: text on the lesson page is legible`, contrast(await paint(page.locator('#items li').first(), 'color'), await ground()) >= 7);
       await page.screenshot({ path: join(out, `lesson-${scheme}-${name}.png`), fullPage: true });
       // session five: the review under the guide, opened

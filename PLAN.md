@@ -255,7 +255,8 @@ the lesson. `.dockerignore` now leaves out only `docs/screenshots` and
 |---|---|---|
 | Study Guide Format: `# שיעור עם גיא — [Date]` (Hebrew_Lesson_Tools) | `title`, `date` | lesson page header |
 | `## Lesson Topics` | `sections[kind=topics].items` | "Lesson topics" |
-| `## [Grammar Topic N]` + "non-technical explanation suitable for sharing with Guy" | `sections[kind=grammar]`: `topic`, `explanation`, `examples[{he,en}]`, `for_guy` | one section per topic, Guy's order |
+| `## [Grammar Topic N]` | `sections[kind=grammar]`: `topic`, `guys_lines`, `explanation`, `examples[{he,en}]`, `verb_claims` | one section per topic, Guy's order |
+| "non-technical explanation suitable for sharing with Guy" | none — skipped (Dan, 22 Sep 2026: "I'll bring my own stuff back to him when I need to") | not drawn, even from older saved guides |
 | `## תרגילי הטיה` + Conjugation Drill Format + Register §1 (1-2 verbs, Nif'al and deviations first, compare Pa'al) | `sections[kind=drills].verbs[]`: `verb`, `root`, `binyan`, `why`, `table[{tense, forms[{person, he}]}]`, `deviations`, `paal_comparison`, `exercises[{sentence, cue, answer}]` | tables and blank-filling exercises, answers behind a tap |
 | Thinking on Paper: section between Core Vocabulary and the Drills, 1-2 prompts, seven types, name the Register categories | `sections[kind=paper].prompts[]`: `type`, `anchor`, `prompt`, `categories` | "עבודה על נייר — Thinking on Paper", placed after the drills and before the vocabulary |
 | `## מילים מרכזיות` table: Hebrew, English, Root, Binyan, Category | `sections[kind=vocabulary].rows[]` | a table |

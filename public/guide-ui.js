@@ -55,7 +55,7 @@ function drawSection(sec) {
       for (const x of sec.examples) { const li = el('li'); li.append(he('div', x.he), auto('div', x.en, 'en')); ul.append(li); }
       s.append(ul);
     }
-    if (sec.for_guy) { const g = el('div', 'for-guy'); g.append(el('div', 'label', 'For Guy'), auto('p', sec.for_guy, 'prose')); s.append(g); }
+    // No "For Guy" box, even in a guide saved before Dan dropped it (22 Sep 2026).
     return s;
   }
   if (sec.kind === 'drills') {

@@ -238,7 +238,6 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 .guide .examples li { border-inline-start: 3px solid var(--line-strong); padding-inline-start: 10px; }
 .guide .examples .he { text-align: right; }
 .guide .en { font-size: 14px; color: var(--muted); }
-.guide .for-guy { background: var(--field); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
 .guide .label { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .guide .drill { border: 1px solid var(--line-strong); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; background: var(--panel); }
 .guide .drill-head { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }

@@ -56,7 +56,8 @@ const SPELLING = /[חכךאעסשטת]/;
 const point = (w) => w[0] + '\u05b8' + w.slice(1); // one vowel point is enough for the check
 const flagFor = (w) => (SPELLING.test(w) ? `⚠️ Spelling: mind the letters of ${w}` : 'no spelling trap');
 
-// A guide that passes the server's five checks, unless `fault` names one to
+// A guide that passes the server's five checks (and still writes a for_guy,
+// which the server must drop), unless `fault` names one to
 // break: coverage, drill, nikud, flags or objects.
 function mockGuide(items, date, n, fault) {
   const singles = items.filter((i) => !/\s/.test(i));

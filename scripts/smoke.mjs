@@ -330,6 +330,7 @@ try {
     built.guide.dropped.cards === 1 && built.guide.dropped.vocabulary === 1 && built.guide.dropped.expressions === 1 && built.guide.cards.length === 10
     && !built.guide.cards.some((c) => c[1] === 'מומצא'), JSON.stringify(built.guide.dropped));
   check('each card has the eleven fields of the instructions', built.guide.cards.every((c) => c.length === 11));
+  check('no "for Guy" explanation is kept, though the model wrote one (Dan, 22 Sep 2026)', built.guide.sections.every((x) => !('for_guy' in x)) && !/for_guy|sharing with Guy"? \}/.test(JSON.stringify(built.guide)));
   const g1 = await guideCalls();
   const second = await api('POST', `/lessons/${L1.body.id}/guide`, {});
   await api('GET', `/lessons/${L1.body.id}`);
