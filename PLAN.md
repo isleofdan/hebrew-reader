@@ -61,7 +61,8 @@ The spine was cloned read-only into this session; nothing in it was changed.
 |------|---------|
 | `APP_PASSWORD` | the site passphrase |
 | `COOKIE_SECRET` | signs the 30-day login cookie (32+ random bytes, hex) |
-| `OPENROUTER_API_KEY` | the word card |
+| `OPENROUTER_API_KEY` | the word card, the guide, the phone page, the Ask box |
+| `GUIDE_MODEL` | optional; the lesson guide's model, default `anthropic/claude-opus-4.6` |
 | `SPINE_TOKEN` | optional; the spine's bearer token for recording marks |
 | `SPINE_URL` | optional; default `https://spine-dan.fly.dev` |
 | `OPENROUTER_URL` | optional; default `https://openrouter.ai/api/v1/chat/completions` |
@@ -344,3 +345,94 @@ vocabulary, which is "between" them in the Study Guide Format's own order.
   observation: the להסלים drill calls the verb intransitive, then drills it
   with an object (הממשלה ___ את המצב).
 - The Dropbox folder and bulk import: session five.
+
+## Close-out note — session hebrew-reader-five, 22 Sep 2026
+
+On branch `claude/hebrew-satellite-brief-n91kia`, one commit per step. Checks
+against the local mocks: 123 server checks (`npm run smoke`, from 94) and 149
+page checks (`npm run screenshots`, from 132). All seven steps of the brief
+shipped, steps 5 and 6 included.
+
+**Two models.** `MODEL` (`anthropic/claude-sonnet-4.6`) answers the card, the
+phone page's translation and the Ask box. `GUIDE_MODEL` (default
+`anthropic/claude-opus-4.6`, overridable by the environment variable of the
+same name) builds the guide and runs its review. The fallback rule: when
+OpenRouter answers 400 "… is not a valid model ID" or 404 "No endpoints found
+for …" to a model other than the card model, `lookup.chat()` makes the same
+call once more with the card model; the guide is saved with
+`built_with: "fallback"`, and the lesson page's footer says "Built with the
+fallback model." The id could not be checked against OpenRouter from the
+sandbox; Dan's first rebuild on the live site settles it.
+
+**The five checks** (`lib/guide-checks.js`, each named by the instruction line
+it enforces), run on every guide before it is saved:
+1. coverage — every one of Guy's lines, nikud and punctuation ignored, is in
+   some grammar section's `guys_lines`;
+2. drill — when the lesson holds a Nif'al verb or a verb whose root is פ"נ,
+   has a guttural (א ה ח ע, and ר) or is hollow, the first drill is Nif'al or
+   one of those. The lesson's verbs come from the card cache (the single-word
+   items, under the key the word save uses), else from the guide's own
+   vocabulary rows that name a binyan; the drill's `binyan` must match the
+   card for the same word, and its `deviation` must be true of the root;
+3. nikud — at least 90% of vocabulary rows have a vowel point in `pointed`;
+4. flags — every vocabulary row and card whose Hebrew holds ח כ ך א ע ס ש ט ת
+   carries `⚠️ Spelling:` or `⚠️ Confusable:`, or the words "no spelling trap";
+5. objects — the drill's `takes_object` agrees with every `verb_claims` entry
+   for the same verb, and a verb drilled as taking no object has no exercise
+   with את after the blank.
+A failure rebuilds once, the failures named at the end of the user message;
+a second failure saves nothing (a first build leaves the raw items and the
+line naming the check; a rebuild keeps the previous guide).
+
+**The review-pass contract.** After the checks pass, one more call with the
+same instruction files and a review frame returns
+`{ guide, changes: [English lines] }`. The server shapes the reviewed guide
+the same way, then compares it item for item with the checked one: vocabulary
+rows, expressions, drill verbs and cards are matched by their Hebrew (counted,
+so a second copy is an addition), topics, prompts, questions and grammar
+sections may not grow. Additions are taken out and listed as refused. The
+reviewed guide is saved only when it still passes all five checks; otherwise
+the checked guide is saved (`review.state` `discarded`), and a review that
+does not answer leaves it too (`not run`, with the reason). The page shows
+"Reviewed: N corrections", the list behind one tap.
+
+**Schema additions** (the system message was tightened only where the brief
+named a fault): grammar `guys_lines`, `verb_claims[{verb, takes_object}]`;
+drill `deviation`, `takes_object`; vocabulary `pointed`, `flags`. The object
+claim sits per verb inside a grammar section, since one section can discuss
+two verbs.
+
+**The prefix list** is one list in `public/tokenize.js`: `PROCLITICS`
+(`ו ש ה כש וש וכש מש לכש`, the phone page's, moved from `lib/demand.js`) and
+`READING_PREFIXES` = those plus `ב ל מ כ וה וב ול ומ וכ שה שב של שמ מה`, tried
+shortest first. A word tints with the mark of its surface, of a lemma it
+equals, or — when it has four letters or more — of itself minus one listed
+prefix, compared with saved surfaces and lemmas (`/marks-for-article` and
+`/marks-for-lesson` now carry `lemmas`). One prefix only; the map is only
+read.
+
+**The delete rule.** `DELETE /articles/:id` and `DELETE /lessons/:id`: the
+row goes (a lesson's items and guide with it); touches stay without it, spots
+keep their status, nothing is sent to the spine. The pages ask once, in the
+page: "Delete this article? Saved words stay."
+
+**Try again.** `POST /lessons/:id/retry { surface }`: one lookup through the
+card path (a failed card is never cached); on success saved shaky like the
+lesson's other words and out of the footer's list.
+
+**The import script, for the laptop brief:**
+
+    APP_PASSWORD=<the site passphrase> node scripts/import-lessons.js "<the Guy Lessons folder>" https://hebrew-reader-dan.fly.dev --build-guides-from 2026-01-01
+
+`--dry-run` first lists what would be added and uploads nothing. It reads the
+folder itself, not subfolders; takes only `Daniel Guy|Hebrew|HEB …` PDFs;
+skips a file whose name is already a lesson's `source_name`; prints one line
+per file. Decision carried from the brief: import all; build guides only for
+the 2026 lessons; older ones build on first open.
+
+**Open items.**
+- Whether `anthropic/claude-opus-4.6` exists at OpenRouter: Dan's rebuild.
+- The drill check sees verbs only through cached cards and the model's own
+  vocabulary rows; a lesson whose only irregular verbs sit inside phrases and
+  are missing from the vocabulary is not caught.
+- The scheduled article finder.
