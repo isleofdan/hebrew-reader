@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hebrew reader · phone</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">Hebrew reader</a>
+  <nav><a href="/">Articles</a><a class="phone active" href="/phone">phone</a></nav>
+  <span class="spacer"></span>
+  <a href="/logout" style="font-size:13px;color:var(--muted)">Sign out</a>
+</header>
+<main class="page phone-page">
+
+  <section class="panel demand" id="demand">
+    <h2>Give the form</h2>
+    <p class="msg" id="demand-state"></p>
+    <div id="demand-body" class="hidden">
+      <div class="from" id="demand-from"></div>
+      <div class="translation" id="demand-translation"></div>
+      <div class="sentence" id="demand-sentence" lang="he"></div>
+      <div class="form-line" id="demand-form-line"></div>
+      <label for="answer">Your form</label>
+      <input id="answer" type="text" lang="he" dir="rtl" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="הקלידו את הצורה">
+      <div class="row">
+        <button class="btn primary" id="check">Check</button>
+        <button class="btn" id="show">Show</button>
+        <span class="msg" id="answer-msg"></span>
+      </div>
+      <a href="#" class="next" id="next">Next →</a>
+    </div>
+    <section class="card idle card-under" id="card-demand">
+      <div class="head"><div class="surface"></div><div class="status"></div></div>
+      <div class="line meaning"></div>
+      <div class="line grammar"></div>
+      <div class="chips"></div>
+      <div class="note"></div>
+      <div class="error"></div>
+      <div class="actions">
+        <button class="btn primary" data-act="shaky">Save to vocab</button>
+        <button class="btn" data-act="solid">Mark solid</button>
+        <button class="btn" data-act="ask">Ask about this root</button>
+      </div>
+      <div class="foot"></div>
+    </section>
+  </section>
+
+  <section class="panel" id="also-panel">
+    <h2>Also from this piece</h2>
+    <div class="side-list" id="also-list"></div>
+    <p class="empty" id="also-empty">No other word of this piece is on your map.</p>
+    <section class="card idle card-under" id="card-also">
+      <div class="head"><div class="surface"></div><div class="status"></div></div>
+      <div class="line meaning"></div>
+      <div class="line grammar"></div>
+      <div class="chips"></div>
+      <div class="note"></div>
+      <div class="error"></div>
+      <div class="actions">
+        <button class="btn primary" data-act="shaky">Save to vocab</button>
+        <button class="btn" data-act="solid">Mark solid</button>
+        <button class="btn" data-act="ask">Ask about this root</button>
+      </div>
+      <div class="foot"></div>
+    </section>
+  </section>
+
+  <section class="panel" id="lookup-panel">
+    <h2><label for="lookup">Quick lookup</label></h2>
+    <input id="lookup" type="text" lang="he" dir="rtl" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="מילה ששמעתם עכשיו">
+    <div class="row">
+      <button class="btn" id="lookup-go">Look up</button>
+      <span class="msg" id="lookup-msg"></span>
+    </div>
+    <p class="caption">A lookup counts as a touch on your map.</p>
+    <section class="card idle card-under" id="card-lookup">
+      <div class="head"><div class="surface"></div><div class="status"></div></div>
+      <div class="line meaning"></div>
+      <div class="line grammar"></div>
+      <div class="chips"></div>
+      <div class="note"></div>
+      <div class="error"></div>
+      <div class="actions">
+        <button class="btn primary" data-act="shaky">Save to vocab</button>
+        <button class="btn" data-act="solid">Mark solid</button>
+        <button class="btn" data-act="ask">Ask about this root</button>
+      </div>
+      <div class="foot"></div>
+    </section>
+  </section>
+
+</main>
+<script src="/card-ui.js"></script>
+<script src="/phone.js"></script>
+</body>
+</html>

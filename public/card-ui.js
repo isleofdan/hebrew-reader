@@ -1,0 +1,117 @@
+'use strict';
+// The word card's rendering, shared by the reader page (desktop panel and
+// phone sheet) and the phone page. Pure: fills a `.card` element from a
+// { card, spot, cached, spine } answer; the pages wire the buttons.
+
+(function () {
+  const BINYAN = { paal: "Pa'al", nifal: "Nif'al", piel: "Pi'el", pual: "Pu'al", hifil: "Hif'il", hufal: "Huf'al", hitpael: "Hitpa'el" };
+  const LABELS = { conjugation: 'conjugation', 'sound-pattern-deviation': 'sound pattern deviation', 'preposition-government': 'preposition government', 'letter-order': 'letter order', 'homophonous-spelling': 'homophonous spelling' };
+  const STATUS_TEXT = { new: 'met, not yet marked', shaky: 'shaky on your map', solid: 'solid' };
+  const SPINE_TEXT = { recorded: 'recorded on the spine', unreachable: 'saved here; spine unreachable', 'not configured': 'saved here; spine not configured' };
+
+  function el(card, cls) { return card.querySelector('.' + cls); }
+
+  function he(text) {
+    const s = document.createElement('span'); s.className = 'he'; s.textContent = text; return s;
+  }
+
+  function setLoading(card, surface) {
+    card.classList.remove('idle');
+    el(card, 'surface').textContent = surface;
+    el(card, 'status').textContent = 'looking up…';
+    for (const c of ['meaning', 'grammar', 'chips', 'note', 'error', 'foot']) el(card, c).textContent = '';
+    el(card, 'actions').classList.add('hidden');
+  }
+
+  function setError(card, surface, message) {
+    card.classList.remove('idle');
+    el(card, 'surface').textContent = surface;
+    el(card, 'status').textContent = '';
+    for (const c of ['meaning', 'grammar', 'chips', 'note', 'foot']) el(card, c).textContent = '';
+    el(card, 'error').textContent = message;
+    el(card, 'actions').classList.add('hidden');
+  }
+
+  // One short line for a side list: "Nif'al past", "governs עם", or the pos.
+  function hint(c) {
+    if (c.binyan) return [BINYAN[c.binyan] || c.binyan, c.tense].filter(Boolean).join(' ');
+    if (c.governs) return `governs ${c.governs}`;
+    return c.pos || '';
+  }
+
+  // The footer line for a spine outcome; '' when there is nothing to say.
+  function spineLine(outcome) { return SPINE_TEXT[outcome] || ''; }
+
+  function fill(card, data) {
+    const c = data.card, spot = data.spot;
+    card.classList.remove('idle');
+    el(card, 'surface').textContent = c.surface;
+    el(card, 'status').textContent = spot ? `${STATUS_TEXT[spot.status] || spot.status} · ${spot.touches} touch${spot.touches === 1 ? '' : 'es'}` : 'no spot for this word';
+    el(card, 'meaning').textContent = c.meaning_en;
+    const g = el(card, 'grammar');
+    g.innerHTML = '';
+    const parts = [];
+    if (c.lemma && c.lemma !== c.surface) parts.push(['lemma ', he(c.lemma)]);
+    if (c.root) parts.push(['root ', he(c.root)]);
+    if (c.binyan) parts.push([[BINYAN[c.binyan] || c.binyan, c.tense, c.person_gender_number].filter(Boolean).join(', ')]);
+    else parts.push([[c.pos, c.person_gender_number].filter(Boolean).join(', ')]);
+    if (c.governs) parts.push(['governs ', he(c.governs)]);
+    parts.forEach((p, i) => {
+      if (i) g.append(document.createTextNode(' · '));
+      for (const x of p) g.append(typeof x === 'string' ? document.createTextNode(x) : x);
+    });
+    const chips = el(card, 'chips');
+    chips.innerHTML = '';
+    for (const id of c.categories || []) {
+      const chip = document.createElement('span'); chip.className = 'chip'; chip.textContent = LABELS[id] || id; chips.append(chip);
+    }
+    el(card, 'note').textContent = c.note || '';
+    el(card, 'error').textContent = '';
+    const actions = el(card, 'actions');
+    actions.classList.toggle('hidden', !spot);
+    actions.querySelector('[data-act=shaky]').disabled = !spot || spot.status === 'shaky';
+    actions.querySelector('[data-act=solid]').disabled = !spot || spot.status === 'solid';
+    actions.querySelector('[data-act=ask]').disabled = !c.root && !c.lemma;
+    el(card, 'foot').textContent = spineLine(data.spine) || (data.cached ? 'from the cache' : '');
+  }
+
+  // "Ask about this root": Pealim and Hebrew Wiktionary in new tabs.
+  function askAbout(c) {
+    if (!c) return;
+    const rootLetters = c.root ? c.root.replace(/\./g, '') : '';
+    const q = rootLetters || c.lemma;
+    window.open(`https://www.pealim.com/search/?q=${encodeURIComponent(q)}`, '_blank', 'noopener');
+    window.open(`https://he.wiktionary.org/w/index.php?search=${encodeURIComponent(c.lemma || q)}`, '_blank', 'noopener');
+  }
+
+  // Wires one card element: `getCurrent()` answers { card, spot } for the
+  // word on the card; `onStatus(status)` saves; `onClose()` for the sheet.
+  function wire(card, { onStatus, getCurrent, onClose }) {
+    card.querySelector('[data-act=shaky]').addEventListener('click', () => onStatus('shaky'));
+    card.querySelector('[data-act=solid]').addEventListener('click', () => onStatus('solid'));
+    card.querySelector('[data-act=ask]').addEventListener('click', () => askAbout((getCurrent() || {}).card));
+    const close = card.querySelector('.close');
+    if (close && onClose) close.addEventListener('click', onClose);
+  }
+
+  // Saves a status for the card's spot through `api`, refills the card, and
+  // answers the server's { spot, spine }. Errors show on the card.
+  async function saveStatus(card, api, current, status) {
+    if (!current || !current.spot) return null;
+    const foot = el(card, 'foot');
+    foot.textContent = 'saving…';
+    try {
+      const data = await api('POST', `/spots/${encodeURIComponent(current.spot.id)}`, { status });
+      current.spot = data.spot;
+      fill(card, { card: current.card, spot: data.spot, cached: false, spine: data.spine });
+      foot.textContent = spineLine(data.spine) || 'saved';
+      return data;
+    } catch (e) {
+      el(card, 'error').textContent = e.message;
+      foot.textContent = '';
+      return null;
+    }
+  }
+
+  window.CardUI = { BINYAN, LABELS, STATUS_TEXT, fill, setLoading, setError, hint, spineLine, askAbout, wire, saveStatus };
+})();

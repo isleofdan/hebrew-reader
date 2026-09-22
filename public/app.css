@@ -71,6 +71,32 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 .side-list .he { direction: rtl; unicode-bidi: isolate; font-family: var(--serif); font-size: 17px; }
 .side-list .hint { color: var(--muted); font-size: 13px; text-align: right; }
 
+/* the phone page */
+.phone-page { max-width: 640px; }
+.phone-page .panel .msg { margin: 0; }
+.phone-page .card-under { margin-top: 4px; }
+.phone-page .card-under.idle { display: none; }
+.demand #demand-body { display: flex; flex-direction: column; gap: 12px; }
+.demand .from { font-size: 14px; color: var(--muted); }
+.demand .from .he { direction: rtl; unicode-bidi: isolate; font-family: var(--serif); font-size: 16px; }
+.demand .translation { font-size: 14px; color: var(--muted); line-height: 1.5; }
+.demand .translation:empty { display: none; }
+.demand .sentence { direction: rtl; text-align: right; font-family: var(--serif); font-size: 22px; line-height: 1.7; }
+.demand .gap { display: inline-block; min-width: 88px; border-bottom: 2px solid var(--amber-line); padding: 0 4px; border-radius: 4px; }
+.demand .gap.right { background: #d9efd8; color: #1d5a24; border-bottom-color: #3f8a4a; }
+.demand .gap.shown { background: var(--panel); border-bottom-color: var(--line-strong); }
+.demand .form-line { font-size: 14px; color: var(--muted); }
+.demand .form-line .he { direction: rtl; unicode-bidi: isolate; font-weight: 600; font-family: var(--serif); font-size: 16px; }
+.demand #answer, #lookup { font-family: var(--serif); font-size: 20px; direction: rtl; height: 48px; }
+.demand #check { flex-grow: 1; }
+.demand .next { font-size: 15px; align-self: flex-start; }
+.phone-page .caption { margin: 0; font-size: 13px; color: var(--muted); }
+.phone-page h2 label { font: inherit; color: inherit; }
+.topbar nav a.phone { text-transform: none; }
+@media (max-width: 599px) {
+  .topbar nav a.phone { order: -1; }
+}
+
 /* the card */
 .card { background: var(--panel); border: 1px solid var(--line-strong); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
 .card .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
