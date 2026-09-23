@@ -67,7 +67,7 @@ let lastGuideModel = null;
 // JSON at all). review_format_again: the same for the answer to the one
 // follow-up ask. schema_refused: structured output answered 404, as OpenRouter
 // does when no provider of the model takes the parameters asked for.
-const control = { unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false, verb_fixes: {}, verb_extra: [], verb_decline: false };
+const control = { unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false, verb_fixes: {}, verb_extra: [], verb_decline: false, guide_silent: [] };
 // verb_fixes: word -> { root?, binyan?, why }, the verb-card check's fix for
 // that card (every other card answered "correct"); verb_extra: answers added
 // after the cards'; verb_decline: the check answers {"error"}.
@@ -86,8 +86,10 @@ const flagFor = (w) => (SPELLING.test(w) ? `⚠️ Spelling: mind the letters of
 // A guide gives a word's root and binyan as the right card has them (the
 // known card, not an override), so a wrong card disagrees with the guide.
 const BINYAN_NAME = { paal: "Pa'al", nifal: "Nif'al", piel: "Pi'el", pual: "Pu'al", hifil: "Hif'il", hufal: "Huf'al", hitpael: "Hitpa'el" };
-const rootOf = (w) => (known[w] && known[w].root) || '';
-const binyanOf = (w) => (known[w] && known[w].binyan ? BINYAN_NAME[known[w].binyan] : '');
+// guide_silent: words the guide gives no root or binyan for, so the review
+// says nothing of their cards (as it said nothing of לזנק live)
+const rootOf = (w) => (control.guide_silent.includes(w) ? '' : (known[w] && known[w].root) || '');
+const binyanOf = (w) => (control.guide_silent.includes(w) ? '' : known[w] && known[w].binyan ? BINYAN_NAME[known[w].binyan] : '');
 
 // A guide that passes the server's five checks (and still writes a for_guy,
 // which the server must drop), unless `fault` names one to

@@ -743,10 +743,10 @@ try {
       { section: 'word_cards', item: 'נלחם', field: 'binyan', find: 'nifal', replace: "Nif'al", why: 'checked: right as it is' },
       { section: 'word_cards', item: 'התבייש', field: 'root', find: 'ב.י.ש', replace: 'ב.ו.ש', why: 'the root of התבייש' },
       { section: 'drills', item: 'להיאלץ', find: "Nif'al", replace: "Nif'al (passive)", why: 'the drill binyan named more fully' },
-    ] });
+    ], verb_fixes: { 'להתבייש': { binyan: 'hitpael', why: "the verb check agrees: Hitpa'el" } } }); // the two checks agree (session nine)
     await api('POST', `/lessons/${L2.body.id}/guide`, { rebuild: true });
     const v = await until(L2.body.id, (x) => x.guide_state !== 'building' && !x.saving);
-    await control({ review_extra: [] });
+    await control({ review_extra: [], verb_fixes: {} });
     const after = cardsNow();
     const rc = v.guide.review.cards || { corrected: [], unchanged: [], refused: [] };
     const seen = (await orCalls()).last_review_cards || [];
@@ -764,7 +764,7 @@ try {
       && zb.card.corrected[0].lesson_title === 'שיעור עם גיא — 24.2.2026' && rc.corrected.some((x) => x.surface === 'להתבייש' && x.replaced === 'v:ב.ו.ש:paal')
       && wrongSpot.status === 'shaky' && moved.status === 'shaky' && moved.touches >= wrongSpot.touches && gone.status === 404
       && (putsA['v:ב.ו.ש:hitpael'] || 0) - (putsB['v:ב.ו.ש:hitpael'] || 0) === 1
-      && /card להתבייש binyan paal -> hitpael \(the lesson review\), spot v:ב\.ו\.ש:paal -> v:ב\.ו\.ש:hitpael/.test(server.log),
+      && /card להתבייש binyan paal -> hitpael \(the lesson review and verb check\), spot v:ב\.ו\.ש:paal -> v:ב\.ו\.ש:hitpael/.test(server.log),
       JSON.stringify({ card: zb.card.binyan, spot: zb.spot_id, moved, wrongSpot: wrongSpot.status, corrected: rc.corrected }));
     const tap = await api('POST', '/lookup', { surface: 'להתבייש', sentence: 'להתבייש', lesson_id: L2.body.id });
     check('a tap on the corrected word opens the corrected card, from the cache',
@@ -787,7 +787,7 @@ try {
     const cardsNow = () => { const d = new Database(join(dataDir, 'reader.db'), { readonly: true }); const rows = d.prepare('SELECT surface, spot_id, json FROM cards ORDER BY id').all(); d.close(); return rows.map((r) => ({ ...r, card: JSON.parse(r.json) })); };
     const verbCalls = async () => (await orCalls()).verb_checks;
     const rebuild = async (c) => {
-      await control({ verb_fixes: {}, verb_extra: [], verb_decline: false, ...c });
+      await control({ verb_fixes: {}, verb_extra: [], verb_decline: false, guide_silent: [], review_extra: [], ...c });
       const n0 = await verbCalls();
       await api('POST', `/lessons/${L2.body.id}/guide`, { rebuild: true });
       const v = await until(L2.body.id, (x) => x.guide_state !== 'building' && !x.saving);
@@ -804,13 +804,15 @@ try {
     check('the verb-card check asks for structured output, on the guide model, with a token limit from its expected output (400 + 150 a verb)',
       r.ask.type === 'json_schema' && r.ask.schema_name === 'verb_cards_check' && r.ask.max_tokens === 400 + 150 * 3 && r.ask.model === 'anthropic/claude-opus-4.6', JSON.stringify(r.ask));
     const putsB = await putCounts();
-    r = await rebuild({ verb_fixes: { 'נלחם': { binyan: 'piel', why: "נלחם given here as Pi'el (a mock's claim)" } } });
-    const nl = cardsNow().find((x) => x.surface === 'נלחם');
+    // the לזנק case (session nine, step 1): the review says nothing of the card
+    // (its guide gives no binyan for the word), the check proposes a fix
+    r = await rebuild({ guide_silent: ['נלחם'], verb_fixes: { 'נלחם': { binyan: 'piel', why: "נלחם given here as Pi'el (a mock's claim)" } } });
+    let nl = cardsNow().find((x) => x.surface === 'נלחם');
     const putsA = await putCounts();
-    check('one wrong verb card: corrected through the review\'s card path — logged, the card carrying "lesson review" and before and after, its spot moved, the spine told; "checked 3, corrected 1"',
+    check('the review silent on a card, the verb check proposing a fix (the לזנק case): applied through the review\'s card path — logged, the card carrying "verb-card check" and before and after, its spot moved, the spine told; "checked 3, corrected 1"',
       r.vc.checked === 3 && r.vc.corrected.length === 1 && r.vc.corrected[0].surface === 'נלחם' && r.vc.corrected[0].before === 'nifal' && r.vc.corrected[0].after === 'piel'
-      && nl.card.binyan === 'piel' && nl.spot_id === 'v:ל.ח.מ:piel' && nl.card.corrected?.at(-1)?.by === 'lesson review' && nl.card.corrected.at(-1).before === 'nifal'
-      && /card נלחם binyan nifal -> piel \(the verb-card check\)/.test(server.log) && /verb cards checked in \d+ ms: 3, corrected 1/.test(server.log)
+      && r.vc.disagreed.length === 0 && nl.card.binyan === 'piel' && nl.spot_id === 'v:ל.ח.מ:piel' && nl.card.corrected?.at(-1)?.by === 'verb-card check' && nl.card.corrected.at(-1).before === 'nifal'
+      && /card נלחם binyan nifal -> piel \(the verb-card check\)/.test(server.log) && /verb cards checked in \d+ ms: 3, fixes proposed 1/.test(server.log)
       && (putsA['v:ל.ח.מ:piel'] || 0) - (putsB['v:ל.ח.מ:piel'] || 0) === 1,
       JSON.stringify({ vc: r.vc, card: nl.card }));
     r = await rebuild({ verb_fixes: { 'נלחם': { binyan: "Nif'al", why: "נלחם is Nif'al" } }, verb_extra: [
@@ -824,6 +826,32 @@ try {
       && r.vc.corrected.length === 1 && cardsNow().find((x) => x.surface === 'נלחם').card.binyan === 'nifal'
       && JSON.stringify(others) === JSON.stringify(before.filter((x) => x.surface !== 'נלחם').map((x) => ({ ...x }))),
       JSON.stringify(r.vc));
+    check('the review\'s guide giving the fix the check proposes (Nif\'al for a Pi\'el card): applied as agreed by both',
+      cardsNow().find((x) => x.surface === 'נלחם').card.corrected?.at(-1)?.by === 'lesson review and verb check', JSON.stringify(cardsNow().find((x) => x.surface === 'נלחם').card.corrected));
+    // the נוצץ case: the review says the card's own binyan (its guide gives
+    // Nif'al, as the card), the check proposes Pi'el
+    const beforeDis = cardsNow();
+    r = await rebuild({ verb_fixes: { 'נלחם': { binyan: 'piel', why: "a mock's wrong claim" } } });
+    check('the review saying the card is right and the check proposing a change (the נוצץ case): the card not changed, listed as "review says Nif\'al, verb check says Pi\'el"',
+      r.vc.corrected.length === 0 && r.vc.disagreed.length === 1 && r.vc.disagreed[0].line === "נלחם: review says Nif'al, verb check says Pi'el"
+      && JSON.stringify(cardsNow()) === JSON.stringify(beforeDis) && /card נלחם binyan not changed, the two checks disagree/.test(server.log),
+      JSON.stringify(r.vc));
+    // both propose the same fix: applied
+    r = await rebuild({ verb_fixes: { 'נלחם': { binyan: 'piel', why: 'both say so here' } },
+      review_extra: [{ section: 'word_cards', item: 'נלחם', field: 'binyan', find: "Nif'al", replace: "Pi'el", why: "the review's card fix" }] });
+    nl = cardsNow().find((x) => x.surface === 'נלחם');
+    check('the review and the check proposing the same fix: applied, once, as agreed by both, and listed on both sides',
+      nl.card.binyan === 'piel' && nl.card.corrected.at(-1).by === 'lesson review and verb check' && r.vc.corrected.length === 1 && r.v.guide.review.cards.corrected.length === 1
+      && r.vc.disagreed.length === 0, JSON.stringify({ vc: r.vc, cards: r.v.guide.review.cards }));
+    // the review proposing, the check saying the card is right: not changed
+    const beforeDis2 = cardsNow();
+    r = await rebuild({ review_extra: [{ section: 'word_cards', item: 'נלחם', field: 'binyan', find: "Pi'el", replace: "Nif'al", why: "the review's card fix" }] });
+    check('the review proposing a fix and the check saying the card is right: not changed, listed',
+      r.vc.disagreed.length === 1 && r.vc.disagreed[0].line === "נלחם: review says Nif'al, verb check says Pi'el" && r.v.guide.review.cards.corrected.length === 0
+      && JSON.stringify(cardsNow()) === JSON.stringify(beforeDis2), JSON.stringify({ vc: r.vc, cards: r.v.guide.review.cards }));
+    // back to Nif'al: the guide gives Nif'al, the check proposes it
+    r = await rebuild({ verb_fixes: { 'נלחם': { binyan: "Nif'al", why: 'back' } } });
+    check('put back by agreement (the guide and the check both Nif\'al)', cardsNow().find((x) => x.surface === 'נלחם').card.binyan === 'nifal', JSON.stringify(r.vc));
     r = await rebuild({ verb_decline: true });
     check('a verb-card check that does not answer: the guide saved, the check marked not run with the reason',
       r.v.guide_state === 'built' && r.vc.state === 'not run' && /The verb-card check could not run: the model declined/.test(r.vc.reason) && r.vc.checked === 3, JSON.stringify(r.vc));

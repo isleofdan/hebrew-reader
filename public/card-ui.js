@@ -118,6 +118,8 @@
     }
   }
 
+  const BY = { 'lesson review': 'lesson review', 'verb-card check': 'verb check', 'lesson review and verb check': 'lesson review and the verb check' };
+
   // What the lesson review corrected on this card, before and after:
   // "Corrected by the lesson review: Pa'al → Pi'el", the lesson on a line of its own.
   function drawCorrected(box, list) {
@@ -126,7 +128,7 @@
     const show = (f, v) => (f === 'binyan' ? document.createTextNode(BINYAN[v] || v || 'none') : he(v || 'none'));
     list.forEach((x, i) => {
       if (i) box.append(document.createElement('br'));
-      box.append(document.createTextNode(`Corrected by the lesson review: ${x.field === 'root' ? 'root ' : ''}`));
+      box.append(document.createTextNode(`Corrected by the ${BY[x.by] || 'lesson review'}: ${x.field === 'root' ? 'root ' : ''}`));
       box.append(show(x.field, x.before), document.createTextNode(' → '), show(x.field, x.after));
       if (x.lesson_title) { const t = document.createElement('span'); t.className = 'src'; t.dir = 'rtl'; t.textContent = x.lesson_title; box.append(t); }
     });

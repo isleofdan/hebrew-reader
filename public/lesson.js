@@ -227,18 +227,34 @@ function cardFixLine(x) {
   return `${x.field === 'binyan' ? 'Binyan' : 'Root'} of ${iso(x.surface)}: ${name(x.before)} → ${name(x.after)}`;
 }
 
+// "Not changed — the two checks disagree: נוצץ: review says Pa'al, verb check
+// says Pi'el", each Hebrew piece isolated.
+function disagreeLine(x) {
+  const iso = (t) => `\u2068${t}\u2069`;
+  const what = x.field === 'root' ? 'root ' : '';
+  return `Not changed — the two checks disagree: ${iso(x.surface)}: review says ${what}${iso(x.review)}, verb check says ${what}${iso(x.check)}`;
+}
+
 // The verb-card check after the review: one line, and behind it what it
 // corrected and what it refused.
 function drawVerbCheck(box, vc) {
   if (!vc) return;
   if (vc.state === 'not run') { box.append(el('p', 'caption review-line', `Verb cards not checked: ${vc.reason}`)); return; }
   const d = el('details', 'review');
-  d.append(el('summary', '', `Verb cards checked: ${vc.checked}, corrected: ${vc.corrected.length}`));
+  // a guide saved before session nine has no disagreements list
+  const disagreed = vc.disagreed || [];
+  d.append(el('summary', '', `Verb cards checked: ${vc.checked}, corrected: ${vc.corrected.length}${disagreed.length ? `, not changed: ${disagreed.length}` : ''}`));
   if (vc.corrected.length) {
     const ul = el('ul', 'review-changes');
     for (const x of vc.corrected) ul.append(auto('li', cardFixLine(x)));
     d.append(ul);
-  } else d.append(el('p', 'caption', vc.checked ? 'Every verb card was found correct.' : 'This lesson has no verb cards.'));
+  } else if (!disagreed.length) d.append(el('p', 'caption', vc.checked ? 'Every verb card was found correct.' : 'This lesson has no verb cards.'));
+  if (disagreed.length) {
+    // the review and the verb check gave different answers: the card is left as it was
+    const ul = el('ul', 'review-changes review-disagreed');
+    for (const x of disagreed) ul.append(auto('li', disagreeLine(x)));
+    d.append(ul);
+  }
   if (vc.refused.length) d.append(el('p', 'caption', `Answers not used: ${vc.refused.join('; ')}.`));
   box.append(d);
 }
