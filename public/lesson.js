@@ -157,8 +157,12 @@ function drawGuide(guide) {
   if (unmet.length) box.append(el('p', 'unmet', `Checks not passed: ${unmet.map((f) => `${f.check} — ${f.detail}`).join('; ')}.`));
   notes.push(`Built ${new Date(guide.built_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}.`);
   box.append(el('p', 'caption', notes.join(' ')));
-  drawReview(box, guide.review);
-  drawVerbCheck(box, guide.verb_check);
+  // cards Dan confirmed that a check proposed to change: listed with the verb
+  // check's lines when it ran, else with the review's
+  const kept = (guide.review && guide.review.cards && guide.review.cards.kept) || [];
+  const checked = guide.verb_check && guide.verb_check.state === 'checked';
+  drawReview(box, guide.review, checked ? [] : kept);
+  drawVerbCheck(box, guide.verb_check, checked ? kept : []);
   $('#links').classList.remove('hidden');
   const n = guide.cards.length;
   const cards = $('#cards-link');
@@ -172,7 +176,7 @@ function drawGuide(guide) {
 
 // The review pass under the guide: its corrections behind one tap, and what
 // it tried to add, refused. A review that did not run says why in one line.
-function drawReview(box, rv) {
+function drawReview(box, rv, kept = []) {
   if (!rv) return;
   if (rv.state === 'not run') {
     box.append(el('p', 'caption review-line', `Not reviewed: ${rv.reason}`));
@@ -214,6 +218,7 @@ function drawReview(box, rv) {
     d.append(ul);
   }
   if (wc && wc.refused.length) d.append(el('p', 'caption', `Word card corrections not made (not guessed): ${wc.refused.join('; ')}.`));
+  if (kept.length) d.append(keptList(kept));
   box.append(d);
 }
 
@@ -235,20 +240,30 @@ function disagreeLine(x) {
   return `Not changed — the two checks disagree: ${iso(x.surface)}: review says ${what}${iso(x.review)}, verb check says ${what}${iso(x.check)}`;
 }
 
+// "Not changed — you confirmed this card: לזנק", one line per card Dan
+// confirmed that a check proposed to change.
+function keptList(kept) {
+  const ul = el('ul', 'review-changes review-kept');
+  for (const w of kept) ul.append(auto('li', `Not changed — you confirmed this card: \u2068${w}\u2069`));
+  return ul;
+}
+
 // The verb-card check after the review: one line, and behind it what it
 // corrected and what it refused.
-function drawVerbCheck(box, vc) {
+function drawVerbCheck(box, vc, kept = []) {
   if (!vc) return;
   if (vc.state === 'not run') { box.append(el('p', 'caption review-line', `Verb cards not checked: ${vc.reason}`)); return; }
   const d = el('details', 'review');
   // a guide saved before session nine has no disagreements list
   const disagreed = vc.disagreed || [];
-  d.append(el('summary', '', `Verb cards checked: ${vc.checked}, corrected: ${vc.corrected.length}${disagreed.length ? `, not changed: ${disagreed.length}` : ''}`));
+  const notChanged = disagreed.length + kept.length;
+  d.append(el('summary', '', `Verb cards checked: ${vc.checked}, corrected: ${vc.corrected.length}${notChanged ? `, not changed: ${notChanged}` : ''}`));
   if (vc.corrected.length) {
     const ul = el('ul', 'review-changes');
     for (const x of vc.corrected) ul.append(auto('li', cardFixLine(x)));
     d.append(ul);
-  } else if (!disagreed.length) d.append(el('p', 'caption', vc.checked ? 'Every verb card was found correct.' : 'This lesson has no verb cards.'));
+  } else if (!notChanged) d.append(el('p', 'caption', vc.checked ? 'Every verb card was found correct.' : 'This lesson has no verb cards.'));
+  if (kept.length) d.append(keptList(kept));
   if (disagreed.length) {
     // the review and the verb check gave different answers: the card is left as it was
     const ul = el('ul', 'review-changes review-disagreed');

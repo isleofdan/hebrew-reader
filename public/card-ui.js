@@ -88,7 +88,7 @@
       const chip = document.createElement('span'); chip.className = 'chip'; chip.textContent = LABELS[id] || id; chips.append(chip);
     }
     el(card, 'note').textContent = c.note || '';
-    drawCorrected(el(card, 'corrected'), c.corrected, c.refreshed);
+    drawCorrected(el(card, 'corrected'), c.corrected, c.refreshed, c.confirmed);
     el(card, 'error').textContent = '';
     const actions = el(card, 'actions');
     actions.classList.toggle('hidden', !spot);
@@ -141,9 +141,17 @@
 
   // What the lesson review corrected on this card, before and after:
   // "Corrected by the lesson review: Pa'al → Pi'el", the lesson on a line of its own.
-  function drawCorrected(box, list, refreshed) {
+  function drawCorrected(box, list, refreshed, confirmed) {
     box.innerHTML = '';
+    // a card Dan confirmed says so first: no check changes it (session ten)
+    if (confirmed) {
+      const b = document.createElement('strong');
+      b.className = 'confirmed';
+      b.textContent = `Confirmed by you, ${dayName(confirmed.on)}`;
+      box.append(b);
+    }
     if (!Array.isArray(list) || !list.length) return;
+    if (confirmed) box.append(document.createElement('br'));
     const show = (f, v) => (f === 'binyan' ? document.createTextNode(BINYAN[v] || v || 'none') : he(v || 'none'));
     // a correction put back is left out; the put-back line says what happened
     list.filter((x) => !x.undone).forEach((x, i) => {
@@ -158,6 +166,13 @@
     if (refreshed && refreshed.failed) {
       box.append(document.createElement('br'), document.createTextNode(`Nikud and note not refreshed after the correction: ${refreshed.failed}`));
     }
+  }
+
+  // "2026-09-23" -> "23 Sep 2026"
+  function dayName(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+    if (!m) return String(iso || '');
+    return `${Number(m[3])} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(m[2]) - 1]} ${m[1]}`;
   }
 
   // "Ask about this root": Pealim and Hebrew Wiktionary in new tabs.

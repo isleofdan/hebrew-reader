@@ -917,6 +917,38 @@ try {
     r = await rebuild({ verb_decline: true });
     check('a verb-card check that does not answer: the guide saved, the check marked not run with the reason',
       r.v.guide_state === 'built' && r.vc.state === 'not run' && /The verb-card check could not run: the model declined/.test(r.vc.reason) && r.vc.checked === 3, JSON.stringify(r.vc));
+    // a card Dan confirmed (session ten, step 1): no check changes it, and
+    // the page lists what was proposed
+    {
+      const setConfirmed = (on) => {
+        const d = new Database(join(dataDir, 'reader.db'));
+        for (const row of d.prepare("SELECT id, json FROM cards WHERE surface = 'נלחם'").all()) {
+          const c = JSON.parse(row.json);
+          if (on) c.confirmed = { on: '2026-09-24', root: c.root, binyan: c.binyan }; else delete c.confirmed;
+          d.prepare('UPDATE cards SET json = ? WHERE id = ?').run(JSON.stringify(c), row.id);
+        }
+        d.close();
+      };
+      setConfirmed(true);
+      const conf0 = cardsNow().find((x) => x.surface === 'נלחם');
+      const reviewPiel = [{ section: 'word_cards', item: 'נלחם', field: 'binyan', find: "Nif'al", replace: "Pi'el", why: "the review's card fix" }];
+      const unchanged = () => JSON.stringify(cardsNow().find((x) => x.surface === 'נלחם')) === JSON.stringify(conf0);
+      r = await rebuild({ review_extra: reviewPiel, verb_decline: true });
+      check('a card Dan confirmed survives a review fix on its own (the verb check not run): not changed, listed as "you confirmed this card", logged',
+        conf0.card.binyan === 'nifal' && unchanged() && r.v.guide.review.cards.kept?.join() === 'נלחם' && r.v.guide.review.cards.corrected.length === 0
+        && /card נלחם binyan not changed, Dan confirmed it/.test(server.log), JSON.stringify({ cards: r.v.guide.review.cards, vc: r.vc.state }));
+      r = await rebuild({ guide_silent: ['נלחם'], verb_fixes: { 'נלחם': { binyan: 'piel', why: "a mock's claim" } } });
+      check('a card Dan confirmed survives a verb-check fix the review is silent on: not changed, listed, "not changed" counted',
+        unchanged() && r.vc.corrected.length === 0 && r.vc.disagreed.length === 0 && r.v.guide.review.cards.kept?.join() === 'נלחם', JSON.stringify({ vc: r.vc, cards: r.v.guide.review.cards }));
+      r = await rebuild({ review_extra: reviewPiel, verb_fixes: { 'נלחם': { binyan: 'piel', why: 'both say so here' } } });
+      check('a card Dan confirmed survives the review and the verb check agreeing on a fix: not changed, listed once',
+        unchanged() && r.vc.corrected.length === 0 && r.v.guide.review.cards.corrected.length === 0 && r.v.guide.review.cards.kept?.join() === 'נלחם', JSON.stringify({ vc: r.vc, cards: r.v.guide.review.cards }));
+      const tapC = await api('POST', '/lookup', { surface: 'נלחם', sentence: 'נלחם', lesson_id: L2.body.id });
+      check('the confirmed card opens with its confirmation on it', tapC.body.card.confirmed?.on === '2026-09-24' && tapC.body.card.binyan === 'nifal', JSON.stringify(tapC.body.card.confirmed));
+      r = await rebuild({});
+      check('checks proposing nothing for a confirmed card list nothing', unchanged() && !(r.v.guide.review.cards.kept || []).length, JSON.stringify(r.v.guide.review.cards));
+      setConfirmed(false);
+    }
     await control({ verb_fixes: {}, verb_extra: [], verb_decline: false });
   }
 
