@@ -536,9 +536,10 @@ try {
     const hasFix = (v) => v.guide.sections.find((x) => x.kind === 'vocabulary').rows.some((r) => r.root === 'ס.ל.ם');
 
     let r = await rebuildWith({ review_format: 'clean' });
-    check('the review asks for structured output against its schema, with room for its answer: a clean answer is applied on the one ask, no second ask',
+    const reviewVerbs = ((await orCalls()).last_review_cards || []).filter((c) => c.pos === 'verb').length;
+    check('the review asks for structured output against its schema, with room for its answer (16,000, and 150 a verb card for its verdicts): a clean answer is applied on the one ask, no second ask',
       r.rv.state === 'applied' && hasFix(r.v) && r.mine.length === 1 && !r.mine[0].follow_up && r.mine[0].type === 'json_schema' && r.mine[0].schema_name === 'lesson_review'
-      && r.mine[0].require_parameters && r.mine[0].max_tokens === 16000 && r.rv.json === 'json_schema' && !r.rv.asked_twice, JSON.stringify({ rv: r.rv, mine: r.mine }));
+      && r.mine[0].require_parameters && reviewVerbs === 2 && r.mine[0].max_tokens === 16000 + 150 * reviewVerbs && r.rv.json === 'json_schema' && !r.rv.asked_twice, JSON.stringify({ rv: r.rv, mine: r.mine, reviewVerbs }));
     r = await rebuildWith({ review_format: 'fenced' });
     check('a review answer inside a ```json fence is read and applied, with no second ask', r.rv.state === 'applied' && hasFix(r.v) && r.mine.length === 1, JSON.stringify({ rv: r.rv, mine: r.mine }));
     r = await rebuildWith({ review_format: 'prose' });
@@ -818,7 +819,7 @@ try {
     const cardsNow = () => { const d = new Database(join(dataDir, 'reader.db'), { readonly: true }); const rows = d.prepare('SELECT surface, spot_id, json FROM cards ORDER BY id').all(); d.close(); return rows.map((r) => ({ ...r, card: JSON.parse(r.json) })); };
     const verbCalls = async () => (await orCalls()).verb_checks;
     const rebuild = async (c) => {
-      await control({ verb_fixes: {}, verb_extra: [], verb_decline: false, guide_silent: [], review_extra: [], ...c });
+      await control({ verb_fixes: {}, verb_extra: [], verb_decline: false, guide_silent: [], review_extra: [], review_verdicts: {}, review_verdict_extra: [], ...c });
       const n0 = await verbCalls();
       await api('POST', `/lessons/${L2.body.id}/guide`, { rebuild: true });
       const v = await until(L2.body.id, (x) => x.guide_state !== 'building' && !x.saving);
@@ -917,6 +918,58 @@ try {
     r = await rebuild({ verb_decline: true });
     check('a verb-card check that does not answer: the guide saved, the check marked not run with the reason',
       r.v.guide_state === 'built' && r.vc.state === 'not run' && /The verb-card check could not run: the model declined/.test(r.vc.reason) && r.vc.checked === 3, JSON.stringify(r.vc));
+    // the review's own verdict on each verb card (session ten, step 3): the
+    // agreement rule weighs it against the verb check, never the guide's text
+    {
+      const nlNow = () => cardsNow().find((x) => x.surface === 'נלחם');
+      const v0 = nlNow();
+      // the לזנק case: the guide gives the card's value (as the June guide gives
+      // לזנק as Pa'al), the review's verdict and the check both say Pi'el
+      r = await rebuild({ review_verdicts: { 'נלחם': { verdict: 'fix', root: 'ל.ח.מ', binyan: 'piel', why: "the review's verdict: Pi'el" } }, verb_fixes: { 'נלחם': { binyan: 'piel', why: "the check: Pi'el" } } });
+      const gRow = r.v.guide.sections.find((x) => x.kind === 'vocabulary').rows.find((x) => x.he === 'נלחם');
+      check("the לזנק case: the guide gives the card's binyan, the review's verdict and the verb check both give Pi'el: applied, as agreed by both",
+        v0.card.binyan === 'nifal' && gRow.binyan === "Nif'al" && nlNow().card.binyan === 'piel' && nlNow().card.corrected.at(-1).by === 'lesson review and verb check'
+        && r.vc.corrected.length === 1 && r.vc.disagreed.length === 0 && r.v.guide.review.verdicts.some((x) => x.word === 'נלחם' && x.verdict === 'fix' && x.binyan === 'piel' && x.root === ''),
+        JSON.stringify({ vc: r.vc, verdicts: r.v.guide.review.verdicts, row: gRow }));
+      r = await rebuild({ review_verdicts: { 'נלחם': { verdict: 'fix', root: 'ל.ח.מ', binyan: 'nifal', why: 'back' } }, verb_fixes: { 'נלחם': { binyan: 'nifal', why: 'back' } } });
+      const v1 = nlNow();
+      // the נוצץ case, with a guide that gives no binyan for the word, so the
+      // review's verdict is the only thing it can have said
+      r = await rebuild({ guide_silent: ['נלחם'], review_verdicts: { 'נלחם': { verdict: 'correct', root: 'ל.ח.מ', binyan: 'nifal', why: '' } }, verb_fixes: { 'נלחם': { binyan: 'piel', why: "a mock's wrong claim" } } });
+      check("the נוצץ case: the review's verdict says the card is right, the verb check proposes Pi'el: not changed, listed as \"review says Nif'al, verb check says Pi'el\" (the guide silent on the word)",
+        v1.card.binyan === 'nifal' && JSON.stringify(nlNow()) === JSON.stringify(v1) && r.vc.corrected.length === 0 && r.vc.disagreed.length === 1
+        && r.vc.disagreed[0].line === "נלחם: review says Nif'al, verb check says Pi'el", JSON.stringify(r.vc));
+      // no verdict on the card: the review said nothing of it, whatever its guide gives
+      r = await rebuild({ review_verdicts: { 'נלחם': null }, verb_fixes: { 'נלחם': { binyan: 'piel', why: "the check: Pi'el" } } });
+      const gRow2 = r.v.guide.sections.find((x) => x.kind === 'vocabulary').rows.find((x) => x.he === 'נלחם');
+      check("a review answer with no verdict on a verb card says nothing of it: the verb check's fix applied, though the guide gives the card's own binyan; the missing verdict named",
+        gRow2.binyan === "Nif'al" && nlNow().card.binyan === 'piel' && nlNow().card.corrected.at(-1).by === 'verb-card check' && r.vc.disagreed.length === 0
+        && r.v.guide.review.verdicts_missing.includes('נלחם') && /review verdicts on verb cards: 2 of 3, none for נלחם/.test(server.log),
+        JSON.stringify({ vc: r.vc, missing: r.v.guide.review.verdicts_missing }));
+      // a verdict written with nikud and a binyan spelled "Nif'al" is still read (false-rejection check);
+      // one naming another lesson's word or a noun of this one is refused and listed
+      r = await rebuild({ review_verdicts: { 'נלחם': { word: 'נִלְחַם', verdict: 'fix', root: 'ל.ח.מ', binyan: "Nif'al", why: "נלחם is Nif'al" } },
+        verb_fixes: { 'נלחם': { binyan: 'nifal', why: 'back' } } });
+      check("a verdict given as נִלְחַם with nikud and \"Nif'al\" is read as the card's (false-rejection check): with the check, applied as agreed by both",
+        nlNow().card.binyan === 'nifal' && nlNow().card.corrected.at(-1).by === 'lesson review and verb check' && !r.v.guide.review.verdicts_refused.length
+        && r.v.guide.review.verdicts.some((x) => x.word === 'נלחם' && x.binyan === 'nifal'), JSON.stringify(r.v.guide.review));
+      const beforeX = cardsNow();
+      r = await rebuild({ review_verdict_extra: [
+        { word: 'לזנק', verdict: 'fix', root: 'ז.נ.ק', binyan: 'piel', why: 'a word of another lesson' },
+        { word: 'שביתה', verdict: 'fix', root: 'ש.ב.ת', binyan: 'paal', why: 'a noun card of this lesson' },
+      ] });
+      check("verdicts naming a word that is not one of the lesson's verb cards (another lesson's word, a noun of this one) are refused and listed, changing nothing",
+        r.v.guide.review.verdicts_refused.join(' | ') === "לזנק: not one of this lesson's verb cards | שביתה: not one of this lesson's verb cards"
+        && JSON.stringify(cardsNow()) === JSON.stringify(beforeX), JSON.stringify(r.v.guide.review.verdicts_refused));
+      const lam = cardsNow().filter((x) => x.card.pos === 'verb').map((x) => x.surface);
+      await control({ review_verdicts: {}, review_verdict_extra: [] });
+      const vp = await import('node:module');
+      const lessonMod = vp.createRequire(import.meta.url)(join(root, 'lib', 'guy-lesson-prompt.js'));
+      const sys = lessonMod.reviewSystem();
+      check('the review prompt asks for a verdict on every verb card, judged from the word and not from the guide, and verb cards corrected by verdict only',
+        /"verb_cards" has one entry for every verb card in the card list, none left out/.test(sys) && /judged from the word itself, not from what the guide says of it/.test(sys)
+        && /A verb card is corrected by its verdict, never through "word_cards"/.test(sys) && lam.length > 0, '');
+    }
     // a card Dan confirmed (session ten, step 1): no check changes it, and
     // the page lists what was proposed
     {

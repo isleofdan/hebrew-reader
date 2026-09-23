@@ -69,7 +69,7 @@ let lastGuideModel = null;
 // JSON at all). review_format_again: the same for the answer to the one
 // follow-up ask. schema_refused: structured output answered 404, as OpenRouter
 // does when no provider of the model takes the parameters asked for.
-const control = { unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false, verb_fixes: {}, verb_extra: [], verb_decline: false, guide_silent: [], refresh_fail: false };
+const control = { unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false, verb_fixes: {}, verb_extra: [], verb_decline: false, guide_silent: [], refresh_fail: false, review_verdicts: {}, review_verdict_extra: [] };
 // verb_fixes: word -> { root?, binyan?, why }, the verb-card check's fix for
 // that card (every other card answered "correct"); verb_extra: answers added
 // after the cards'; verb_decline: the check answers {"error"}.
@@ -229,9 +229,27 @@ http.createServer((req, res) => {
         for (const r of guide.sections.find((x) => x.kind === 'vocabulary').rows) if (!r.flags) corrections.push({ section: 'vocabulary', item: r.he, field: 'flags', find: '', replace: `⚠️ Spelling: mind the letters of ${r.he}`, why: `Spelling flag added to ${r.he}.` });
         for (const c of guide.cards) if (!c[10]) corrections.push({ section: 'cards', item: c[1], field: 'notes', find: '', replace: `⚠️ Spelling: mind the letters of ${c[1]}`, why: `Spelling flag added to the card ${c[1]}.` });
       }
+      // the review's verdict on every verb card (session ten): review_verdicts
+      // names one outright (null: none given); else its word_cards fix; else
+      // what its own guide's vocabulary row gives; a guide silent on the word
+      // gives no verdict
+      const verbCards = [];
+      const keyOf = (b) => Object.keys(BINYAN_NAME).find((k) => BINYAN_NAME[k] === b || k === b) || b;
+      for (const c of (lastReviewCards || []).filter((x) => x.pos === 'verb')) {
+        if (c.word in control.review_verdicts) { const v = control.review_verdicts[c.word]; if (v) verbCards.push({ word: c.word, verdict: 'fix', root: c.root || '', binyan: c.binyan || '', why: '', ...v }); continue; }
+        // a word_cards "fix" whose find and replace are the same is no fix: correct
+        const extra = control.review_extra.filter((x) => x.section === 'word_cards' && x.item === c.word);
+        if (extra.length && extra.every((x) => x.find === x.replace)) { verbCards.push({ word: c.word, verdict: 'correct', root: c.root || '', binyan: c.binyan || '', why: '' }); continue; }
+        if (extra.length) { const v = { word: c.word, verdict: 'fix', root: c.root || '', binyan: c.binyan || '', why: extra[0].why }; for (const x of extra) v[x.field] = x.replace; verbCards.push(v); continue; }
+        const row = guide.sections.find((x) => x.kind === 'vocabulary').rows.find((r) => r.he === c.word);
+        if (!row || !row.binyan) continue;
+        const right = keyOf(row.binyan) === c.binyan && (!row.root || row.root === c.root);
+        verbCards.push(right ? { word: c.word, verdict: 'correct', root: c.root || '', binyan: c.binyan || '', why: '' }
+          : { word: c.word, verdict: 'fix', root: row.root || c.root || '', binyan: row.binyan, why: "as the guide gives it" });
+      }
       answer = control.review === 'decline' ? { error: 'the reviewer declines in this mock' }
         : control.review === 'whole-guide' ? { guide, changes: [] }
-        : { corrections, remove };
+        : { corrections, remove, verb_cards: [...verbCards, ...control.review_verdict_extra] };
     } else if (user.startsWith('Lesson: ')) {
       guides++;
       lastGuideModel = body.model;
