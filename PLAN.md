@@ -491,7 +491,11 @@ checked, as is the import leaving pre-2026 lessons with no guide. The
 **Open items.**
 - The old spine marks under a corrected verb's former id (e.g.
   `v:ז.נ.ק:paal`) stay on the spine.
-- Whether the live review corrects לזנק: Dan's rebuild.
+- **Live, 23 Sep 2026: לזנק is still Pa'al** after Dan's rebuild of the June
+  lesson (deploy run 18). לזנק is a single-word item, so its card is one the
+  review now sees. Why it was not corrected is not known from the sandbox:
+  the review may not have been applied, may not have named the card, or its
+  fix may have been refused. The lesson page's review list says which.
 - On the desktop lesson page the word card sits at the top of the right
   column and does not follow the scroll. A word tapped low on a long guide
   opens a card that is off screen. This is older than this session.
