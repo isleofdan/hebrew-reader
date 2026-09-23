@@ -507,6 +507,68 @@ try {
         await page.unroute('**/lookup');
       }
 
+      // a card Dan confirmed (session ten): its server answer shaped as the
+      // one-time step leaves לזנק live (the step itself is checked by the smoke)
+      {
+        await page.route('**/lookup', async (route) => {
+          const body = JSON.parse(route.request().postData() || '{}');
+          const res = await route.fetch();
+          const data = await res.json();
+          if (body.surface === 'נאלצה' && data.card) {
+            data.card.corrected = [{ by: 'verb-card check', field: 'binyan', before: 'paal', after: 'nifal', lesson_title: 'שיעור עם גיא — 15.6.2026' }];
+            data.card.refreshed = { for: 1, at: new Date().toISOString() };
+            data.card.confirmed = { on: '2026-09-23', root: data.card.root, binyan: 'nifal' };
+            delete data.refresh_due;
+          }
+          await route.fulfill({ response: res, json: data });
+        });
+        const w = page.locator('#items .w', { hasText: 'נאלצה' }).first();
+        await page.goto(`${base}/lesson.html?id=${lessonId}`);
+        await page.waitForSelector('.guide section');
+        await w.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+        if (isMobile) await w.tap(); else { await w.hover(); await page.waitForTimeout(500); }
+        const lcard = page.locator(isMobile ? '#card-phone' : '#card-desktop');
+        await lcard.locator('.meaning:not(:empty)').waitFor({ timeout: 10000 });
+        const line = lcard.locator('.corrected');
+        const text = (await line.innerText()).replace(/\s+/g, ' ');
+        const conf = line.locator('.confirmed');
+        check(`${name} ${scheme}: a card Dan confirmed says "Confirmed by you, 23 Sep 2026" first, then its correction, legible, and the card reads Nif'al`,
+          /^Confirmed by you, 23 Sep 2026 ?Corrected by the verb check: Pa'al → Nif'al ?שיעור עם גיא — 15\.6\.2026$/.test(text) && await conf.isVisible()
+          && /Nif'al/.test(await lcard.locator('.grammar').innerText()) && contrast(await paint(conf, 'color'), await paint(line, 'backgroundColor')) >= 4.5 && await fits(), text);
+        await lcard.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+        await page.waitForTimeout(200);
+        await page.screenshot({ path: join(out, `lesson-card-confirmed-${scheme}-${name}.png`) });
+        if (isMobile) await page.locator('#card-phone .close').click().catch(() => {});
+        await page.unroute('**/lookup');
+      }
+
+      // a check proposing a change to a card Dan confirmed: the lesson page's
+      // verb-card lines say it was not changed (the rule itself is in the smoke)
+      {
+        const lessonRe = new RegExp(`/lessons/${lessonId}$`);
+        await page.route(lessonRe, async (route) => {
+          const res = await route.fetch();
+          const data = await res.json();
+          if (data.guide && data.guide.review && data.guide.review.cards) data.guide.review.cards.kept = ['לזנק'];
+          await route.fulfill({ response: res, json: data });
+        });
+        await page.goto(`${base}/lesson.html?id=${lessonId}`);
+        await page.waitForSelector('.guide section');
+        const verbLine = page.locator('.guide details.review').nth(1);
+        await verbLine.locator('summary').click();
+        await verbLine.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+        await page.evaluate(() => window.scrollBy(0, -80));
+        await page.waitForTimeout(200);
+        const verbText = await verbLine.innerText();
+        const kept = verbLine.locator('.review-kept li').first();
+        check(`${name} ${scheme}: "Verb cards checked: 2, corrected: 1, not changed: 2" opens to "Not changed — you confirmed this card: לזנק", left to right, legible, and the page fits`,
+          /^Verb cards checked: 2, corrected: 1, not changed: 2\b/.test(verbText) && (await kept.innerText()) === 'Not changed — you confirmed this card: \u2068לזנק\u2069'
+          && await kept.evaluate((el) => getComputedStyle(el).direction === 'ltr' || el.matches(':dir(ltr)')) && contrast(await paint(kept, 'color'), await ground()) >= 7 && await fits(),
+          verbText.replace(/\s+/g, ' ').slice(0, 300));
+        await page.screenshot({ path: join(out, `lesson-kept-${scheme}-${name}.png`) });
+        await page.unroute(lessonRe);
+      }
+
       // a lesson opened with no guide yet: the "being built" state, as the
       // upload shows it (the server's answer held at building so it can be seen)
       {
