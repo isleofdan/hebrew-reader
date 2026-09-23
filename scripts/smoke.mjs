@@ -395,10 +395,29 @@ try {
     const v = await until(L1.body.id, (x) => x.guide_state !== 'building' && !x.saving);
     const rows = v.guide.sections.find((x) => x.kind === 'vocabulary').rows;
     const phrase = L1.body.items.find((i) => /\s/.test(i));
-    check('a review that adds an item: the addition refused item for item, its correction kept',
-      v.guide.review.state === 'applied' && v.guide.review.refused.includes(`vocabulary row ${phrase}`) && v.guide.review.refused.includes(`card ${phrase}`)
-      && !rows.some((r) => r.he === phrase) && rows.some((r) => r.root === 'ס.ל.ם') && v.guide.cards.filter((c) => c[1] === phrase).length === 1,
+    check('a review that tries to add: corrections naming items the guide lacks, or text not there, are refused and listed; its real correction kept',
+      v.guide.review.state === 'applied' && v.guide.review.changes.length === 1 && v.guide.review.refused.length === 3
+      && v.guide.review.refused.some((r) => r.startsWith(`vocabulary ${phrase}: no such item`)) && v.guide.review.refused.some((r) => r.startsWith('cards תוספת: no such item'))
+      && v.guide.review.refused.some((r) => /^drills להיאלץ: "טקסט שאינו שם" is not in it/.test(r))
+      && !rows.some((r) => r.he === phrase) && rows.some((r) => r.root === 'ס.ל.ם') && v.guide.cards.length === built.guide.cards.length,
       JSON.stringify(v.guide.review));
+    await control({ review: 'whole-guide' });
+    await api('POST', `/lessons/${L1.body.id}/guide`, { rebuild: true });
+    const wg = await until(L1.body.id, (x) => x.guide_state !== 'building' && !x.saving);
+    check('a review that writes the guide back instead of corrections is not taken: the checked guide saved, the reason kept',
+      wg.guide.review.state === 'not run' && /no list of corrections/.test(wg.guide.review.reason), JSON.stringify(wg.guide.review));
+    const gl = req(join(root, 'lib', 'guy-lesson.js'));
+    const mini = { sections: [{ kind: 'drills', verbs: [{ verb: 'להסלים', root: 'ס.ל.ם', binyan: "Hif'il", takes_object: false, table: [{ tense: 'future', forms: [{ person: '3ms', he: 'יַסְלִים' }] }], exercises: [{ sentence: 'המצב ___.', cue: '3ms future', answer: 'יסלים' }] }] }, { kind: 'vocabulary', rows: [{ he: 'לזנק', en: 'to leap', root: 'ז.נ.ק', binyan: "Pa'al" }] }], cards: [['לְזַנֵּק', 'לזנק', '', 'to leap', 'ז.נ.ק', "Pa'al", 'Verbs', 'verb', '', '', '']] };
+    const applied = gl.applyCorrections(mini, { corrections: [
+      { section: 'vocabulary', item: 'לזנק', find: "Pa'al", replace: "Pi'el", why: 'binyan' },
+      { section: 'cards', item: 'לזנק', find: "Pa'al", replace: "Pi'el", why: 'card binyan' },
+      { section: 'drills', item: 'להסלים', find: 'takes_object', replace: 'both', why: 'objects' },
+      { section: 'drills', item: 'להסלים', find: 'יַסְלִים', replace: 'יַסְלִים!', why: 'a nested form' },
+    ], remove: [] });
+    check("corrections reach any field of an item, nested ones included, and the guide handed in is untouched",
+      applied.guide.sections[1].rows[0].binyan === "Pi'el" && applied.guide.cards[0][5] === "Pi'el" && applied.guide.sections[0].verbs[0].takes_object === 'both'
+      && applied.guide.sections[0].verbs[0].table[0].forms[0].he === 'יַסְלִים!' && applied.changes.length === 4 && applied.refused.length === 0 && mini.cards[0][5] === "Pa'al",
+      JSON.stringify(applied.refused));
     await control({ review: 'decline' });
     await api('POST', `/lessons/${L1.body.id}/guide`, { rebuild: true });
     const w = await until(L1.body.id, (x) => x.guide_state !== 'building' && !x.saving);

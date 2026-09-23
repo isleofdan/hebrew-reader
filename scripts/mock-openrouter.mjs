@@ -43,8 +43,9 @@ let lastGuideModel = null;
 // Set by a check through POST /control: model ids answered as not found.
 // guide_faults: one fault per guide call, in order (see mockGuide).
 // review: what the review pass does — 'fix-root' (the default: one root
-// corrected), 'add-item' (the same, plus a vocabulary row and a card the
-// checked guide did not have), 'decline', or 'unchanged'.
+// corrected), 'add-item' (the same, plus corrections naming items the guide
+// does not have or text that is not there), 'decline', or 'whole-guide' (the
+// guide written back instead of corrections, which the server must refuse).
 // extra_cards: surface -> card, answered from now on (a word the mock did
 // not know, known on the second try).
 const control = { unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {} };
@@ -148,23 +149,26 @@ http.createServer((req, res) => {
         ? { answer: nifal.length ? `The Nif'al forms on your map in this piece: ${nifal.join(', ')}.` : 'No Nif\'al form of this piece is on your map yet.', links: nifal.map((w) => ({ claim: w, reference: 'pealim', term: w })) }
         : { answer: "נאלץ is the Nif'al of א.ל.צ, 'to be forced'; it takes ל- plus an infinitive (not sure about older usage with את).", links: [{ claim: "Nif'al of א.ל.צ", reference: 'pealim', term: 'אלצ' }, { claim: 'takes ל- plus an infinitive', reference: 'wiktionary', term: 'נאלץ' }, { claim: 'older usage', reference: 'academy', term: 'נאלץ' }] };
     } else if (user.startsWith('Review: ')) {
+      // the review answers corrections only, never the guide written out
       reviews++;
       const guide = JSON.parse(user.split('\n\nGuide:\n')[1]);
       const items = user.split('one per line:\n')[1].split('\n\n')[0].split('\n').filter(Boolean);
-      const changes = [];
+      const corrections = [], remove = [];
       if (control.review === 'fix-root' || control.review === 'add-item') {
         const row = guide.sections.find((x) => x.kind === 'vocabulary').rows.find((r) => r.root === 'ס.ל.מ');
-        row.root = 'ס.ל.ם';
-        changes.push(`Root of ${row.he} corrected from ס.ל.מ to ס.ל.ם (a final mem; the root of סולם, a ladder).`);
+        corrections.push({ section: 'vocabulary', item: row.he, find: 'ס.ל.מ', replace: 'ס.ל.ם', why: `Root of ${row.he} corrected from ס.ל.מ to ס.ל.ם (a final mem; the root of סולם, a ladder).` });
       }
       if (control.review === 'add-item') {
+        // what adding would look like through corrections: an item the guide does
+        // not have, and text that is not in the item named
         const phrase = items.find((i) => /\s/.test(i));
-        guide.sections.find((x) => x.kind === 'vocabulary').rows.push({ he: phrase, pointed: phrase.replace(/^(.)/, '$1\u05b8'), en: 'added by the review', root: '', binyan: '', category: 'Expressions', flags: '⚠️ Spelling: added' });
-        guide.cards.push(['תוספת', 'תוספת', 'tosefet', 'added by the review', '', '', 'Expressions', 'noun', '', '', '⚠️ Spelling: added']);
-        guide.cards.push([phrase, phrase, 'x', 'added by the review', '', '', 'Expressions', 'phrase', '', '', '⚠️ Spelling: added']);
-        changes.push(`added ${phrase} to the vocabulary`);
+        corrections.push({ section: 'vocabulary', item: phrase, find: '', replace: 'added by the review', why: `added ${phrase} to the vocabulary` });
+        corrections.push({ section: 'cards', item: 'תוספת', find: 'x', replace: 'y', why: 'a card the lesson does not have' });
+        corrections.push({ section: 'drills', item: 'להיאלץ', find: 'טקסט שאינו שם', replace: 'z', why: 'text that is not in the drill' });
       }
-      answer = control.review === 'decline' ? { error: 'the reviewer declines in this mock' } : { guide, changes };
+      answer = control.review === 'decline' ? { error: 'the reviewer declines in this mock' }
+        : control.review === 'whole-guide' ? { guide, changes: [] }
+        : { corrections, remove };
     } else if (user.startsWith('Lesson: ')) {
       guides++;
       lastGuideModel = body.model;
