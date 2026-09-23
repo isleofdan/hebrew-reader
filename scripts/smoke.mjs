@@ -645,6 +645,37 @@ try {
     check('an unlisted type still fails, and so does a listed type the root does not have',
       /gives no deviation from/.test(geminate[0]?.detail) && /calls נוצץ \(לנצוץ\) hollow, which its root נ\.צ\.צ is not/.test(hollow[0]?.detail) && none.length === 1,
       JSON.stringify([geminate, hollow, none]));
+    // drill fixes by field (session nine, step 4): set on the data, checked
+    // like any other correction
+    const gl = req(join(root, 'lib', 'guy-lesson.js'));
+    const known = [{ surface: 'נוצץ', root: 'נ.צ.צ', binyan: 'paal', from: 'card' }];
+    const drillGuide = (deviation) => ({ sections: [{ kind: 'drills', verbs: [{ verb: 'נוצץ (לנצוץ)', root: 'נ.צ.צ', binyan: "Pa'al", deviation, takes_object: true, exercises: [] }] }], cards: [] });
+    const drillFails = (g) => gc.check(g, { items: [] }, known).filter((f) => f.check === 'drill');
+    const breaks = (before) => { let cur = drillFails(before); return (next) => { const after = drillFails(next); const broken = cur.length ? [] : after; if (!broken.length) cur = after; return broken; }; };
+    const g1 = drillGuide('pe-nun');
+    const byField = gl.applyCorrections(g1, { corrections: [
+      { section: 'drills', item: 'נוצץ (לנצוץ)', field: 'deviation', find: 'pe-nun', replace: 'pe-nun, doubled', why: 'נ.צ.צ is pe-nun and doubled' },
+      { section: 'drills', item: 'נוצץ (לנצוץ)', field: 'takes_object', find: 'true', replace: 'false', why: 'נוצץ takes no object' },
+    ], remove: [] }, breaks(g1));
+    const v1 = byField.guide.sections[0].verbs[0];
+    check('a drill fix by field ("deviation", "takes_object") applies on the data and passes the drill check',
+      v1.deviation === 'pe-nun, doubled' && v1.takes_object === false && byField.changes.length === 2 && byField.refused.length === 0 && byField.dropped.length === 0 && drillFails(byField.guide).length === 0,
+      JSON.stringify({ v1, refused: byField.refused, dropped: byField.dropped }));
+    const breaking = gl.applyCorrections(g1, { corrections: [{ section: 'drills', item: 'נוצץ (לנצוץ)', field: 'deviation', find: '', replace: 'pe-nun, hollow', why: 'wrong' }], remove: [] }, breaks(g1));
+    check('a drill fix by field that breaks the drill check is dropped like any other correction',
+      breaking.guide.sections[0].verbs[0].deviation === 'pe-nun' && breaking.dropped.length === 1 && breaking.dropped[0].checks.join() === 'drill', JSON.stringify(breaking.dropped));
+    const keys = gl.applyCorrections(g1, { corrections: [
+      { section: 'drills', item: 'נוצץ (לנצוץ)', field: '', find: '"deviation":"pe-nun"', replace: '"deviation":"pe-nun, doubled"', why: 'as JSON' },
+      { section: 'drills', item: 'נוצץ (לנצוץ)', field: '', find: '"takes_object":true', replace: '"takes_object":false', why: 'as JSON' },
+      { section: 'drills', item: 'נוצץ (לנצוץ)', field: 'deviation', find: 'none', replace: 'doubled', why: 'the wrong current value' },
+    ], remove: [] }, breaks(g1));
+    check('a find text that is a JSON key is still refused, and a field fix naming the wrong current value is refused',
+      keys.changes.length === 0 && keys.refused.length === 3 && /"deviation":"pe-nun"" is not in it/.test(keys.refused[0]) && /"takes_object":true" is not in it/.test(keys.refused[1])
+      && /the drill's deviation is pe-nun, not none/.test(keys.refused[2]) && keys.guide.sections[0].verbs[0].deviation === 'pe-nun',
+      JSON.stringify(keys.refused));
+    const rs = req(join(root, 'lib', 'guy-lesson-prompt.js')).reviewSystem();
+    check('the review prompt says: find text from the guide\'s visible text, never its JSON keys; a drill\'s deviation and takes_object by field',
+      /Write "find" from the guide's visible text[^\n]*never from its JSON keys/.test(rs) && /"field": "deviation" or "takes_object"/.test(rs), '');
   }
 
   // the five rule checks (session five, step 2): each failing once, then passing on the one rebuild
