@@ -46,7 +46,9 @@ const POINTED = {
   'ייקבעו': ['נִקְבַּע', 'יִיקָּבְעוּ'], 'נחתם': ['נֶחְתַּם', 'נֶחְתַּם'], 'הסלמה': ['הַסְלָמָה', 'הַסְלָמָה'], 'דם': ['דָּם', 'דָּם'],
 };
 for (const [w, [lemma, surface]] of Object.entries(POINTED)) if (known[w]) Object.assign(known[w], { lemma_pointed: lemma, surface_pointed: surface });
-let pointsCalls = 0;
+// The corrected cards' nikud, as the refresh answers it: לזנק in Pi'el.
+const REPOINTED = { 'לזנק piel': ['זִנֵּק', 'לְזַנֵּק'], 'נלחם piel': ['נִלְחֵם', 'נִלְחֵם'] };
+let pointsCalls = 0, refreshCalls = 0;
 let calls = 0;
 let guides = 0;
 let lastGuideModel = null;
@@ -67,7 +69,7 @@ let lastGuideModel = null;
 // JSON at all). review_format_again: the same for the answer to the one
 // follow-up ask. schema_refused: structured output answered 404, as OpenRouter
 // does when no provider of the model takes the parameters asked for.
-const control = { unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false, verb_fixes: {}, verb_extra: [], verb_decline: false, guide_silent: [] };
+const control = { unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false, verb_fixes: {}, verb_extra: [], verb_decline: false, guide_silent: [], refresh_fail: false };
 // verb_fixes: word -> { root?, binyan?, why }, the verb-card check's fix for
 // that card (every other card answered "correct"); verb_extra: answers added
 // after the cards'; verb_decline: the check answers {"error"}.
@@ -130,7 +132,7 @@ function mockGuide(items, date, n, fault) {
   return g;
 }
 http.createServer((req, res) => {
-  if (req.url === '/calls') { res.end(JSON.stringify({ calls, points_calls: pointsCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
+  if (req.url === '/calls') { res.end(JSON.stringify({ calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
   let raw = '';
   req.on('data', (c) => raw += c);
   req.on('end', () => {
@@ -240,6 +242,16 @@ http.createServer((req, res) => {
       answer = items.some((i) => i.includes('סירוב'))
         ? { error: 'these lines are not a lesson a guide can be built from' }
         : mockGuide(items, date, guides, control.guide_faults.shift());
+    } else if (user.startsWith('Corrected card\n')) {
+      // a corrected card re-pointed and its note written again (session nine);
+      // refresh_fail: the call declines
+      refreshCalls++;
+      const f = (k) => (new RegExp(`${k}: (.*)`).exec(user) || [])[1];
+      const lemma = f('Lemma'), surface = f('Surface'), binyan = f('Binyan');
+      const name = BINYAN_NAME[binyan] || binyan;
+      const p = REPOINTED[`${surface} ${binyan}`];
+      answer = control.refresh_fail ? { error: 'the pointer declines in this mock' }
+        : { lemma_pointed: p ? p[0] : lemma === '(none)' ? '' : point(lemma), surface_pointed: p ? p[1] : point(surface), note: `${name} of ${f('Root')}, as corrected.` };
     } else if (/\nLemma: /.test(user)) {
       // nikud only, for a card cached before cards carried it
       pointsCalls++;

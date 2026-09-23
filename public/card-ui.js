@@ -88,7 +88,7 @@
       const chip = document.createElement('span'); chip.className = 'chip'; chip.textContent = LABELS[id] || id; chips.append(chip);
     }
     el(card, 'note').textContent = c.note || '';
-    drawCorrected(el(card, 'corrected'), c.corrected);
+    drawCorrected(el(card, 'corrected'), c.corrected, c.refreshed);
     el(card, 'error').textContent = '';
     const actions = el(card, 'actions');
     actions.classList.toggle('hidden', !spot);
@@ -102,6 +102,7 @@
   // is filled again in place. `isCurrent()` says whether the card still shows
   // this word; a failure leaves the card as it is, unpointed.
   async function addPoints(card, data, { api, sentence, isCurrent }) {
+    if (data && data.refresh_due) return refresh(card, data, { api, sentence, isCurrent });
     if (!data || !data.points_missing) return;
     try {
       const got = await api('POST', '/lookup/points', { surface: data.card.surface, sentence: sentence || '' });
@@ -120,9 +121,27 @@
 
   const BY = { 'lesson review': 'lesson review', 'verb-card check': 'verb check', 'lesson review and verb check': 'lesson review and the verb check' };
 
+  // A card whose root or binyan was corrected and not yet re-pointed: one
+  // call re-points it and writes its note again, then the card is filled
+  // again in place. A failure is saved on the card, which says so.
+  async function refresh(card, data, { api, sentence, isCurrent }) {
+    try {
+      const got = await api('POST', '/lookup/refresh', { surface: data.card.surface, sentence: sentence || '' });
+      data.card = got.card;
+      delete data.refresh_due;
+      if (isCurrent()) {
+        const foot = el(card, 'foot').textContent;
+        fill(card, data);
+        el(card, 'foot').textContent = foot;
+      }
+    } catch (e) {
+      if (isCurrent()) el(card, 'foot').textContent = `Nikud and note not refreshed after the correction: ${e.message}`;
+    }
+  }
+
   // What the lesson review corrected on this card, before and after:
   // "Corrected by the lesson review: Pa'al → Pi'el", the lesson on a line of its own.
-  function drawCorrected(box, list) {
+  function drawCorrected(box, list, refreshed) {
     box.innerHTML = '';
     if (!Array.isArray(list) || !list.length) return;
     const show = (f, v) => (f === 'binyan' ? document.createTextNode(BINYAN[v] || v || 'none') : he(v || 'none'));
@@ -132,6 +151,10 @@
       box.append(show(x.field, x.before), document.createTextNode(' → '), show(x.field, x.after));
       if (x.lesson_title) { const t = document.createElement('span'); t.className = 'src'; t.dir = 'rtl'; t.textContent = x.lesson_title; box.append(t); }
     });
+    // the pointed forms and note after a correction: a failed refresh says so
+    if (refreshed && refreshed.failed) {
+      box.append(document.createElement('br'), document.createTextNode(`Nikud and note not refreshed after the correction: ${refreshed.failed}`));
+    }
   }
 
   // "Ask about this root": Pealim and Hebrew Wiktionary in new tabs.

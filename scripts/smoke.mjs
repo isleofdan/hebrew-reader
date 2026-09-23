@@ -815,6 +815,37 @@ try {
       && /card נלחם binyan nifal -> piel \(the verb-card check\)/.test(server.log) && /verb cards checked in \d+ ms: 3, fixes proposed 1/.test(server.log)
       && (putsA['v:ל.ח.מ:piel'] || 0) - (putsB['v:ל.ח.מ:piel'] || 0) === 1,
       JSON.stringify({ vc: r.vc, card: nl.card }));
+    // the corrected card refreshed (session nine, step 2): re-pointed and its
+    // note written again for Pi'el, once, straight after the correction
+    const refreshCalls = async () => (await orCalls()).refresh_calls;
+    check("a corrected card is re-pointed and its note written again for the corrected binyan, once, after the correction: נִלְחֵם, \"Pi'el of ל.ח.מ\"",
+      nl.card.pointed?.lemma === 'נִלְחֵם' && nl.card.note === "Pi'el of ל.ח.מ, as corrected." && nl.card.refreshed?.for === nl.card.corrected.length && !nl.card.refreshed.failed
+      && /nikud and note refreshed for the corrected card "נלחם"/.test(server.log), JSON.stringify({ pointed: nl.card.pointed, note: nl.card.note, refreshed: nl.card.refreshed }));
+    {
+      // a card corrected before this session (לזנק live): corrected, never refreshed
+      const unrefresh = () => { const d = new Database(join(dataDir, 'reader.db')); const row = d.prepare("SELECT id, json FROM cards WHERE surface = 'נלחם'").get(); const c = JSON.parse(row.json); delete c.refreshed; c.note = "Nif'al; fights ב- (in), not 'against'."; d.prepare('UPDATE cards SET json = ? WHERE id = ?').run(JSON.stringify(c), row.id); d.close(); };
+      unrefresh();
+      const n0 = await refreshCalls();
+      const open1 = await api('POST', '/lookup', { surface: 'נלחם', sentence: 'נלחם', lesson_id: L2.body.id });
+      const got1 = await api('POST', '/lookup/refresh', { surface: 'נלחם', sentence: 'נלחם' });
+      const n1 = await refreshCalls();
+      const open2 = await api('POST', '/lookup', { surface: 'נלחם', sentence: 'נלחם', lesson_id: L2.body.id });
+      const got2 = await api('POST', '/lookup/refresh', { surface: 'נלחם', sentence: 'נלחם' });
+      const n2 = await refreshCalls();
+      check('a card corrected before this session is refreshed the first time it is opened (one call), and the second open makes no call',
+        open1.body.refresh_due === true && !open1.body.points_missing && got1.status === 200 && got1.body.called === true && got1.body.card.note === "Pi'el of ל.ח.מ, as corrected." && n1 - n0 === 1
+        && !open2.body.refresh_due && open2.body.card.note === "Pi'el of ל.ח.מ, as corrected." && got2.body.called === false && n2 === n1,
+        JSON.stringify({ open1: open1.body.refresh_due, got1: got1.body, open2: open2.body.refresh_due, calls: [n0, n1, n2] }));
+      unrefresh();
+      await control({ refresh_fail: true });
+      const bad = await api('POST', '/lookup/refresh', { surface: 'נלחם', sentence: 'נלחם' });
+      await control({ refresh_fail: false });
+      const open3 = await api('POST', '/lookup', { surface: 'נלחם', sentence: 'נלחם', lesson_id: L2.body.id });
+      check('a refresh that fails is never silent: the card keeps the reason, and it is tried again at the next open',
+        bad.status === 200 && bad.body.called === true && /the model declined — the pointer declines/.test(bad.body.failed) && /the model declined/.test(bad.body.card.refreshed?.failed)
+        && open3.body.refresh_due === true && /nikud and note not refreshed for the corrected card "נלחם"/.test(server.log), JSON.stringify({ bad: bad.body, open3: open3.body.refresh_due }));
+      await api('POST', '/lookup/refresh', { surface: 'נלחם', sentence: 'נלחם' });
+    }
     r = await rebuild({ verb_fixes: { 'נלחם': { binyan: "Nif'al", why: "נלחם is Nif'al" } }, verb_extra: [
       { word: 'נִלְחַם', verdict: 'correct', root: 'ל.ח.ם', binyan: "Nif'al", why: '' },
       { word: 'לזנק', verdict: 'fix', root: 'ז.נ.ק', binyan: 'piel', why: 'a word of another lesson' },
