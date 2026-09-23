@@ -26,6 +26,7 @@
       if (my !== seq) return;
       current.card = data.card; current.spot = data.spot;
       UI.fill(card, data);
+      UI.addPoints(card, data, { api: window.Reader.api, sentence, isCurrent: () => my === seq });
       if (data.spot) {
         const marks = window.Reader.marks;
         marks[surface] = { spot_id: data.spot.id, status: data.spot.status, hint: UI.hint(data.card) };

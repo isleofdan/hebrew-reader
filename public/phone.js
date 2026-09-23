@@ -31,10 +31,11 @@ for (const id of ['card-demand', 'card-also', 'card-lookup']) {
   slots[id] = slot;
 }
 
-function showOnSlot(id, data) {
+function showOnSlot(id, data, sentence) {
   const slot = slots[id];
-  slot.current = { card: data.card, spot: data.spot };
+  const current = slot.current = { card: data.card, spot: data.spot };
   UI.fill(slot.el, data);
+  UI.addPoints(slot.el, data, { api, sentence, isCurrent: () => slot.current === current });
 }
 
 async function lookupInto(id, { surface, sentence, article_id }) {
@@ -42,7 +43,7 @@ async function lookupInto(id, { surface, sentence, article_id }) {
   UI.setLoading(slot.el, surface);
   try {
     const data = await api('POST', '/lookup', { surface, sentence: sentence || '', article_id: article_id || null });
-    showOnSlot(id, data);
+    showOnSlot(id, data, sentence || '');
     return data;
   } catch (e) {
     UI.setError(slot.el, surface, e.message);
@@ -129,7 +130,7 @@ async function check() {
     if (data.ok) {
       msg.textContent = '';
       setGap('right', data.surface);
-      showOnSlot('card-demand', data);
+      showOnSlot('card-demand', data, data.sentence);
       $('#show').disabled = true;
     } else {
       msg.className = 'msg error';
@@ -151,7 +152,7 @@ async function show() {
   try {
     const data = await api('POST', '/demand/show', { spot_id: item.spot_id, article_id: item.article_id, surface: item.surface });
     setGap('shown', data.surface);
-    showOnSlot('card-demand', data);
+    showOnSlot('card-demand', data, data.sentence);
   } catch (e) {
     msg.className = 'msg error'; msg.textContent = e.message;
     $('#show').disabled = false; $('#check').disabled = false;

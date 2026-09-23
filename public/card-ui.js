@@ -42,16 +42,35 @@
   // The footer line for a spine outcome; '' when there is nothing to say.
   function spineLine(outcome) { return SPINE_TEXT[outcome] || ''; }
 
+  // The headword: the dictionary form with its nikud, large, and the same
+  // word unpointed beside it, smaller. A card with no pointed form yet shows
+  // the word unpointed until addPoints fills it in.
+  function headword(box, c) {
+    box.innerHTML = '';
+    const word = c.lemma || c.surface;
+    const pointed = c.pointed ? (c.lemma ? c.pointed.lemma : c.pointed.surface) : null;
+    const big = document.createElement('span'); big.className = 'pointed'; big.textContent = pointed || word; box.append(big);
+    if (pointed) { const small = document.createElement('span'); small.className = 'plain'; small.textContent = word; box.append(small); }
+  }
+
+  // Nikud is display only: compared without it, the selected word and the
+  // headword are the same word when only the points differ.
+  const bare = (s) => String(s || '').replace(/[\u0591-\u05C7]/g, '');
+
   function fill(card, data) {
     const c = data.card, spot = data.spot;
     card.classList.remove('idle');
-    el(card, 'surface').textContent = c.surface;
+    headword(el(card, 'surface'), c);
     el(card, 'status').textContent = spot ? `${STATUS_TEXT[spot.status] || spot.status} · ${spot.touches} touch${spot.touches === 1 ? '' : 'es'}` : 'no spot for this word';
     el(card, 'meaning').textContent = c.meaning_en;
     const g = el(card, 'grammar');
     g.innerHTML = '';
     const parts = [];
-    if (c.lemma && c.lemma !== c.surface) parts.push(['lemma ', he(c.lemma)]);
+    // the word as it stands in the text, pointed when the card has it
+    if (c.lemma && bare(c.lemma) !== bare(c.surface)) {
+      const w = he((c.pointed && c.pointed.surface) || c.surface); w.classList.add('pointed');
+      parts.push(['in the text ', w]);
+    }
     if (c.root) parts.push(['root ', he(c.root)]);
     if (c.binyan) parts.push([[BINYAN[c.binyan] || c.binyan, c.tense, c.person_gender_number].filter(Boolean).join(', ')]);
     else parts.push([[c.pos, c.person_gender_number].filter(Boolean).join(', ')]);
@@ -74,6 +93,23 @@
     actions.querySelector('[data-act=solid]').disabled = !spot || spot.status === 'solid';
     actions.querySelector('[data-act=ask]').disabled = !c.root && !c.lemma;
     el(card, 'foot').textContent = spineLine(data.spine) || (data.cached ? 'from the cache' : '');
+  }
+
+  // A card cached before cards carried nikud: one call adds it, then the card
+  // is filled again in place. `isCurrent()` says whether the card still shows
+  // this word; a failure leaves the card as it is, unpointed.
+  async function addPoints(card, data, { api, sentence, isCurrent }) {
+    if (!data || !data.points_missing) return;
+    try {
+      const got = await api('POST', '/lookup/points', { surface: data.card.surface, sentence: sentence || '' });
+      data.card.pointed = got.pointed;
+      delete data.points_missing;
+      if (isCurrent()) {
+        const foot = el(card, 'foot').textContent;
+        fill(card, data);
+        el(card, 'foot').textContent = foot;
+      }
+    } catch (e) { /* the card stays unpointed */ }
   }
 
   // What the lesson review corrected on this card, before and after:
@@ -128,5 +164,5 @@
     }
   }
 
-  window.CardUI = { BINYAN, LABELS, STATUS_TEXT, fill, setLoading, setError, hint, spineLine, askAbout, wire, saveStatus };
+  window.CardUI = { BINYAN, LABELS, STATUS_TEXT, fill, addPoints, setLoading, setError, hint, spineLine, askAbout, wire, saveStatus };
 })();

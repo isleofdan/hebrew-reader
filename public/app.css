@@ -23,6 +23,10 @@
 
   --serif: 'Frank Ruhl Libre', 'David', 'Narkisim', 'Times New Roman', serif;
   --sans: 'Assistant', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Hebrew with nikud: Frank Ruhl Libre does not place vowel points well, so
+     pointed words take Noto Serif Hebrew (loaded from Google Fonts, and on
+     Android already), then the Windows faces that carry the points. */
+  --pointed: 'Noto Serif Hebrew', 'SBL Hebrew', 'Times New Roman', 'David', serif;
 }
 :root, :root[data-theme="light"] {
   color-scheme: only light;
@@ -183,7 +187,11 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 /* the card */
 .card { background: var(--panel); border: 1px solid var(--line-strong); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
 .card .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-.card .surface { font-family: var(--serif); font-size: 24px; font-weight: 700; direction: rtl; }
+.card .surface { font-family: var(--serif); font-size: 24px; font-weight: 700; direction: rtl; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+/* room above and below for the points: nothing clipped in either theme */
+.card .surface .pointed { font-family: var(--pointed); font-size: 30px; font-weight: 600; line-height: 1.6; }
+.card .surface .plain { font-family: var(--serif); font-size: 17px; font-weight: 500; color: var(--muted); }
+.card .he.pointed { font-family: var(--pointed); font-weight: 500; font-size: 18px; line-height: 1.6; }
 .card .status { font-size: 13px; color: var(--muted); }
 .card .line { font-size: 15px; line-height: 1.5; }
 .card .he { direction: rtl; unicode-bidi: isolate; font-family: var(--serif); font-weight: 600; font-size: 17px; }
