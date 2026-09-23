@@ -255,6 +255,13 @@ function drawVerbCheck(box, vc) {
     for (const x of disagreed) ul.append(auto('li', disagreeLine(x)));
     d.append(ul);
   }
+  // put back by the one-time step of session nine
+  if (vc.restored && vc.restored.length) {
+    d.append(el('p', 'caption', `Restored, because the lesson review contradicted the verb check (${vc.restored.length}):`));
+    const ul = el('ul', 'review-changes review-restored');
+    for (const x of vc.restored) ul.append(auto('li', cardFixLine(x)));
+    d.append(ul);
+  }
   if (vc.refused.length) d.append(el('p', 'caption', `Answers not used: ${vc.refused.join('; ')}.`));
   box.append(d);
 }

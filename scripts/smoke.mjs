@@ -1001,6 +1001,89 @@ try {
   rmSync(siteDir, { recursive: true, force: true });
   }
 
+  // the one-time put-back (session nine, step 3): a database shaped as the
+  // live one after session eight — the June lesson's verb check turned נוצץ
+  // to Pi'el against its review's drill (Pa'al), and לזנק to Pi'el, which
+  // its guide agrees with
+  {
+    check('a fresh database runs the one-time put-back once at start, touching nothing',
+      /one-time step done: restore verb-check card fixes the lesson review contradicted \(session nine\): 0 cards restored/.test(server.log), '');
+    const Database = createRequire(import.meta.url)(join(root, 'node_modules', 'better-sqlite3'));
+    const orCalls = async () => (await (await fetch(`http://127.0.0.1:${OR_PORT}/calls`)).json());
+    const { createHash } = await import('node:crypto');
+    const restoreDir = mkdtempSync(join(tmpdir(), 'hr-restore-'));
+    const env = { DATA_DIR: restoreDir, APP_PASSWORD: PASS, COOKIE_SECRET: 'z'.repeat(64), COOKIE_INSECURE: '1',
+      OPENROUTER_API_KEY: 'test-key', OPENROUTER_URL: `http://127.0.0.1:${OR_PORT}/v1/chat/completions`,
+      SPINE_TOKEN: 'test-spine-token', SPINE_URL: `http://127.0.0.1:${SPINE_PORT}` };
+    // the tables as the server makes them; then the step taken off again, as
+    // on the live database, which has never run it
+    const s0 = start('node', ['server.js'], { ...env, PORT: '8796' });
+    await up('http://127.0.0.1:8796/health');
+    for (let i = 0; i < 50 && !/one-time step done/.test(s0.log); i++) await wait(100);
+    s0.kill();
+    await wait(300);
+    const d = new Database(join(restoreDir, 'reader.db'));
+    d.prepare('DELETE FROM steps').run();
+    const at = '2026-09-23T15:00:00.000Z';
+    const verbFix = (before, after) => ({ by: 'lesson review', lesson_id: 1, lesson_title: 'שיעור עם גיא — 15.6.2026', field: 'binyan', before, after, why: 'the verb-card check', at });
+    const cards = {
+      'נוצץ': { surface: 'נוצץ', lemma: 'נצץ', pos: 'verb', root: 'נ.צ.צ', binyan: 'piel', tense: 'present', person_gender_number: 'ms', meaning_en: 'sparkling', governs: null, categories: [], note: "Present of נצץ in paal.", pointed: { lemma: 'נָצַץ', surface: 'נוֹצֵץ' }, corrected: [verbFix('paal', 'piel')] },
+      'לזנק': { surface: 'לזנק', lemma: 'זנק', pos: 'verb', root: 'ז.נ.ק', binyan: 'piel', tense: 'infinitive', person_gender_number: null, meaning_en: 'to leap, to soar', governs: null, categories: [], note: 'The prefix ל- marks the infinitive in paal.', pointed: { lemma: 'זָנַק', surface: 'לִזְנֹק' }, corrected: [verbFix('paal', 'piel')] },
+    };
+    for (const [w, c] of Object.entries(cards)) {
+      d.prepare('INSERT INTO cards (surface, context_hash, spot_id, json, built_at) VALUES (?, ?, ?, ?, ?)').run(w, createHash('sha256').update(`${w}\n${w}`).digest('hex'), `v:${c.root}:piel`, JSON.stringify(c), at);
+      d.prepare("INSERT INTO spots (id, kind, root, binyan, lemma, status, categories_json, updated_at) VALUES (?, 'verb', ?, 'piel', ?, 'shaky', '[]', ?)").run(`v:${c.root}:piel`, c.root, c.lemma, at);
+    }
+    const guide = { title: 'שיעור עם גיא — 15.6.2026', date: '2026-06-15', built_at: at, dropped: { cards: 0, vocabulary: 0, expressions: 0 }, checks: { passed: [], failed_first: [], unmet: [] },
+      sections: [
+        { kind: 'drills', verbs: [{ verb: 'נוצץ (לנצוץ)', root: 'נ.צ.צ', binyan: "Pa'al", deviation: 'pe-nun, doubled', takes_object: false, exercises: [] }] },
+        { kind: 'vocabulary', rows: [{ he: 'נוצץ', pointed: 'נוֹצֵץ', en: 'sparkling', root: 'נ.צ.צ', binyan: "Pa'al (present)", category: 'Mood', flags: '' }, { he: 'לזנק', pointed: 'לְזַנֵּק', en: 'to leap', root: 'ז.נ.ק', binyan: "Pi'el", category: 'News', flags: '' }] },
+      ],
+      cards: [],
+      review: { state: 'applied', changes: ['נוצץ is Pa\'al of נ.צ.צ'], refused: [], dropped: [], card_fixes: [], cards: { corrected: [], unchanged: [], refused: [] }, at },
+      verb_check: { state: 'checked', checked: 2, corrected: [
+        { surface: 'לזנק', field: 'binyan', before: 'paal', after: 'piel', spot: 'v:ז.נ.ק:piel', replaced: 'v:ז.נ.ק:paal', spine: 'recorded' },
+        { surface: 'נוצץ', field: 'binyan', before: 'paal', after: 'piel', spot: 'v:נ.צ.צ:piel', replaced: 'v:נ.צ.צ:paal', spine: 'recorded' },
+      ], unchanged: [], refused: [], at } };
+    d.prepare('INSERT INTO lessons (title, lesson_date, source_name, text, items_json, guide_json, guide_built_at, saved_json, added_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run('שיעור עם גיא — 15.6.2026', '2026-06-15', 'Daniel HEB 15jun26.pdf', 'נוצץ\nלזנק', JSON.stringify(['נוצץ', 'לזנק']), JSON.stringify(guide), at, JSON.stringify({ words: 2, phrases: 0, touched: 0, failed: [], spine: { recorded: 2 } }), at);
+    d.close();
+    const r0 = (await orCalls()).refresh_calls;
+    const s1 = start('node', ['server.js'], { ...env, PORT: '8796' });
+    await up('http://127.0.0.1:8796/health');
+    for (let i = 0; i < 50 && !/one-time step done/.test(s1.log); i++) await wait(100);
+    for (let i = 0; i < 50 && !/nikud and note refreshed for the corrected card "נוצץ"/.test(s1.log); i++) await wait(100);
+    const rows = () => { const x = new Database(join(restoreDir, 'reader.db'), { readonly: true }); const out = Object.fromEntries(x.prepare('SELECT surface, spot_id, json FROM cards').all().map((r) => [r.surface, { spot: r.spot_id, card: JSON.parse(r.json) }])); const g = JSON.parse(x.prepare('SELECT guide_json FROM lessons').get().guide_json); const st = x.prepare('SELECT * FROM steps').all(); x.close(); return { out, g, st }; };
+    const { out, g, st } = rows();
+    const nz = out['נוצץ'], zn = out['לזנק'];
+    check('the one-time put-back restores the verb check\'s change the review contradicted — נוצץ back to Pa\'al, its spot back, logged, the card saying "Restored" — and leaves לזנק Pi\'el; count 1, recorded',
+      nz.card.binyan === 'paal' && nz.spot === 'v:נ.צ.צ:paal' && nz.card.corrected.at(-1).restored === true && nz.card.corrected.at(-1).before === 'piel' && nz.card.corrected.at(-1).after === 'paal'
+      && nz.card.corrected[0].undone === true && zn.card.binyan === 'piel' && zn.card.corrected.length === 1
+      && /one-time step: lesson 1 \(שיעור עם גיא — 15\.6\.2026\): card נוצץ binyan piel -> paal, restored: the verb check's change was contradicted by the lesson review/.test(s1.log)
+      && /one-time step done: .*: 1 card restored \(נוצץ\)/.test(s1.log) && st.length === 1 && JSON.parse(st[0].result_json).touched === 1
+      && g.verb_check.restored?.length === 1 && g.verb_check.restored[0].surface === 'נוצץ',
+      JSON.stringify({ nz: nz.card.corrected, spot: nz.spot, zn: zn.card.binyan, steps: st, log: s1.log.split('\n').filter((l) => /one-time/.test(l)) }));
+    check('the restored card is refreshed straight after, for Pa\'al: its note written again',
+      nz.card.refreshed?.for === 2 && nz.card.note === "Pa'al of נ.צ.צ, as corrected." && (await orCalls()).refresh_calls - r0 === 1, JSON.stringify({ note: nz.card.note, refreshed: nz.card.refreshed }));
+    s1.kill();
+    await wait(300);
+    const s2 = start('node', ['server.js'], { ...env, PORT: '8796' });
+    await up('http://127.0.0.1:8796/health');
+    for (let i = 0; i < 50 && !/one-time step/.test(s2.log); i++) await wait(100);
+    check('the put-back never runs twice: the next start says it already ran and changes nothing',
+      /one-time step already run on .*: restore verb-check card fixes/.test(s2.log) && !/one-time step done/.test(s2.log) && JSON.stringify(rows().out) === JSON.stringify(out), s2.log.split('\n').filter((l) => /one-time/.test(l)).join(' | '));
+    // the opened card, as the lesson page gets it: לזנק refreshed on its first open
+    const login = await fetch('http://127.0.0.1:8796/login', { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ passphrase: PASS }) });
+    const c2 = (login.headers.get('set-cookie') || '').split(';')[0];
+    const call = async (path, body) => { const r2 = await fetch(`http://127.0.0.1:8796${path}`, { method: 'POST', headers: { cookie: c2, 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify(body) }); return r2.json(); };
+    const zOpen = await call('/lookup', { surface: 'לזנק', sentence: 'לזנק', lesson_id: 1 });
+    const zGot = await call('/lookup/refresh', { surface: 'לזנק', sentence: 'לזנק' });
+    check("לזנק, corrected before this session, is refreshed on its first open: זִנֵּק, לְזַנֵּק in the text, a note that no longer says Pa'al",
+      zOpen.refresh_due === true && zGot.called === true && zGot.card.pointed.lemma === 'זִנֵּק' && zGot.card.pointed.surface === 'לְזַנֵּק' && !/pa.?al/i.test(zGot.card.note), JSON.stringify(zGot));
+    s2.kill();
+    rmSync(restoreDir, { recursive: true, force: true });
+  }
+
   // 6. fail closed
   const closed = start('node', ['server.js'], { PORT: '8794', DATA_DIR: dataDir, COOKIE_INSECURE: '1' });
   await up('http://127.0.0.1:8794/health');
