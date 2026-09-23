@@ -350,12 +350,16 @@ try {
     if (name === 'desktop') {
       // the June lesson's נחתם card comes back wrong (Pa'al, as לזנק did live),
       // the review does not name it (as it did not name לזנק live), and the
-      // verb-card check corrects it, so the lesson's card shows the correction;
-      // one review correction breaks the drill check and is dropped
+      // verb-card check corrects it, so the lesson's card shows the correction,
+      // re-pointed and its note written again (session nine); the check also
+      // proposes Pi'el for נאלצה, which the review's guide gives as Nif'al, so
+      // that card is left and listed (the נוצץ case); one review correction
+      // breaks the drill check and is dropped
       await fetch(`http://127.0.0.1:${OR_PORT}/control`, { method: 'POST', body: JSON.stringify({
-        card_overrides: { 'נחתם': { surface: 'נחתם', lemma: 'נחתם', pos: 'verb', root: 'ח.ת.מ', binyan: 'paal', tense: 'past', person_gender_number: '3ms', meaning_en: 'was signed', governs: null, categories: ['conjugation'], note: null } },
+        card_overrides: { 'נחתם': { surface: 'נחתם', lemma: 'נחתם', pos: 'verb', root: 'ח.ת.מ', binyan: 'paal', tense: 'past', person_gender_number: '3ms', meaning_en: 'was signed', governs: null, categories: ['conjugation'], note: 'Pa\'al past of ח.ת.מ.' } },
         review_extra: [{ section: 'drills', item: 'להיאלץ', field: '', find: 'guttural', replace: 'geminate', why: 'The drill verb להיאלץ called geminate.' }],
-        verb_fixes: { 'נחתם': { binyan: 'nifal', why: "נחתם is Nif'al past of ח.ת.מ, not Pa'al." } },
+        verb_fixes: { 'נחתם': { binyan: 'nifal', why: "נחתם is Nif'al past of ח.ת.מ, not Pa'al." }, 'נאלצה': { binyan: 'piel', why: "a wrong claim: Pi'el" } },
+        guide_silent: ['נחתם'],
       }) });
       await page.goto(`${base}/`);
       await page.setInputFiles('#lesson-file', join(here, 'fixtures', 'Daniel HEB 15jun26.pdf'));
@@ -422,9 +426,14 @@ try {
         /^Reviewed: 1 applied, 1 dropped\b/.test(reviewText) && /ס\.ל\.ם/.test(reviewText) && /The drill verb להיאלץ called geminate\. — failed the drill check: /.test(reviewText)
         && await review.evaluate((el) => el.open) && contrast(await paint(review.locator('li').first(), 'color'), await ground()) >= 7
         && contrast(await paint(review.locator('.review-dropped li').first(), 'color'), await ground()) >= 7 && await fits(), reviewText.replace(/\s+/g, ' ').slice(0, 400));
-      check(`${name} ${scheme}: under it, "Verb cards checked: 2, corrected: 1" opens to נחתם Pa'al → Nif'al, legible`,
-        /^Verb cards checked: 2, corrected: 1\b/.test(verbText) && /Binyan of \u2068נחתם\u2069: \u2068Pa'al\u2069 → \u2068Nif'al\u2069/.test(verbText) && await verbLine.locator('li').first().evaluate((el) => getComputedStyle(el).direction === 'ltr' || el.matches(':dir(ltr)')) && await verbLine.evaluate((el) => el.open)
+      check(`${name} ${scheme}: under it, "Verb cards checked: 2, corrected: 1, not changed: 1" opens to נחתם Pa'al → Nif'al, legible`,
+        /^Verb cards checked: 2, corrected: 1, not changed: 1\b/.test(verbText) && /Binyan of \u2068נחתם\u2069: \u2068Pa'al\u2069 → \u2068Nif'al\u2069/.test(verbText) && await verbLine.locator('li').first().evaluate((el) => getComputedStyle(el).direction === 'ltr' || el.matches(':dir(ltr)')) && await verbLine.evaluate((el) => el.open)
         && contrast(await paint(verbLine.locator('li').first(), 'color'), await ground()) >= 7, verbText.replace(/\s+/g, ' ').slice(0, 200));
+      const dis = verbLine.locator('.review-disagreed li').first();
+      check(`${name} ${scheme}: and the card the two checks disagree on: "Not changed — the two checks disagree: נאלצה: review says Nif'al, verb check says Pi'el", left to right, legible, and the page fits`,
+        (await dis.innerText()) === "Not changed — the two checks disagree: \u2068נאלצה\u2069: review says \u2068Nif'al\u2069, verb check says \u2068Pi'el\u2069"
+        && await dis.evaluate((el) => getComputedStyle(el).direction === 'ltr' || el.matches(':dir(ltr)')) && contrast(await paint(dis, 'color'), await ground()) >= 7 && await fits(),
+        await dis.innerText().catch(() => ''));
       await page.screenshot({ path: join(out, `lesson-review-${scheme}-${name}.png`) });
 
       if (scheme === 'light') {
@@ -448,13 +457,54 @@ try {
         await lcard.locator('.meaning:not(:empty)').waitFor({ timeout: 10000 });
         const line = lcard.locator('.corrected');
         const text = (await line.innerText()).replace(/\s+/g, ' ');
-        check(`${name} ${scheme}: the corrected card says "Corrected by the lesson review: Pa'al → Nif'al", legible, and the card reads Nif'al`,
-          /^Corrected by the lesson review: Pa'al → Nif'al ?שיעור עם גיא — 15\.6\.2026$/.test(text) && await line.isVisible()
+        check(`${name} ${scheme}: the corrected card says "Corrected by the verb check: Pa'al → Nif'al", legible, and the card reads Nif'al`,
+          /^Corrected by the verb check: Pa'al → Nif'al ?שיעור עם גיא — 15\.6\.2026$/.test(text) && await line.isVisible()
           && /Nif'al/.test(await lcard.locator('.grammar').innerText()) && contrast(await paint(line, 'color'), await paint(line, 'backgroundColor')) >= 4.5 && await fits(), text);
+        check(`${name} ${scheme}: the corrected card is re-pointed and its note written again for Nif'al (session nine)`,
+          (await lcard.locator('.surface .pointed').innerText()) === 'נֶחְתַּם' && (await lcard.locator('.note').innerText()) === "Nif'al of ח.ת.מ, as corrected.",
+          `${await lcard.locator('.surface .pointed').innerText()} / ${await lcard.locator('.note').innerText()}`);
         await lcard.evaluate((el) => el.scrollIntoView({ block: 'center' }));
         await page.waitForTimeout(200);
         await page.screenshot({ path: join(out, `lesson-card-corrected-${scheme}-${name}.png`) });
         if (isMobile) await page.locator('#card-phone .close').click().catch(() => {});
+      }
+
+      // a card put back by the one-time step (session nine): its server answer
+      // shaped as the step leaves נוצץ live — the check's change marked undone,
+      // the put-back line in its place (the step itself is checked by the smoke)
+      {
+        await page.route('**/lookup', async (route) => {
+          const body = JSON.parse(route.request().postData() || '{}');
+          const res = await route.fetch();
+          const data = await res.json();
+          if (body.surface === 'נאלצה' && data.card) {
+            const t = 'שיעור עם גיא — 15.6.2026';
+            data.card.corrected = [
+              { by: 'lesson review', field: 'binyan', before: 'nifal', after: 'piel', lesson_title: t, undone: true },
+              { by: 'restore', restored: true, field: 'binyan', before: 'piel', after: 'nifal', lesson_title: t },
+            ];
+            data.card.refreshed = { for: 2, at: new Date().toISOString() };
+            delete data.refresh_due;
+          }
+          await route.fulfill({ response: res, json: data });
+        });
+        const w = page.locator('#items .w', { hasText: 'נאלצה' }).first();
+        await page.goto(`${base}/lesson.html?id=${lessonId}`);
+        await page.waitForSelector('.guide section');
+        await w.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+        if (isMobile) await w.tap(); else { await w.hover(); await page.waitForTimeout(500); }
+        const lcard = page.locator(isMobile ? '#card-phone' : '#card-desktop');
+        await lcard.locator('.meaning:not(:empty)').waitFor({ timeout: 10000 });
+        const line = lcard.locator('.corrected');
+        const text = (await line.innerText()).replace(/\s+/g, ' ');
+        check(`${name} ${scheme}: a restored card says "Restored: the verb check's change was contradicted by the lesson review", the undone change left out, legible, and the card reads Nif'al`,
+          /^Restored: the verb check's change was contradicted by the lesson review: Pi'el → Nif'al ?שיעור עם גיא — 15\.6\.2026$/.test(text) && await line.isVisible()
+          && /Nif'al/.test(await lcard.locator('.grammar').innerText()) && contrast(await paint(line, 'color'), await paint(line, 'backgroundColor')) >= 4.5 && await fits(), text);
+        await lcard.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+        await page.waitForTimeout(200);
+        await page.screenshot({ path: join(out, `lesson-card-restored-${scheme}-${name}.png`) });
+        if (isMobile) await page.locator('#card-phone .close').click().catch(() => {});
+        await page.unroute('**/lookup');
       }
 
       // a lesson opened with no guide yet: the "being built" state, as the

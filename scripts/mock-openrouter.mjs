@@ -47,7 +47,7 @@ const POINTED = {
 };
 for (const [w, [lemma, surface]] of Object.entries(POINTED)) if (known[w]) Object.assign(known[w], { lemma_pointed: lemma, surface_pointed: surface });
 // The corrected cards' nikud, as the refresh answers it: לזנק in Pi'el.
-const REPOINTED = { 'לזנק piel': ['זִנֵּק', 'לְזַנֵּק'], 'נלחם piel': ['נִלְחֵם', 'נִלְחֵם'], 'נוצץ paal': ['נָצַץ', 'נוֹצֵץ'] };
+const REPOINTED = { 'לזנק piel': ['זִנֵּק', 'לְזַנֵּק'], 'נלחם piel': ['נִלְחֵם', 'נִלְחֵם'], 'נוצץ paal': ['נָצַץ', 'נוֹצֵץ'], 'נחתם nifal': ['נֶחְתַּם', 'נֶחְתַּם'] };
 let pointsCalls = 0, refreshCalls = 0;
 let calls = 0;
 let guides = 0;
