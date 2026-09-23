@@ -445,16 +445,24 @@ try {
   }
   {
     const kept = (await api('GET', `/lessons/${L1.body.id}`)).body.guide.built_at;
-    await control({ guide_faults: ['coverage', 'coverage'] });
+    await control({ guide_faults: ['drill', 'drill'] });
     await api('POST', `/lessons/${L1.body.id}/guide`, { rebuild: true });
     const v = await until(L1.body.id, (x) => x.guide_state !== 'building' && !x.saving);
-    check('a check failing twice on a rebuild keeps the previous guide and names the check',
-      v.guide.built_at === kept && /^The study guide could not be built: it failed the coverage check twice — 1 of Guy's 10 lines are in no grammar section/.test(v.guide_error || ''), v.guide_error);
+    check('a check the rebuild still fails no longer throws the guide away: saved, the unmet check named on the guide (23 Sep 2026)',
+      v.guide_state === 'built' && !v.guide_error && v.guide.built_at !== kept && v.guide.checks.unmet.map((f) => f.check).join(',') === 'drill'
+      && /the first drill is לכתוב/.test(v.guide.checks.unmet[0].detail) && !v.guide.checks.passed.includes('drill') && /saved with the drill check unmet/.test(server.log),
+      JSON.stringify(v.guide.checks));
+    await control({ guide_faults: ['drill', 'flags'] });
+    await api('POST', `/lessons/${L1.body.id}/guide`, { rebuild: true });
+    const w1 = await until(L1.body.id, (x) => x.guide_state !== 'building' && !x.saving);
+    check('the live failure of 23 Sep (drill, then flags): the rebuild is kept as no worse, and the review, told the flags check is unmet, fills the missing flags',
+      w1.guide_state === 'built' && w1.guide.checks.unmet.length === 0 && w1.guide.review.state === 'applied'
+      && w1.guide.review.changes.filter((c) => /^Spelling flag added/.test(c)).length >= 5, JSON.stringify({ checks: w1.guide.checks, changes: w1.guide.review.changes.length, refused: w1.guide.review.refused }));
     await control({ guide_faults: ['flags', 'flags'] });
     await api('POST', `/lessons/${L2.body.id}/guide`, {});
     const w = await until(L2.body.id, (x) => x.guide_state !== 'building' && !x.saving);
-    check('a check failing twice on a first build: no guide saved, no word saved, the check named',
-      w.guide_state === 'failed' && w.guide === null && w.saved === null && /it failed the flags check twice — \d+ items hold ח, כ, א, ע, ס, ש, ט or ת with no ⚠️ Spelling/.test(w.guide_error || ''), w.guide_error);
+    check('a first build failing twice still gives a guide; the review fixes what it can, and the words are saved',
+      w.guide_state === 'built' && w.guide !== null && w.saved !== null && w.guide.checks.unmet.length === 0 && w.guide.review.changes.length > 1, JSON.stringify(w.guide && w.guide.checks));
     const gc = req(join(root, 'lib', 'guide-checks.js'));
     const live = gc.check({ sections: [{ kind: 'drills', verbs: [{ verb: 'לחשוש', root: 'ח.ש.ש', binyan: "Pa'al", deviation: 'doubled', takes_object: 'both', exercises: [] }] }], cards: [] },
       { items: [] }, [{ surface: 'נוצץ', root: 'נ.צ.צ', binyan: 'paal', from: 'card' }]);

@@ -266,6 +266,7 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 .guide .expr-en { color: var(--muted); font-size: 14px; }
 .guide .flags { font-size: 14px; unicode-bidi: plaintext; }
 .guide .vocab .flags { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.guide .unmet { margin: 0; font-size: 14px; border-inline-start: 3px solid var(--danger); padding-inline-start: 10px; unicode-bidi: plaintext; }
 .guide details.review { border-top: 1px solid var(--line); padding-top: 8px; }
 .guide details.review summary { font-size: 14px; font-weight: 600; }
 .guide .review-changes { margin-top: 6px; font-size: 14px; list-style-position: inside; padding-inline-start: 0; }

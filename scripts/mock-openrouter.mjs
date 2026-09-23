@@ -166,6 +166,10 @@ http.createServer((req, res) => {
         corrections.push({ section: 'cards', item: 'תוספת', find: 'x', replace: 'y', why: 'a card the lesson does not have' });
         corrections.push({ section: 'drills', item: 'להיאלץ', find: 'טקסט שאינו שם', replace: 'z', why: 'text that is not in the drill' });
       }
+      if (/the flags check/.test(user.split('\n\nGuide:\n')[0])) {
+        for (const r of guide.sections.find((x) => x.kind === 'vocabulary').rows) if (!r.flags) corrections.push({ section: 'vocabulary', item: r.he, field: 'flags', find: '', replace: `⚠️ Spelling: mind the letters of ${r.he}`, why: `Spelling flag added to ${r.he}.` });
+        for (const c of guide.cards) if (!c[10]) corrections.push({ section: 'cards', item: c[1], field: 'notes', find: '', replace: `⚠️ Spelling: mind the letters of ${c[1]}`, why: `Spelling flag added to the card ${c[1]}.` });
+      }
       answer = control.review === 'decline' ? { error: 'the reviewer declines in this mock' }
         : control.review === 'whole-guide' ? { guide, changes: [] }
         : { corrections, remove };
