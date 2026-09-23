@@ -563,3 +563,15 @@ ever loaded in the screenshots).
   lesson.
 - Nikud comes from the model and can be wrong on rare words.
 - On the desktop lesson page the word card does not follow the scroll (older).
+
+**After the first deploy (same session).** Dan's live look: the review now
+answers (59 corrections on the June lesson), but it was discarded whole
+because one correction (the first drill's deviation, "pe-nun and doubled")
+made the corrected guide fail the drill check; לזנק was not among the 59.
+Nikud showed on new article cards but not on lesson words: those cards were
+all cached before nikud, and the one-time fill used the strict schema the
+card model had never run with live. The fill now uses JSON mode (as the card
+call does, proven live) with one retry, a card whose forms were all refused
+is asked again when next opened, and a failed fill says so on the card
+("No nikud this time: …"). Dan confirmed nikud on lesson words after the
+second deploy (run 20). Checks: 158 server, 185 page.
