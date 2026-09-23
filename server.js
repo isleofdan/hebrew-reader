@@ -282,7 +282,9 @@ async function handle(req, res) {
 db.open(DATA_DIR);
 console.log(`database: ${path.join(DATA_DIR, 'reader.db')}`);
 // one-time steps on the data; each is recorded and never runs twice
-guyLesson.restoreContradicted().catch((e) => console.error(`one-time step failed, to be tried at the next start: ${e.message}`));
+// one after the other: the second undoes one card of the first
+guyLesson.restoreContradicted().catch((e) => console.error(`one-time step failed, to be tried at the next start: ${e.message}`))
+  .then(() => guyLesson.confirmZinek()).catch((e) => console.error(`one-time step failed, to be tried at the next start: ${e.message}`));
 
 const server = http.createServer((req, res) => {
   handle(req, res).catch((e) => {

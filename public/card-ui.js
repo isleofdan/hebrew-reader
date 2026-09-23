@@ -158,6 +158,7 @@
       if (i) box.append(document.createElement('br'));
       box.append(document.createTextNode(x.restored
         ? `Restored: the verb check's change was contradicted by the lesson review: ${x.field === 'root' ? 'root ' : ''}`
+        : x.by === 'Dan' ? `Set by you: ${x.field === 'root' ? 'root ' : ''}`
         : `Corrected by the ${BY[x.by] || 'lesson review'}: ${x.field === 'root' ? 'root ' : ''}`));
       box.append(show(x.field, x.before), document.createTextNode(' → '), show(x.field, x.after));
       if (x.lesson_title) { const t = document.createElement('span'); t.className = 'src'; t.dir = 'rtl'; t.textContent = x.lesson_title; box.append(t); }
