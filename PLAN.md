@@ -575,3 +575,45 @@ call does, proven live) with one retry, a card whose forms were all refused
 is asked again when next opened, and a failed fill says so on the card
 ("No nikud this time: …"). Dan confirmed nikud on lesson words after the
 second deploy (run 20). Checks: 158 server, 185 page.
+
+## Session eight — hebrew-reader-eight (23 Sep 2026, cloud)
+
+**Review corrections one at a time.** The all-or-nothing rule is gone. The
+review's corrections are applied in order, each to the guide as the ones
+before it left it; after each, the five checks run, and a correction that
+makes a check fail that the guide was passing is undone and listed with the
+check and why. The page says "Reviewed: N applied, M dropped". Card fixes
+come from applied corrections only. (`applyCorrections(guide, raw, breaks)`
+in `lib/guy-lesson.js`.)
+
+**No-change corrections.** A correction whose find and replace are the same
+is skipped without a line on the page. The review prompt says "No change
+needed" is not a correction, and to leave out any it is unsure of.
+
+**Combined drill deviations.** The drill check accepts a deviation naming
+several listed types ("pe-nun, doubled" for נוצץ, root נ.צ.צ); each part must
+be listed and in the root. The guide prompt says so.
+
+**Verb-card check.** After the review and its card fixes, a small call to
+the guide model gets only the lesson's verb cards (word, lemma, root,
+binyan) and answers "correct" or the fix per card. Fixes go through the
+review's card-correction path (`correctCards`). An answer naming a word not
+among the verb cards sent is refused and listed. Limits: 400 + 150 tokens a
+verb; 60 s + 3 s a verb. Saved on the guide as `verb_check`; the page shows
+"Verb cards checked: N, corrected: M".
+
+**Live (run 21, Dan's rebuild of the June lesson).** "Reviewed: 14 applied,
+0 dropped"; "Verb cards checked: 3, corrected: 2" — לזנק Pa'al → Pi'el
+(right), נוצץ Pa'al → Pi'el (wrong: נוֹצֵץ is Pa'al of נ.צ.צ, as the review's
+own corrections said). The לזנק card reads Pi'el with "Corrected by the
+lesson review: Pa'al → Pi'el", but its pointed forms (זָנַק, לִזְנֹק) and its
+note still say Pa'al: a binyan correction does not refresh them.
+
+**Open items.**
+- The verb-card check can override a right card and contradict the review.
+- A binyan or root correction leaves the card's nikud and note stale.
+- The review still lets "acceptable either way" notes through when the text
+  changes, and tries to edit JSON keys (`"deviation":"none"`), which are
+  refused.
+
+Checks: 171 server, 189 page.
