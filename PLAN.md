@@ -437,3 +437,61 @@ the 2026 lessons; older ones build on first open.
   vocabulary rows; a lesson whose only irregular verbs sit inside phrases and
   are missing from the vocabulary is not caught.
 - The scheduled article finder.
+
+## Close-out note — session hebrew-reader-six, 23 Sep 2026
+
+On branch `claude/hebrew-reader-six-setup-6dp9xr`, one commit per step. Checks
+against the local mocks: 139 server checks (`npm run smoke`, from 129) and 161
+page checks (`npm run screenshots`, from 153).
+
+**The review corrects the word cards.** The lesson's word cards are the cached
+cards of its single-word items (the key the word save uses). They are now made
+before the review, through `lookup.cardOnly` (cache, else one card call; no
+spot, no touch), so a first build's review sees them too: on the import every
+2026 lesson is a first build. These are the same card calls the word save
+would make, made earlier. The review message lists them as
+`[{word, lemma, pos, root, binyan}]`, and the review frame lets a correction
+target one: `{section: "word_cards", item: <the word as listed>, field: "root" |
+"binyan", find: <its current value>, replace, why}`. A root or binyan the
+review corrects in the guide (a vocabulary row, a drill verb, a flashcard) is
+also a fix for that word's card.
+
+**The match rule.** A fix finds its card by the word: the card's surface or its
+lemma, nikud ignored, among this lesson's cards only. Exactly one card:
+corrected. The same value already on the card: left alone and counted as
+unchanged. More than one card: refused and listed ("not guessed"). No card: a
+`word_cards` fix is refused and listed; a guide fix is skipped without a line,
+since most guide items (phrases, a drill verb in its infinitive) have no card.
+A binyan fix on a card that is not a verb, a value that is not a binyan or a
+root, and a `find` that is not what the card says are refused. Card fixes come
+only from a review that was applied; a discarded review corrects no card.
+
+**What a corrected card records.** `card.corrected[]`: `{by: "lesson review",
+lesson_id, lesson_title, field, before, after, why, at}`. Every card shows it as
+"Corrected by the lesson review: Pa'al → Pi'el", the lesson on the line below.
+The lesson's review list says which cards were corrected and which fixes were
+not made. The server log has one line per corrected card.
+
+**The spot follows the card.** A verb's spot id carries its binyan and root
+(`v:<root>:<binyan>`), so a corrected verb card moves to the corrected spot.
+The corrected spot takes the old one's status when that is further along.
+When no other cached card still points at the old spot, its touches move over
+and the old spot is deleted locally, so the phone page never asks for a form
+under a binyan the verb does not have. A spot that is shaky or solid is sent
+to the spine under its new id. The old id's mark on the spine is left as it
+was: nothing in the app deletes spine marks.
+
+**Guides on first open** were already built: the lesson page asks for a
+build when the state is `none`, and the server runs one build per lesson at
+a time. So a second open while one is building starts nothing. That is now
+checked, as is the import leaving pre-2026 lessons with no guide. The
+"being built" line now says "this can take ten minutes or more" instead of
+"a minute or two".
+
+**Open items.**
+- The old spine marks under a corrected verb's former id (e.g.
+  `v:ז.נ.ק:paal`) stay on the spine.
+- Whether the live review corrects לזנק: Dan's rebuild.
+- On the desktop lesson page the word card sits at the top of the right
+  column and does not follow the scroll. A word tapped low on a long guide
+  opens a card that is off screen. This is older than this session.
