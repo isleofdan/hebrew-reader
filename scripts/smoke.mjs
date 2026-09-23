@@ -437,6 +437,18 @@ try {
     check('a check failing twice on a first build: no guide saved, no word saved, the check named',
       w.guide_state === 'failed' && w.guide === null && w.saved === null && /it failed the flags check twice — \d+ items hold ח, כ, א, ע, ס, ש, ט or ת with no ⚠️ Spelling/.test(w.guide_error || ''), w.guide_error);
     const gc = req(join(root, 'lib', 'guide-checks.js'));
+    const live = gc.check({ sections: [{ kind: 'drills', verbs: [{ verb: 'לחשוש', root: 'ח.ש.ש', binyan: "Pa'al", deviation: 'doubled', takes_object: 'both', exercises: [] }] }], cards: [] },
+      { items: [] }, [{ surface: 'נוצץ', root: 'נ.צ.צ', binyan: 'paal', from: 'card' }]);
+    const clean = gc.check({ sections: [{ kind: 'drills', verbs: [{ verb: 'להסלים', root: 'ס.ל.ם', binyan: "Hif'il", deviation: 'none', takes_object: 'both', exercises: [] }] }], cards: [] },
+      { items: [] }, [{ surface: 'נוצץ', root: 'נ.צ.צ', binyan: 'paal', from: 'card' }]);
+    const zinek = gc.check({ sections: [{ kind: 'drills', verbs: [{ verb: 'לזנק', root: 'ז.נ.ק', binyan: "Pi'el", deviation: 'none', takes_object: false, exercises: [] }] }], cards: [] },
+      { items: [] }, [{ surface: 'לזנק', root: 'ז.נ.ק', binyan: 'paal', from: 'card' }]);
+    const fakeNifal = gc.check({ sections: [{ kind: 'drills', verbs: [{ verb: 'לכתוב', root: 'כ.ת.ב', binyan: "Nif'al", deviation: 'none', takes_object: true, exercises: [] }] }], cards: [] },
+      { items: [] }, [{ surface: 'לכתוב', root: 'כ.ת.ב', binyan: 'paal', from: 'card' }, { surface: 'נאלצה', root: 'א.ל.צ', binyan: 'nifal', from: 'card' }]);
+    check("a card that disagrees is not a failure by itself (לזנק's card says Pa'al), but it stops a false Nif'al claim",
+      zinek.length === 0 && fakeNifal.some((f) => f.check === 'drill'), JSON.stringify([zinek, fakeNifal.map((f) => f.detail)]));
+    check('the drill check reads irregularity from the root, not the label: לחשוש (ח.ש.ש) labeled "doubled" passes as guttural; להסלים still fails (the live rebuild of 23 Sep 2026)',
+      live.length === 0 && clean.some((f) => f.check === 'drill'), JSON.stringify([live, clean.map((f) => f.check)]));
     check('root deviations read from the letters: נ.ק.ז pe-nun, ר.ג.ע guttural, כ.ו.ן hollow, ס.ל.ם none of the three',
       gc.rootDeviations('נ.ק.ז').includes('pe-nun') && gc.rootDeviations('ר.ג.ע').includes('guttural') && gc.rootDeviations('כ.ו.ן').includes('hollow')
       && !gc.irregular({ root: 'ס.ל.ם', binyan: "Hif'il" }) && gc.irregular({ root: 'ק.ב.ע', binyan: 'nifal' }) && gc.binyanKey("Pa'al (present)") === 'paal');
