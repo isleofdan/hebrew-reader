@@ -562,6 +562,91 @@ try {
     await control({ review_format: 'clean', review_format_again: 'clean', schema_refused: false });
   }
 
+  // the review's corrections one at a time (session eight, step 1): a
+  // correction that breaks a check the guide passed is dropped on its own
+  {
+    const gl = req(join(root, 'lib', 'guy-lesson.js'));
+    const mini = { sections: [{ kind: 'vocabulary', rows: [{ he: 'לזנק', en: 'to leap', root: 'ז.נ.ק', binyan: "Pa'al", flags: '' }, { he: 'הסלמה', en: 'escalation', root: 'ס.ל.מ', binyan: '', flags: '' }] }], cards: [] };
+    const three = { corrections: [
+      { section: 'vocabulary', item: 'לזנק', field: '', find: "Pa'al", replace: "Pi'el", why: 'לזנק is Pi\'el' },
+      { section: 'vocabulary', item: 'הסלמה', field: '', find: 'ס.ל.מ', replace: 'ס.ל.ם', why: 'root of הסלמה' },
+      { section: 'vocabulary', item: 'לזנק', field: '', find: 'to leap', replace: 'to jump', why: 'meaning' },
+    ], remove: [] };
+    const allGood = gl.applyCorrections(mini, three, () => []);
+    check('corrections one at a time: all good, all applied, none dropped',
+      allGood.changes.length === 3 && allGood.dropped.length === 0 && allGood.guide.sections[0].rows[0].binyan === "Pi'el" && allGood.guide.sections[0].rows[1].root === 'ס.ל.ם' && allGood.guide.sections[0].rows[0].en === 'to jump',
+      JSON.stringify(allGood));
+    const seen = [];
+    const oneBad = gl.applyCorrections(mini, three, (g) => { seen.push(JSON.stringify(g.sections[0].rows)); return g.sections[0].rows[1].root === 'ס.ל.ם' ? [{ check: 'drill', detail: 'a stand-in failure' }] : []; });
+    check('corrections one at a time: each is checked on the guide as the ones before it left it; the breaker is undone and listed with its check, the rest applied after it',
+      oneBad.changes.length === 2 && oneBad.dropped.length === 1 && oneBad.dropped[0].change === 'root of הסלמה' && oneBad.dropped[0].checks.join() === 'drill' && oneBad.dropped[0].detail === 'a stand-in failure'
+      && oneBad.guide.sections[0].rows[1].root === 'ס.ל.מ' && oneBad.guide.sections[0].rows[0].en === 'to jump' && seen.length === 3 && /Pi'el/.test(seen[2]) && !/ס\.ל\.ם/.test(seen[2]),
+      JSON.stringify({ changes: oneBad.changes, dropped: oneBad.dropped }));
+
+    // the same against the server's real checks, through a rebuild
+    const drillOf = (v) => v.guide.sections.find((x) => x.kind === 'drills').verbs[0];
+    const rowsOf = (v) => v.guide.sections.find((x) => x.kind === 'vocabulary').rows;
+    await control({ review: 'none', review_extra: [] });
+    await api('POST', `/lessons/${L1.body.id}/guide`, { rebuild: true });
+    const plainBuild = await until(L1.body.id, (x) => x.guide_state !== 'building' && !x.saving);
+    const flagged = rowsOf(plainBuild).find((r) => /⚠️ Spelling/.test(r.flags));
+    const breaker = { section: 'drills', item: 'להיאלץ', field: '', find: 'guttural', replace: 'geminate', why: 'the drill deviation called geminate' };
+    const flagBreaker = { section: 'vocabulary', item: flagged.he, field: '', find: flagged.flags, replace: 'fine', why: `the spelling flag of ${flagged.he} taken out` };
+    await control({ review: 'fix-root', review_extra: [
+      { section: 'drills', item: 'להיאלץ', field: '', find: 'is rare', replace: 'is rare in modern Hebrew', why: 'the Pa\'al comparison made exact' },
+      breaker,
+      { section: 'vocabulary', item: flagged.he, field: '', find: `meaning of ${flagged.he}`, replace: `the meaning of ${flagged.he}`, why: `the meaning of ${flagged.he} reworded` },
+    ] });
+    await api('POST', `/lessons/${L1.body.id}/guide`, { rebuild: true });
+    const mixed = await until(L1.body.id, (x) => x.guide_state !== 'building' && !x.saving);
+    const rv = mixed.guide.review;
+    check('one breaker among many (a drill deviation the drill check does not accept): that one dropped with the check it broke, the other three applied, the guide passing every check',
+      rv.state === 'applied' && rv.changes.length === 3 && rv.dropped.length === 1 && rv.dropped[0].change === 'the drill deviation called geminate' && rv.dropped[0].checks.join() === 'drill'
+      && /gives no deviation from/.test(rv.dropped[0].detail) && drillOf(mixed).deviation === 'guttural' && /modern Hebrew/.test(drillOf(mixed).paal_comparison)
+      && rowsOf(mixed).some((r) => r.root === 'ס.ל.ם') && mixed.guide.checks.unmet.length === 0 && /review corrections dropped for a check they broke: the drill deviation called geminate \(drill:/.test(server.log),
+      JSON.stringify(rv));
+    await control({ review: 'none', review_extra: [breaker, flagBreaker] });
+    await api('POST', `/lessons/${L1.body.id}/guide`, { rebuild: true });
+    const allBad = await until(L1.body.id, (x) => x.guide_state !== 'building' && !x.saving);
+    const rb = allBad.guide.review;
+    check('every correction breaks a check: the guide kept as built, all of them listed with their checks',
+      rb.state === 'applied' && rb.changes.length === 0 && rb.dropped.length === 2 && rb.dropped.map((d) => d.checks.join()).join('|') === 'drill|flags'
+      && JSON.stringify(drillOf(allBad)) === JSON.stringify(drillOf(plainBuild)) && JSON.stringify(rowsOf(allBad)) === JSON.stringify(rowsOf(plainBuild)) && allBad.guide.checks.unmet.length === 0,
+      JSON.stringify(rb));
+
+    // step 2: "no change needed" is not a correction
+    await control({ review: 'fix-root', review_extra: [
+      { section: 'vocabulary', item: flagged.he, field: '', find: `meaning of ${flagged.he}`, replace: `meaning of ${flagged.he}`, why: 'No change needed — the meaning is right.' },
+      { section: 'drills', item: 'להיאלץ', field: '', find: 'guttural ', replace: ' guttural', why: 'No change needed on reflection.' },
+      { section: 'drills', item: 'להיאלץ', field: '', find: 'takes_object', replace: 'false', why: 'No change needed: it takes no object.' },
+      { section: 'word_cards', item: 'נחתם', field: 'binyan', find: 'nifal', replace: 'nifal', why: 'No change needed — the card is right.' },
+    ] });
+    await api('POST', `/lessons/${L1.body.id}/guide`, { rebuild: true });
+    const same = await until(L1.body.id, (x) => x.guide_state !== 'building' && !x.saving);
+    const rs = same.guide.review;
+    check('a correction whose find and replace are the same is refused without a line: not applied, not refused, not dropped; the real correction still applied',
+      rs.changes.length === 1 && /ס\.ל\.ם/.test(rs.changes[0]) && rs.refused.length === 0 && rs.dropped.length === 0 && !JSON.stringify(rs).includes('No change needed')
+      && !(rs.cards && rs.cards.unchanged.some((u) => u.startsWith('נחתם'))),
+      JSON.stringify(rs));
+    const told = /"No change needed" is not a correction; leave out any correction you are not sure of\./.test(req(join(root, 'lib', 'guy-lesson-prompt.js')).reviewSystem());
+    check('the review prompt says "no change needed" is not a correction, and to leave out a correction it is not sure of', told);
+    await control({ review: 'fix-root', review_extra: [] });
+  }
+
+  // step 3: a deviation naming more than one listed type
+  {
+    const gc = req(join(root, 'lib', 'guide-checks.js'));
+    const nozez = (deviation) => gc.check({ sections: [{ kind: 'drills', verbs: [{ verb: 'נוצץ (לנצוץ)', root: 'נ.צ.צ', binyan: "Pa'al", deviation, takes_object: false, exercises: [] }] }], cards: [] },
+      { items: [] }, [{ surface: 'נוצץ', root: 'נ.צ.צ', binyan: 'paal', from: 'card' }]).filter((f) => f.check === 'drill');
+    const pass = ['pe-nun, doubled', 'pe-nun and doubled', 'doubled, pe-nun', 'pe-nun', 'doubled'].map((d) => [d, nozez(d)]);
+    check('the drill check accepts a combined deviation: נוצץ (נ.צ.צ) "pe-nun, doubled" passes, in either order and with "and" (false-rejection check)',
+      pass.every(([, f]) => f.length === 0), JSON.stringify(pass.filter(([, f]) => f.length)));
+    const geminate = nozez('pe-nun, geminate'), hollow = nozez('pe-nun, hollow'), none = nozez('none, doubled');
+    check('an unlisted type still fails, and so does a listed type the root does not have',
+      /gives no deviation from/.test(geminate[0]?.detail) && /calls נוצץ \(לנצוץ\) hollow, which its root נ\.צ\.צ is not/.test(hollow[0]?.detail) && none.length === 1,
+      JSON.stringify([geminate, hollow, none]));
+  }
+
   // the five rule checks (session five, step 2): each failing once, then passing on the one rebuild
   check('the June guide passes all five checks on the first build: every line covered, first drill Nif\'al, points, flags, objects agree',
     built.guide.checks && built.guide.checks.passed.join(',') === 'coverage,drill,nikud,flags,objects' && built.guide.checks.failed_first.length === 0
@@ -656,7 +741,7 @@ try {
     await control({ review_extra: [
       { section: 'word_cards', item: 'להתבייש', field: 'binyan', find: "Pa'al", replace: 'hitpael', why: "להתבייש is Hitpa'el (ב.ו.ש), not Pa'al." },
       { section: 'word_cards', item: 'נלחם', field: 'binyan', find: 'nifal', replace: "Nif'al", why: 'checked: right as it is' },
-      { section: 'word_cards', item: 'התבייש', field: 'root', find: 'ב.ו.ש', replace: 'ב.ו.ש', why: 'the root of התבייש' },
+      { section: 'word_cards', item: 'התבייש', field: 'root', find: 'ב.י.ש', replace: 'ב.ו.ש', why: 'the root of התבייש' },
       { section: 'drills', item: 'להיאלץ', find: "Nif'al", replace: "Nif'al (passive)", why: 'the drill binyan named more fully' },
     ] });
     await api('POST', `/lessons/${L2.body.id}/guide`, { rebuild: true });

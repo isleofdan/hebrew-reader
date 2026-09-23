@@ -185,14 +185,25 @@ function drawReview(box, rv) {
     return;
   }
   const n = rv.changes.length;
+  // a guide saved before session eight has no dropped list; its review was
+  // taken or discarded whole
+  const dropped = rv.dropped || [];
   const d = el('details', 'review');
-  d.append(el('summary', '', rv.state === 'applied'
-    ? `Reviewed: ${n} correction${n === 1 ? '' : 's'}`
-    : `Reviewed, not applied: ${n} correction${n === 1 ? '' : 's'} proposed`));
+  d.append(el('summary', '', rv.state === 'discarded'
+    ? `Reviewed, not applied: ${n} correction${n === 1 ? '' : 's'} proposed`
+    : rv.dropped ? `Reviewed: ${n} applied, ${dropped.length} dropped`
+    : `Reviewed: ${n} correction${n === 1 ? '' : 's'}`));
   if (rv.state === 'discarded') d.append(el('p', 'caption', rv.reason));
   if (rv.asked_twice) d.append(el('p', 'caption', 'The first answer was not in the expected format; the review was asked once more.'));
   if (n) { const ol = el('ol', 'review-changes'); for (const c of rv.changes) ol.append(auto('li', c)); d.append(ol); }
-  else d.append(el('p', 'caption', 'The review found nothing to correct.'));
+  else if (!dropped.length) d.append(el('p', 'caption', 'The review found nothing to correct.'));
+  else d.append(el('p', 'caption', 'No correction was applied; the guide is kept as built.'));
+  if (dropped.length) {
+    d.append(el('p', 'caption', `Dropped, because the guide passed a check and the correction made it fail (${dropped.length}):`));
+    const ol = el('ol', 'review-changes review-dropped');
+    for (const x of dropped) ol.append(auto('li', `${x.change} — failed the ${x.checks.join(' and ')} check${x.checks.length === 1 ? '' : 's'}: ${x.detail}`));
+    d.append(ol);
+  }
   if (rv.refused.length) d.append(el('p', 'caption', `Refused as additions: ${rv.refused.join(', ')}.`));
   const wc = rv.cards;
   if (wc && wc.corrected.length) {
