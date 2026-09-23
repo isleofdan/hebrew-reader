@@ -19,8 +19,10 @@ claim; a lesson sheet gathers the words he keeps meeting. Lessons from his
 tutor Guy come in as PDFs: the app makes the study guide and the flashcards
 by Dan's own lesson instructions (`docs/guy-lessons/`) and saves each
 single-word item to the map; each guide is checked against five rules and
-reviewed by a second model call before it is saved, and that review also
-corrects a wrong root or binyan on the lesson's word cards. A lesson with no
+reviewed by a second model call before it is saved: each of the review's
+corrections is kept unless it breaks a rule the guide passed, and it also
+corrects a wrong root or binyan on the lesson's word cards. A third, small
+call then checks the lesson's verb cards alone. A lesson with no
 guide builds one when it is first opened. Articles and lessons can
 be deleted (saved words stay), and a saved word tints in its prefixed forms
 too. A scheduled article hunt is a later session.

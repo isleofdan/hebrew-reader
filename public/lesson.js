@@ -158,6 +158,7 @@ function drawGuide(guide) {
   notes.push(`Built ${new Date(guide.built_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}.`);
   box.append(el('p', 'caption', notes.join(' ')));
   drawReview(box, guide.review);
+  drawVerbCheck(box, guide.verb_check);
   $('#links').classList.remove('hidden');
   const n = guide.cards.length;
   const cards = $('#cards-link');
@@ -209,10 +210,36 @@ function drawReview(box, rv) {
   if (wc && wc.corrected.length) {
     d.append(el('p', 'caption', `Word cards corrected by the review (${wc.corrected.length}):`));
     const ul = el('ul', 'review-changes');
-    for (const x of wc.corrected) ul.append(auto('li', `${x.surface}: ${x.field} ${x.field === 'binyan' ? (window.CardUI.BINYAN[x.before] || x.before || 'none') : (x.before || 'none')} → ${x.field === 'binyan' ? (window.CardUI.BINYAN[x.after] || x.after) : x.after}`));
+    for (const x of wc.corrected) ul.append(auto('li', cardFixLine(x)));
     d.append(ul);
   }
   if (wc && wc.refused.length) d.append(el('p', 'caption', `Word card corrections not made (not guessed): ${wc.refused.join('; ')}.`));
+  box.append(d);
+}
+
+// One corrected card, English first so the line reads left to right:
+// "Binyan of נחתם: Pa'al → Nif'al".
+function cardFixLine(x) {
+  // each Hebrew piece isolated, so two roots do not run together right to
+  // left around the arrow
+  const iso = (t) => `\u2068${t}\u2069`;
+  const name = (v) => iso(x.field === 'binyan' ? (window.CardUI.BINYAN[v] || v || 'none') : (v || 'none'));
+  return `${x.field === 'binyan' ? 'Binyan' : 'Root'} of ${iso(x.surface)}: ${name(x.before)} → ${name(x.after)}`;
+}
+
+// The verb-card check after the review: one line, and behind it what it
+// corrected and what it refused.
+function drawVerbCheck(box, vc) {
+  if (!vc) return;
+  if (vc.state === 'not run') { box.append(el('p', 'caption review-line', `Verb cards not checked: ${vc.reason}`)); return; }
+  const d = el('details', 'review');
+  d.append(el('summary', '', `Verb cards checked: ${vc.checked}, corrected: ${vc.corrected.length}`));
+  if (vc.corrected.length) {
+    const ul = el('ul', 'review-changes');
+    for (const x of vc.corrected) ul.append(auto('li', cardFixLine(x)));
+    d.append(ul);
+  } else d.append(el('p', 'caption', vc.checked ? 'Every verb card was found correct.' : 'This lesson has no verb cards.'));
+  if (vc.refused.length) d.append(el('p', 'caption', `Answers not used: ${vc.refused.join('; ')}.`));
   box.append(d);
 }
 

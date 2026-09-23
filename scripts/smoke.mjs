@@ -780,6 +780,55 @@ try {
       `${drill.binyan}; refused ${JSON.stringify(rc.refused)}`);
   }
 
+  // the verb-card check (session eight, step 4): after the review, a small
+  // call over the lesson's verb cards only
+  {
+    const Database = req(join(root, 'node_modules', 'better-sqlite3'));
+    const cardsNow = () => { const d = new Database(join(dataDir, 'reader.db'), { readonly: true }); const rows = d.prepare('SELECT surface, spot_id, json FROM cards ORDER BY id').all(); d.close(); return rows.map((r) => ({ ...r, card: JSON.parse(r.json) })); };
+    const verbCalls = async () => (await orCalls()).verb_checks;
+    const rebuild = async (c) => {
+      await control({ verb_fixes: {}, verb_extra: [], verb_decline: false, ...c });
+      const n0 = await verbCalls();
+      await api('POST', `/lessons/${L2.body.id}/guide`, { rebuild: true });
+      const v = await until(L2.body.id, (x) => x.guide_state !== 'building' && !x.saving);
+      return { v, vc: v.guide.verb_check, asked: (await verbCalls()) - n0, sent: (await orCalls()).last_verb_cards, ask: (await orCalls()).last_verb_ask };
+    };
+    const before = cardsNow();
+    let r = await rebuild({});
+    const verbs = before.filter((x) => x.card.pos === 'verb' && ['להתבייש', 'להתייבש', 'נלחם'].includes(x.surface));
+    check('verb cards all correct: one call with only the lesson\'s verb cards (word, lemma, root, binyan), no card changed, "checked 3, corrected 0"',
+      r.asked === 1 && r.vc.state === 'checked' && r.vc.checked === 3 && r.vc.corrected.length === 0 && r.vc.refused.length === 0
+      && r.sent.map((c) => c.word).sort().join() === ['להתבייש', 'להתייבש', 'נלחם'].sort().join() && r.sent.every((c) => Object.keys(c).join() === 'word,lemma,root,binyan')
+      && r.sent.find((c) => c.word === 'להתבייש').binyan === 'hitpael' && JSON.stringify(cardsNow()) === JSON.stringify(before) && verbs.length === 3,
+      JSON.stringify({ vc: r.vc, sent: r.sent, asked: r.asked }));
+    check('the verb-card check asks for structured output, on the guide model, with a token limit from its expected output (400 + 150 a verb)',
+      r.ask.type === 'json_schema' && r.ask.schema_name === 'verb_cards_check' && r.ask.max_tokens === 400 + 150 * 3 && r.ask.model === 'anthropic/claude-opus-4.6', JSON.stringify(r.ask));
+    const putsB = await putCounts();
+    r = await rebuild({ verb_fixes: { 'נלחם': { binyan: 'piel', why: "נלחם given here as Pi'el (a mock's claim)" } } });
+    const nl = cardsNow().find((x) => x.surface === 'נלחם');
+    const putsA = await putCounts();
+    check('one wrong verb card: corrected through the review\'s card path — logged, the card carrying "lesson review" and before and after, its spot moved, the spine told; "checked 3, corrected 1"',
+      r.vc.checked === 3 && r.vc.corrected.length === 1 && r.vc.corrected[0].surface === 'נלחם' && r.vc.corrected[0].before === 'nifal' && r.vc.corrected[0].after === 'piel'
+      && nl.card.binyan === 'piel' && nl.spot_id === 'v:ל.ח.מ:piel' && nl.card.corrected?.at(-1)?.by === 'lesson review' && nl.card.corrected.at(-1).before === 'nifal'
+      && /card נלחם binyan nifal -> piel \(the verb-card check\)/.test(server.log) && /verb cards checked in \d+ ms: 3, corrected 1/.test(server.log)
+      && (putsA['v:ל.ח.מ:piel'] || 0) - (putsB['v:ל.ח.מ:piel'] || 0) === 1,
+      JSON.stringify({ vc: r.vc, card: nl.card }));
+    r = await rebuild({ verb_fixes: { 'נלחם': { binyan: 'nifal', why: "נלחם is Nif'al" } }, verb_extra: [
+      { word: 'לזנק', verdict: 'fix', root: 'ז.נ.ק', binyan: 'piel', why: 'a word of another lesson' },
+      { word: 'שביתה', verdict: 'fix', root: 'ש.ב.ת', binyan: 'paal', why: 'a noun card of this lesson' },
+    ] });
+    const others = cardsNow().filter((x) => x.surface !== 'נלחם');
+    check('answers naming a card that is not one of the lesson\'s verb cards (another lesson\'s word, a noun of this one) are refused and listed, changing nothing; the real fix applied',
+      r.vc.refused.length === 2 && r.vc.refused[0] === "לזנק: not one of this lesson's verb cards" && r.vc.refused[1] === "שביתה: not one of this lesson's verb cards"
+      && r.vc.corrected.length === 1 && cardsNow().find((x) => x.surface === 'נלחם').card.binyan === 'nifal'
+      && JSON.stringify(others) === JSON.stringify(before.filter((x) => x.surface !== 'נלחם').map((x) => ({ ...x }))),
+      JSON.stringify(r.vc));
+    r = await rebuild({ verb_decline: true });
+    check('a verb-card check that does not answer: the guide saved, the check marked not run with the reason',
+      r.v.guide_state === 'built' && r.vc.state === 'not run' && /The verb-card check could not run: the model declined/.test(r.vc.reason) && r.vc.checked === 3, JSON.stringify(r.vc));
+    await control({ verb_fixes: {}, verb_extra: [], verb_decline: false });
+  }
+
   // the model refusing the guide; opened twice at once, as two tabs would (session six, step 2)
   const gBefore = await guideCalls();
   const [open1, open2] = await Promise.all([api('POST', `/lessons/${L3.body.id}/guide`, {}), api('POST', `/lessons/${L3.body.id}/guide`, {})]);

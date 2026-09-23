@@ -349,10 +349,13 @@ try {
     // guide, the flashcards front and back — light and dark
     if (name === 'desktop') {
       // the June lesson's נחתם card comes back wrong (Pa'al, as לזנק did live),
-      // and the review corrects it, so the lesson's card shows the correction
+      // the review does not name it (as it did not name לזנק live), and the
+      // verb-card check corrects it, so the lesson's card shows the correction;
+      // one review correction breaks the drill check and is dropped
       await fetch(`http://127.0.0.1:${OR_PORT}/control`, { method: 'POST', body: JSON.stringify({
         card_overrides: { 'נחתם': { surface: 'נחתם', lemma: 'נחתם', pos: 'verb', root: 'ח.ת.מ', binyan: 'paal', tense: 'past', person_gender_number: '3ms', meaning_en: 'was signed', governs: null, categories: ['conjugation'], note: null } },
-        review_extra: [{ section: 'word_cards', item: 'נחתם', field: 'binyan', find: "Pa'al", replace: 'nifal', why: "נחתם is Nif'al past of ח.ת.מ, not Pa'al." }],
+        review_extra: [{ section: 'drills', item: 'להיאלץ', field: '', find: 'guttural', replace: 'geminate', why: 'The drill verb להיאלץ called geminate.' }],
+        verb_fixes: { 'נחתם': { binyan: 'nifal', why: "נחתם is Nif'al past of ח.ת.מ, not Pa'al." } },
       }) });
       await page.goto(`${base}/`);
       await page.setInputFiles('#lesson-file', join(here, 'fixtures', 'Daniel HEB 15jun26.pdf'));
@@ -404,15 +407,24 @@ try {
       check(`${name} ${scheme}: no "For Guy" box anywhere on the lesson page`, !/For Guy/i.test(await page.locator('#guide').innerText()));
       check(`${name} ${scheme}: text on the lesson page is legible`, contrast(await paint(page.locator('#items li').first(), 'color'), await ground()) >= 7);
       await page.screenshot({ path: join(out, `lesson-${scheme}-${name}.png`), fullPage: true });
-      // session five: the review under the guide, opened
-      const review = page.locator('.guide details.review');
+      // the review under the guide, opened (session five), with what it
+      // applied and dropped (session eight), and the verb-card check under it
+      const review = page.locator('.guide details.review').first();
+      const verbLine = page.locator('.guide details.review').nth(1);
       await review.locator('summary').click();
-      await review.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+      await verbLine.locator('summary').click();
+      await review.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+      await page.evaluate(() => window.scrollBy(0, -80));
       await page.waitForTimeout(200);
       const reviewText = await review.innerText();
-      check(`${name} ${scheme}: "Reviewed: 1 correction" opens to the correction, legible, and the page fits`,
-        /^Reviewed: 1 correction\b/.test(reviewText) && /ס\.ל\.ם/.test(reviewText) && await review.evaluate((el) => el.open)
-        && contrast(await paint(review.locator('li').first(), 'color'), await ground()) >= 7 && await fits(), reviewText.replace(/\s+/g, ' ').slice(0, 120));
+      const verbText = await verbLine.innerText();
+      check(`${name} ${scheme}: "Reviewed: 1 applied, 1 dropped" opens to the applied correction and the dropped one with the check it broke, legible, and the page fits`,
+        /^Reviewed: 1 applied, 1 dropped\b/.test(reviewText) && /ס\.ל\.ם/.test(reviewText) && /The drill verb להיאלץ called geminate\. — failed the drill check: /.test(reviewText)
+        && await review.evaluate((el) => el.open) && contrast(await paint(review.locator('li').first(), 'color'), await ground()) >= 7
+        && contrast(await paint(review.locator('.review-dropped li').first(), 'color'), await ground()) >= 7 && await fits(), reviewText.replace(/\s+/g, ' ').slice(0, 400));
+      check(`${name} ${scheme}: under it, "Verb cards checked: 2, corrected: 1" opens to נחתם Pa'al → Nif'al, legible`,
+        /^Verb cards checked: 2, corrected: 1\b/.test(verbText) && /Binyan of \u2068נחתם\u2069: \u2068Pa'al\u2069 → \u2068Nif'al\u2069/.test(verbText) && await verbLine.locator('li').first().evaluate((el) => getComputedStyle(el).direction === 'ltr' || el.matches(':dir(ltr)')) && await verbLine.evaluate((el) => el.open)
+        && contrast(await paint(verbLine.locator('li').first(), 'color'), await ground()) >= 7, verbText.replace(/\s+/g, ' ').slice(0, 200));
       await page.screenshot({ path: join(out, `lesson-review-${scheme}-${name}.png`) });
 
       if (scheme === 'light') {

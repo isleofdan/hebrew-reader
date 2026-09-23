@@ -67,7 +67,11 @@ let lastGuideModel = null;
 // JSON at all). review_format_again: the same for the answer to the one
 // follow-up ask. schema_refused: structured output answered 404, as OpenRouter
 // does when no provider of the model takes the parameters asked for.
-const control = { unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false };
+const control = { unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false, verb_fixes: {}, verb_extra: [], verb_decline: false };
+// verb_fixes: word -> { root?, binyan?, why }, the verb-card check's fix for
+// that card (every other card answered "correct"); verb_extra: answers added
+// after the cards'; verb_decline: the check answers {"error"}.
+let verbChecks = 0, lastVerbCards = null, lastVerbAsk = null;
 let lastReviewCards = null;
 let reviews = 0;
 // every review request: its response_format type and whether it was the follow-up
@@ -124,7 +128,7 @@ function mockGuide(items, date, n, fault) {
   return g;
 }
 http.createServer((req, res) => {
-  if (req.url === '/calls') { res.end(JSON.stringify({ calls, points_calls: pointsCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards })); return; }
+  if (req.url === '/calls') { res.end(JSON.stringify({ calls, points_calls: pointsCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
   let raw = '';
   req.on('data', (c) => raw += c);
   req.on('end', () => {
@@ -177,6 +181,17 @@ http.createServer((req, res) => {
       answer = /nif.?al/i.test(user) && user.includes('looked up or saved (surface')
         ? { answer: nifal.length ? `The Nif'al forms among your words in this piece: ${nifal.join(', ')}.` : 'None of your words in this piece is a Nif\'al form yet.', links: nifal.map((w) => ({ claim: w, reference: 'pealim', term: w })) }
         : { answer: "נאלץ is the Nif'al of א.ל.צ, 'to be forced'; it takes ל- plus an infinitive (not sure about older usage with את).", links: [{ claim: "Nif'al of א.ל.צ", reference: 'pealim', term: 'אלצ' }, { claim: 'takes ל- plus an infinitive', reference: 'wiktionary', term: 'נאלץ' }, { claim: 'older usage', reference: 'academy', term: 'נאלץ' }] };
+    } else if (user.startsWith('Verb cards of the lesson ')) {
+      verbChecks++;
+      lastVerbCards = user.split('one per line:\n')[1].split('\n').filter(Boolean).map((l) => JSON.parse(l));
+      lastVerbAsk = { type: body.response_format && body.response_format.type, schema_name: body.response_format && body.response_format.json_schema ? body.response_format.json_schema.name : null, max_tokens: body.max_tokens, model: body.model };
+      answer = control.verb_decline ? { error: 'the checker declines in this mock' } : { cards: [
+        ...lastVerbCards.map((c) => {
+          const fix = control.verb_fixes[c.word];
+          return fix ? { word: c.word, verdict: 'fix', root: fix.root || c.root, binyan: fix.binyan || c.binyan, why: fix.why || '' } : { word: c.word, verdict: 'correct', root: c.root, binyan: c.binyan, why: '' };
+        }),
+        ...control.verb_extra,
+      ] };
     } else if (user.startsWith('Review: ')) {
       // the review answers corrections only, never the guide written out
       const type = body.response_format && body.response_format.type;
