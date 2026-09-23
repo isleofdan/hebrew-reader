@@ -813,12 +813,13 @@ try {
       && /card נלחם binyan nifal -> piel \(the verb-card check\)/.test(server.log) && /verb cards checked in \d+ ms: 3, corrected 1/.test(server.log)
       && (putsA['v:ל.ח.מ:piel'] || 0) - (putsB['v:ל.ח.מ:piel'] || 0) === 1,
       JSON.stringify({ vc: r.vc, card: nl.card }));
-    r = await rebuild({ verb_fixes: { 'נלחם': { binyan: 'nifal', why: "נלחם is Nif'al" } }, verb_extra: [
+    r = await rebuild({ verb_fixes: { 'נלחם': { binyan: "Nif'al", why: "נלחם is Nif'al" } }, verb_extra: [
+      { word: 'נִלְחַם', verdict: 'correct', root: 'ל.ח.ם', binyan: "Nif'al", why: '' },
       { word: 'לזנק', verdict: 'fix', root: 'ז.נ.ק', binyan: 'piel', why: 'a word of another lesson' },
       { word: 'שביתה', verdict: 'fix', root: 'ש.ב.ת', binyan: 'paal', why: 'a noun card of this lesson' },
     ] });
     const others = cardsNow().filter((x) => x.surface !== 'נלחם');
-    check('answers naming a card that is not one of the lesson\'s verb cards (another lesson\'s word, a noun of this one) are refused and listed, changing nothing; the real fix applied',
+    check('answers naming a card that is not one of the lesson\'s verb cards (another lesson\'s word, a noun of this one) are refused and listed, changing nothing; the real fix applied — given as "Nif\'al", and a pointed נִלְחַם with a final-letter root is not refused (false-rejection check)',
       r.vc.refused.length === 2 && r.vc.refused[0] === "לזנק: not one of this lesson's verb cards" && r.vc.refused[1] === "שביתה: not one of this lesson's verb cards"
       && r.vc.corrected.length === 1 && cardsNow().find((x) => x.surface === 'נלחם').card.binyan === 'nifal'
       && JSON.stringify(others) === JSON.stringify(before.filter((x) => x.surface !== 'נלחם').map((x) => ({ ...x }))),
