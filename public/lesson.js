@@ -173,13 +173,24 @@ function drawGuide(guide) {
 // it tried to add, refused. A review that did not run says why in one line.
 function drawReview(box, rv) {
   if (!rv) return;
-  if (rv.state === 'not run') { box.append(el('p', 'caption review-line', `Not reviewed: ${rv.reason}`)); return; }
+  if (rv.state === 'not run') {
+    box.append(el('p', 'caption review-line', `Not reviewed: ${rv.reason}`));
+    // what the model sent back when it was not JSON, kept so it can be read later
+    if (rv.raw_head !== undefined) {
+      const raw = el('details', 'review');
+      raw.append(el('summary', '', "What the model sent back (the first 2,000 characters)"));
+      raw.append(el('pre', 'review-raw', rv.raw_head || '(nothing)'));
+      box.append(raw);
+    }
+    return;
+  }
   const n = rv.changes.length;
   const d = el('details', 'review');
   d.append(el('summary', '', rv.state === 'applied'
     ? `Reviewed: ${n} correction${n === 1 ? '' : 's'}`
     : `Reviewed, not applied: ${n} correction${n === 1 ? '' : 's'} proposed`));
   if (rv.state === 'discarded') d.append(el('p', 'caption', rv.reason));
+  if (rv.asked_twice) d.append(el('p', 'caption', 'The first answer was not in the expected format; the review was asked once more.'));
   if (n) { const ol = el('ol', 'review-changes'); for (const c of rv.changes) ol.append(auto('li', c)); d.append(ol); }
   else d.append(el('p', 'caption', 'The review found nothing to correct.'));
   if (rv.refused.length) d.append(el('p', 'caption', `Refused as additions: ${rv.refused.join(', ')}.`));

@@ -51,9 +51,17 @@ let lastGuideModel = null;
 // card_overrides: surface -> card, answered in place of the known one (a card
 // the card model got wrong, as it did לזנק live).
 // review_extra: corrections the review adds to whatever its mode gives.
-const control = { unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [] };
+// review_format: how the review's answer is written — 'clean' (the JSON
+// alone), 'fenced' (in a ```json fence), 'prose' (after a line of prose),
+// 'truncated' (cut off mid-object, finish_reason "length") or 'garbage' (no
+// JSON at all). review_format_again: the same for the answer to the one
+// follow-up ask. schema_refused: structured output answered 404, as OpenRouter
+// does when no provider of the model takes the parameters asked for.
+const control = { unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false };
 let lastReviewCards = null;
 let reviews = 0;
+// every review request: its response_format type and whether it was the follow-up
+const reviewAsks = [];
 let lastGuideNote = null;
 
 const CATS = ['Nouns & Terms', 'Verbs', 'Expressions'];
@@ -106,7 +114,7 @@ function mockGuide(items, date, n, fault) {
   return g;
 }
 http.createServer((req, res) => {
-  if (req.url === '/calls') { res.end(JSON.stringify({ calls, guides, reviews, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards })); return; }
+  if (req.url === '/calls') { res.end(JSON.stringify({ calls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards })); return; }
   let raw = '';
   req.on('data', (c) => raw += c);
   req.on('end', () => {
@@ -121,7 +129,8 @@ http.createServer((req, res) => {
       return;
     }
     const user = body.messages.find((m) => m.role === 'user').content;
-    let answer;
+    const followUp = body.messages.length > 2;
+    let answer, format = 'clean';
     if (user.startsWith('Sentence: ')) {
       // a translation for the demand page: only the sample article's sentence is known
       const sentence = user.slice('Sentence: '.length);
@@ -160,7 +169,16 @@ http.createServer((req, res) => {
         : { answer: "נאלץ is the Nif'al of א.ל.צ, 'to be forced'; it takes ל- plus an infinitive (not sure about older usage with את).", links: [{ claim: "Nif'al of א.ל.צ", reference: 'pealim', term: 'אלצ' }, { claim: 'takes ל- plus an infinitive', reference: 'wiktionary', term: 'נאלץ' }, { claim: 'older usage', reference: 'academy', term: 'נאלץ' }] };
     } else if (user.startsWith('Review: ')) {
       // the review answers corrections only, never the guide written out
+      const type = body.response_format && body.response_format.type;
+      if (control.schema_refused && type === 'json_schema') {
+        reviewAsks.push({ type, follow_up: followUp, refused: true });
+        res.writeHead(404, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: { message: 'No endpoints found that can handle the requested parameters.', code: 404 } }));
+        return;
+      }
       reviews++;
+      reviewAsks.push({ type, follow_up: followUp, schema_name: type === 'json_schema' ? body.response_format.json_schema.name : null, require_parameters: Boolean(body.provider && body.provider.require_parameters), max_tokens: body.max_tokens, last: followUp ? body.messages.at(-1).content : null });
+      format = followUp ? control.review_format_again : control.review_format;
       const guide = JSON.parse(user.split('\n\nGuide:\n')[1]);
       const items = user.split('one per line:\n')[1].split('\n\n')[0].split('\n').filter(Boolean);
       const cardList = /\n\nWord cards saved from this lesson's single words \(\d+\):\n(.*)\n\nGuide:\n/.exec(user);
@@ -199,7 +217,13 @@ http.createServer((req, res) => {
       const surface = /Surface: (\S+)/.exec(user)[1];
       answer = control.card_overrides[surface] || known[surface] || control.extra_cards[surface] || { error: `unknown word ${surface} in this mock` };
     }
+    const json = JSON.stringify(answer);
+    const content = format === 'fenced' ? `\`\`\`json\n${json}\n\`\`\``
+      : format === 'prose' ? `Here are the corrections I found after checking the guide against the lesson.\n${json}\nThat is all.`
+      : format === 'truncated' ? json.slice(0, Math.max(20, Math.floor(json.length / 2)))
+      : format === 'garbage' ? 'I reviewed the guide. The root of הסלמה should be ס.ל.ם, and the rest looks right to me.' + ' More notes on the guide follow.'.repeat(120)
+      : json;
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ id: 'mock', model: body.model, choices: [{ message: { role: 'assistant', content: JSON.stringify(answer) } }] }));
+    res.end(JSON.stringify({ id: 'mock', model: body.model, choices: [{ message: { role: 'assistant', content }, finish_reason: format === 'truncated' ? 'length' : 'stop' }] }));
   });
 }).listen(port, () => console.log(`mock openrouter on ${port}`));

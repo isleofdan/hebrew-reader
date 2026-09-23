@@ -436,6 +436,70 @@ try {
     await control({ review: 'fix-root' });
   }
 
+  // the review answers in a form the server can read (session seven, step 1):
+  // live, 23 Sep 2026, "the model did not return JSON", so it never ran
+  {
+    const lk = req(join(root, 'lib', 'lookup.js'));
+    const body = { corrections: [{ section: 'vocabulary', item: 'x', field: '', find: 'a', replace: 'b', why: 'w' }], remove: [] };
+    const js = JSON.stringify(body);
+    const fenced = lk.firstJsonObject('```json\n' + js + '\n```');
+    const prose = lk.firstJsonObject('Here are the corrections I found:\n' + js + '\nThat is all; the "}" above closes it.');
+    const cut = lk.firstJsonObject(js.slice(0, js.length - 12));
+    const clean = lk.firstJsonObject(js);
+    check('the JSON reader: a clean answer, one in a code fence and one after a line of prose are all taken; a cut-off one is refused, never read for an inner object',
+      JSON.stringify(clean.value) === js && JSON.stringify(fenced.value) === js && JSON.stringify(prose.value) === js && cut.value === null && cut.truncated === true,
+      JSON.stringify({ fenced, prose, cut }));
+    check('a schema refusal is told apart from a missing model: "requested parameters" is a refusal of the format, not of the model',
+      lk.schemaRefused(404, 'No endpoints found that can handle the requested parameters.') && !lk.modelMissing(404, 'No endpoints found that can handle the requested parameters.')
+      && lk.modelMissing(404, 'No endpoints found for anthropic/claude-opus-9.') && !lk.schemaRefused(404, 'No endpoints found for anthropic/claude-opus-9.'));
+    const gl = req(join(root, 'lib', 'guy-lesson.js'));
+    const mini = { sections: [{ kind: 'vocabulary', rows: [{ he: 'לזנק', en: 'to leap', root: 'ז.נ.ק', binyan: "Pa'al", flags: '' }] }], cards: [] };
+    const schemaShaped = gl.applyCorrections(mini, { corrections: [
+      { section: 'vocabulary', item: 'לזנק', field: '', find: "Pa'al", replace: "Pi'el", why: 'binyan' },
+      { section: 'vocabulary', item: 'לזנק', field: 'flags', find: '', replace: '⚠️ Binyan: Pi\'el', why: 'flag' },
+    ], remove: [] });
+    check('a correction in the schema\'s shape ("field": "" when it fills nothing) is applied, not refused (false-rejection check)',
+      schemaShaped.refused.length === 0 && schemaShaped.changes.length === 2 && schemaShaped.guide.sections[0].rows[0].binyan === "Pi'el" && /Binyan/.test(schemaShaped.guide.sections[0].rows[0].flags),
+      JSON.stringify(schemaShaped.refused));
+
+    const asks = async () => (await orCalls()).review_asks.length;
+    const rebuildWith = async (c) => {
+      await control(c);
+      const n0 = await asks();
+      await api('POST', `/lessons/${L1.body.id}/guide`, { rebuild: true });
+      const v = await until(L1.body.id, (x) => x.guide_state !== 'building' && !x.saving);
+      const all = (await orCalls()).review_asks;
+      return { v, rv: v.guide.review, mine: all.slice(n0) };
+    };
+    const hasFix = (v) => v.guide.sections.find((x) => x.kind === 'vocabulary').rows.some((r) => r.root === 'ס.ל.ם');
+
+    let r = await rebuildWith({ review_format: 'clean' });
+    check('the review asks for structured output against its schema, with room for its answer: a clean answer is applied on the one ask, no second ask',
+      r.rv.state === 'applied' && hasFix(r.v) && r.mine.length === 1 && !r.mine[0].follow_up && r.mine[0].type === 'json_schema' && r.mine[0].schema_name === 'lesson_review'
+      && r.mine[0].require_parameters && r.mine[0].max_tokens === 16000 && r.rv.json === 'json_schema' && !r.rv.asked_twice, JSON.stringify({ rv: r.rv, mine: r.mine }));
+    r = await rebuildWith({ review_format: 'fenced' });
+    check('a review answer inside a ```json fence is read and applied, with no second ask', r.rv.state === 'applied' && hasFix(r.v) && r.mine.length === 1, JSON.stringify({ rv: r.rv, mine: r.mine }));
+    r = await rebuildWith({ review_format: 'prose' });
+    check('a review answer after a line of prose is read and applied, with no second ask', r.rv.state === 'applied' && hasFix(r.v) && r.mine.length === 1, JSON.stringify({ rv: r.rv, mine: r.mine }));
+    r = await rebuildWith({ review_format: 'truncated', review_format_again: 'clean' });
+    check('a cut-off review answer is refused, asked once more ("cut off"), and the second answer applied; the page notes the second ask',
+      r.rv.state === 'applied' && hasFix(r.v) && r.mine.length === 2 && r.mine[1].follow_up && /cut off/.test(r.mine[1].last) && r.rv.asked_twice === true
+      && /the answer from anthropic\/claude-opus-4\.6 was not JSON \(first answer; finish length/.test(server.log), JSON.stringify({ rv: r.rv, mine: r.mine }));
+    r = await rebuildWith({ review_format: 'garbage', review_format_again: 'garbage' });
+    const logged = /The review pass could not run: the answer from \S+ was not JSON \(first answer; finish stop, [3-9]\d{3} characters\)\. Its first 2000 characters:\nI reviewed the guide\./.test(server.log);
+    check('a review that twice answers no JSON: asked once more and only once, not run, the reason named; the answer\'s first 2,000 characters logged and kept with the lesson',
+      r.rv.state === 'not run' && r.mine.length === 2 && r.mine[1].follow_up && /Return only the JSON object/.test(r.mine[1].last)
+      && /did not return JSON, and asked once more it still did not/.test(r.rv.reason) && /^I reviewed the guide\./.test(r.rv.raw_head || '') && r.rv.raw_head.length === 2000 && logged && !hasFix(r.v),
+      JSON.stringify({ rv: r.rv, mine: r.mine, logged }));
+    r = await rebuildWith({ review_format: 'garbage', review_format_again: 'clean' });
+    check('an answer that is not JSON, then a clean one on the second ask: applied, two asks in all', r.rv.state === 'applied' && hasFix(r.v) && r.mine.length === 2 && r.rv.asked_twice === true, JSON.stringify({ rv: r.rv, mine: r.mine }));
+    r = await rebuildWith({ review_format: 'clean', schema_refused: true });
+    check('when no provider takes the schema (404 "requested parameters"), the review is asked once in JSON mode and applied; the guide model is kept, not the fallback',
+      r.rv.state === 'applied' && hasFix(r.v) && r.mine.length === 2 && r.mine[0].refused && r.mine[1].type === 'json_object' && r.rv.json === 'json_object' && r.v.guide.built_with === 'guide model',
+      JSON.stringify({ rv: r.rv, mine: r.mine, built_with: r.v.guide.built_with }));
+    await control({ review_format: 'clean', review_format_again: 'clean', schema_refused: false });
+  }
+
   // the five rule checks (session five, step 2): each failing once, then passing on the one rebuild
   check('the June guide passes all five checks on the first build: every line covered, first drill Nif\'al, points, flags, objects agree',
     built.guide.checks && built.guide.checks.passed.join(',') === 'coverage,drill,nikud,flags,objects' && built.guide.checks.failed_first.length === 0
