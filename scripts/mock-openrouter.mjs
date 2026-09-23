@@ -37,6 +37,16 @@ const known = {
   'דם': { surface: 'דם', lemma: 'דם', pos: 'noun', root: 'ד.מ.מ', binyan: null, tense: null, person_gender_number: 'ms', meaning_en: 'blood', governs: null, categories: [], note: null },
   'נלחם': { surface: 'נלחם', lemma: 'נלחם', pos: 'verb', root: 'ל.ח.מ', binyan: 'nifal', tense: 'past', person_gender_number: '3ms', meaning_en: 'fought', governs: 'ב-', categories: ['conjugation', 'preposition-government'], note: "Nif'al; fights ב- (in), not 'against'." },
 };
+// Nikud for the words above (session seven): the card answers carry it, and
+// the small call that adds it to a card cached before cards had it answers it.
+// Dictionary spelling on purpose where it drops a vowel letter (קִדֵּם for קידם).
+const POINTED = {
+  'נאלצה': ['נֶאֱלַץ', 'נֶאֶלְצָה'], 'שנאלצה': ['נֶאֱלַץ', 'שֶׁנֶּאֶלְצָה'], 'באמינות': ['אֲמִינוּת', 'בָּאֲמִינוּת'],
+  'להתמודד': ['הִתְמוֹדֵד', 'לְהִתְמוֹדֵד'], 'מקדם': ['קִדֵּם', 'מְקַדֵּם'], 'רפורמה': ['רֵפוֹרְמָה', 'רֵפוֹרְמָה'],
+  'ייקבעו': ['נִקְבַּע', 'יִיקָּבְעוּ'], 'נחתם': ['נֶחְתַּם', 'נֶחְתַּם'], 'הסלמה': ['הַסְלָמָה', 'הַסְלָמָה'],
+};
+for (const [w, [lemma, surface]] of Object.entries(POINTED)) if (known[w]) Object.assign(known[w], { lemma_pointed: lemma, surface_pointed: surface });
+let pointsCalls = 0;
 let calls = 0;
 let guides = 0;
 let lastGuideModel = null;
@@ -114,7 +124,7 @@ function mockGuide(items, date, n, fault) {
   return g;
 }
 http.createServer((req, res) => {
-  if (req.url === '/calls') { res.end(JSON.stringify({ calls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards })); return; }
+  if (req.url === '/calls') { res.end(JSON.stringify({ calls, points_calls: pointsCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards })); return; }
   let raw = '';
   req.on('data', (c) => raw += c);
   req.on('end', () => {
@@ -213,6 +223,12 @@ http.createServer((req, res) => {
       answer = items.some((i) => i.includes('סירוב'))
         ? { error: 'these lines are not a lesson a guide can be built from' }
         : mockGuide(items, date, guides, control.guide_faults.shift());
+    } else if (/\nLemma: /.test(user)) {
+      // nikud only, for a card cached before cards carried it
+      pointsCalls++;
+      const surface = /Surface: (\S+)/.exec(user)[1];
+      const p = POINTED[surface];
+      answer = p ? { lemma_pointed: p[0], surface_pointed: p[1] } : { lemma_pointed: '', surface_pointed: surface };
     } else {
       const surface = /Surface: (\S+)/.exec(user)[1];
       answer = control.card_overrides[surface] || known[surface] || control.extra_cards[surface] || { error: `unknown word ${surface} in this mock` };

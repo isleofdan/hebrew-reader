@@ -101,6 +101,10 @@ route('POST', /^\/lookup$/, async (req, res) => {
   return sendJson(res, 200, answer);
 });
 
+// { surface, sentence } of a card already looked up -> { pointed, called }:
+// its nikud, added once to a card cached before cards carried it.
+route('POST', /^\/lookup\/points$/, async (req, res) => sendJson(res, 200, await lookup.addPoints(await readJson(req))));
+
 route('GET', /^\/categories$/, (req, res) => sendJson(res, 200, { items: CATEGORIES, state: 'ok' }));
 
 // --- spots (the map) --------------------------------------------------------

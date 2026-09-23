@@ -28,6 +28,11 @@ const dataDir = mkdtempSync(join(tmpdir(), 'hr-smoke-'));
               status TEXT NOT NULL CHECK (status IN ('new','shaky','solid')), categories_json TEXT NOT NULL DEFAULT '[]', updated_at TEXT NOT NULL);
             INSERT INTO spots VALUES ('v:ק.ב.ע:nifal', 'verb', 'ק.ב.ע', 'nifal', 'נקבע', 'shaky', '["conjugation"]', '2026-09-22T00:00:00.000Z');
             INSERT INTO spots VALUES ('w:ישן', 'word', null, null, 'ישן', 'new', '[]', '2026-09-22T00:00:00.000Z');`);
+  // and a card cached before cards carried nikud (session seven, step 4)
+  old.exec(`CREATE TABLE cards (id INTEGER PRIMARY KEY AUTOINCREMENT, surface TEXT NOT NULL, context_hash TEXT NOT NULL UNIQUE, spot_id TEXT, json TEXT NOT NULL, built_at TEXT NOT NULL)`);
+  const { createHash } = await import('node:crypto');
+  old.prepare('INSERT INTO cards (surface, context_hash, spot_id, json, built_at) VALUES (?, ?, ?, ?, ?)').run('רפורמה', createHash('sha256').update('רפורמה\n').digest('hex'), 'w:רפורמה',
+    JSON.stringify({ surface: 'רפורמה', lemma: 'רפורמה', pos: 'noun', root: null, binyan: null, tense: null, person_gender_number: 'fs', meaning_en: 'a reform', governs: null, categories: [], note: null }), '2026-09-22T00:00:00.000Z');
   old.close();
 }
 const kids = [];
@@ -125,6 +130,47 @@ try {
   check('a card the model cannot build is refused in one line, nothing invented', unknown.status === 422 && unknown.body.error.startsWith('Card could not be built'), unknown.body.error);
   const noun = await api('POST', '/lookup', { surface: 'באמינות', sentence, article_id: stored.id });
   check('noun gets w:<lemma> spot', noun.body.spot?.id === 'w:אמינות');
+
+  // 3b. nikud on the card (session seven, steps 2 and 4)
+  {
+    const lk = createRequire(import.meta.url)(join(root, 'lib', 'lookup.js'));
+    check('a new card carries the pointed headword and the pointed word as selected',
+      look1.body.card.pointed?.lemma === 'נֶאֱלַץ' && look1.body.card.pointed?.surface === 'נֶאֶלְצָה' && !look1.body.points_missing, JSON.stringify(look1.body.card.pointed));
+    const base = { lemma: 'נאלץ', pos: 'verb', root: 'א.ל.צ', binyan: 'nifal', meaning_en: 'was forced to' };
+    const plainCard = lk.shape(base, 'נאלצה');
+    const pointedLemma = lk.shape({ ...base, lemma: 'נֶאֱלַץ', lemma_pointed: 'נֶאֱלַץ', surface_pointed: 'נֶאֶלְצָה' }, 'נאלצה');
+    check('a pointed form never makes a new spot: the same spot id with or without nikud, even when the model points the lemma itself',
+      lk.spotFor(plainCard).id === 'v:א.ל.צ:nifal' && lk.spotFor(pointedLemma).id === 'v:א.ל.צ:nifal' && pointedLemma.lemma === 'נאלץ', JSON.stringify([lk.spotFor(plainCard), lk.spotFor(pointedLemma)]));
+    const spotIds = (await api('GET', '/spots')).body.items.map((x) => x.id);
+    const marksNow = await api('GET', `/marks-for-article/${stored.id}`);
+    const POINTS = /[\u0591-\u05C7]/;
+    check('no spot id, lemma or tinted surface carries nikud after pointed cards were made',
+      spotIds.length > 0 && !spotIds.some((id) => POINTS.test(id)) && !Object.keys(marksNow.body.surfaces).some((w) => POINTS.test(w))
+      && !Object.keys(marksNow.body.lemmas || {}).some((w) => POINTS.test(w)) && marksNow.body.surfaces['נאלצה']?.spot_id === 'v:א.ל.צ:nifal', JSON.stringify(spotIds));
+    check('dictionary spelling is taken (קִדֵּם for קידם: a vowel letter dropped), a pointed form of other letters is refused, and so is one with no points (false-rejection check)',
+      lk.pointedAs('קִדֵּם', 'קידם') === 'קִדֵּם' && lk.pointedAs('דִּבְּרוּ', 'דיברו') === 'דִּבְּרוּ' && lk.pointedAs('כָּתַב', 'דיבר') === null && lk.pointedAs('דיבר', 'דיבר') === null && lk.pointedAs('שֶׁנֶּאֶלְצָה', 'שנאלצה') === 'שֶׁנֶּאֶלְצָה');
+
+    // a card cached before session seven: filled once, on first open
+    const pc = async () => (await (await fetch(`http://127.0.0.1:${OR_PORT}/calls`)).json());
+    const p0 = await pc();
+    const old1 = await api('POST', '/lookup', { surface: 'רפורמה', sentence: '' });
+    const p1 = await pc();
+    check('an old cached card opens at once from the cache, unpointed, marked for its nikud, with no model call',
+      old1.status === 200 && old1.body.cached === true && old1.body.points_missing === true && old1.body.card.pointed === undefined && p1.calls === p0.calls, JSON.stringify(old1.body).slice(0, 200));
+    const [fillA, fillB] = await Promise.all([api('POST', '/lookup/points', { surface: 'רפורמה', sentence: '' }), api('POST', '/lookup/points', { surface: 'רפורמה', sentence: '' })]);
+    const p2 = await pc();
+    check('its nikud is added by one small call, even when asked twice at once, and saved back to the cache',
+      fillA.status === 200 && fillA.body.called === true && fillA.body.pointed.lemma === 'רֵפוֹרְמָה' && fillB.body.pointed.lemma === 'רֵפוֹרְמָה'
+      && p2.points_calls - p0.points_calls === 1 && p2.calls - p0.calls === 1 && /pointed forms added to the cached card for "רפורמה"/.test(server.log), JSON.stringify({ a: fillA.body, b: fillB.body, calls: p2.points_calls - p0.points_calls }));
+    const old2 = await api('POST', '/lookup', { surface: 'רפורמה', sentence: '' });
+    const fill2 = await api('POST', '/lookup/points', { surface: 'רפורמה', sentence: '' });
+    const p3 = await pc();
+    check('on the second open the card comes pointed from the cache, and no call is made again',
+      old2.body.cached === true && !old2.body.points_missing && old2.body.card.pointed?.lemma === 'רֵפוֹרְמָה' && fill2.body.called === false && p3.calls === p2.calls,
+      JSON.stringify({ old2: old2.body.card.pointed, fill2: fill2.body, calls: p3.calls - p2.calls }));
+    const none = await api('POST', '/lookup/points', { surface: 'שלא-נפתחה', sentence: '' });
+    check('nikud is never fetched for a card that was not looked up: refused in one line, no call', none.status === 404 && /look the word up first/.test(none.body.error) && (await pc()).calls === p3.calls, none.body.error);
+  }
 
   // 4. marks
   const badStatus = await api('POST', '/spots/' + encodeURIComponent('v:א.ל.צ:nifal'), { status: 'known' });
