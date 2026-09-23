@@ -347,61 +347,74 @@ vocabulary, which is "between" them in the Study Guide Format's own order.
   with an object (הממשלה ___ את המצב).
 - The Dropbox folder and bulk import: session five.
 
-## Close-out note — session hebrew-reader-five, 22 Sep 2026
+## Close-out note — session hebrew-reader-five, 22–23 Sep 2026
 
-On branch `claude/hebrew-satellite-brief-n91kia`, one commit per step. Checks
-against the local mocks: 123 server checks (`npm run smoke`, from 94) and 149
-page checks (`npm run screenshots`, from 132). All seven steps of the brief
-shipped, steps 5 and 6 included.
+On branch `claude/hebrew-satellite-brief-n91kia`, fast-forwarded onto `main`
+six times on Dan's word (deploy runs 12–17, all green). Checks against the
+local mocks: 129 server checks (`npm run smoke`, from 94) and 153 page checks
+(`npm run screenshots`, from 132). All seven steps of the brief shipped; four
+live rebuilds of the June lesson then reshaped steps 2 and 3 (below).
+
+**Proven live by Dan, 23 Sep 2026:** the guide model's id is right (no
+fallback line); the June rebuild saved a guide meeting all five checks, the
+review applied 40 corrections, and four of the five named errors were fixed
+(היכון Nif'al, להקיז נ.ק.ז, נוצץ Pa'al, עדה י.ע.ד) — לזנק is still Pa'al; the
+"For Guy" box is gone; seven prefixed forms tinted (בחסות, והממסד, לממסד,
+לבמה, ובבמה, החשיכה, שבלעדי); an article deleted from the page.
 
 **Two models.** `MODEL` (`anthropic/claude-sonnet-4.6`) answers the card, the
 phone page's translation and the Ask box. `GUIDE_MODEL` (default
 `anthropic/claude-opus-4.6`, overridable by the environment variable of the
-same name) builds the guide and runs its review. The fallback rule: when
-OpenRouter answers 400 "… is not a valid model ID" or 404 "No endpoints found
-for …" to a model other than the card model, `lookup.chat()` makes the same
-call once more with the card model; the guide is saved with
-`built_with: "fallback"`, and the lesson page's footer says "Built with the
-fallback model." The id could not be checked against OpenRouter from the
-sandbox; Dan's first rebuild on the live site settles it.
+same name) builds the guide and runs its review. Fallback: when OpenRouter
+answers 400 "… is not a valid model ID" or 404 "No endpoints found for …" to a
+model other than the card model, `lookup.chat()` makes the same call once more
+with the card model; the guide is saved with `built_with: "fallback"` and the
+lesson page says "Built with the fallback model." Time limits: the build ten
+minutes, the review fifteen.
 
 **The five checks** (`lib/guide-checks.js`, each named by the instruction line
-it enforces), run on every guide before it is saved:
+it enforces):
 1. coverage — every one of Guy's lines, nikud and punctuation ignored, is in
    some grammar section's `guys_lines`;
 2. drill — when the lesson holds a Nif'al verb or a verb whose root is פ"נ,
    has a guttural (א ה ח ע, and ר) or is hollow, the first drill is Nif'al or
-   one of those. The lesson's verbs come from the card cache (the single-word
-   items, under the key the word save uses), else from the guide's own
-   vocabulary rows that name a binyan; the drill's `binyan` must match the
-   card for the same word, and its `deviation` must be true of the root;
+   one of those. Irregular is read from the root's letters, never from the
+   model's one-word `deviation` label (ח.ש.ש labeled "doubled" is guttural). A
+   cached card that disagrees with the drill's binyan does not fail it — the
+   card can be the wrong one (the live card for לזנק says Pa'al) — it only
+   stops a false Nif'al claim;
 3. nikud — at least 90% of vocabulary rows have a vowel point in `pointed`;
 4. flags — every vocabulary row and card whose Hebrew holds ח כ ך א ע ס ש ט ת
    carries `⚠️ Spelling:` or `⚠️ Confusable:`, or the words "no spelling trap";
 5. objects — the drill's `takes_object` agrees with every `verb_claims` entry
    for the same verb, and a verb drilled as taking no object has no exercise
    with את after the blank.
-A failure rebuilds once, the failures named at the end of the user message;
-a second failure saves nothing (a first build leaves the raw items and the
-line naming the check; a rebuild keeps the previous guide).
 
-**The review-pass contract.** After the checks pass, one more call with the
-same instruction files and a review frame returns
-`{ guide, changes: [English lines] }`. The server shapes the reviewed guide
-the same way, then compares it item for item with the checked one: vocabulary
-rows, expressions, drill verbs and cards are matched by their Hebrew (counted,
-so a second copy is an addition), topics, prompts, questions and grammar
-sections may not grow. Additions are taken out and listed as refused. The
-reviewed guide is saved only when it still passes all five checks; otherwise
-the checked guide is saved (`review.state` `discarded`), and a review that
-does not answer leaves it too (`not run`, with the reason). The page shows
-"Reviewed: N corrections", the list behind one tap.
+**Save and warn, never discard (Dan, 23 Sep 2026: "we're going in
+circles").** The first answer; one rebuild when it fails a check, the
+failures named at the end of the user message; the better of the two (fewer
+checks unmet) goes on. What is still unmet goes to the review. Whatever the
+review cannot fix is saved with the guide in `checks.unmet` and named on the
+lesson page ("Not met: …"). The brief's "a second failure leaves the lesson
+unsaved" is reversed: live, every all-or-nothing rebuild tripped another check.
 
-**Schema additions** (the system message was tightened only where the brief
-named a fault): grammar `guys_lines`, `verb_claims[{verb, takes_object}]`;
-drill `deviation`, `takes_object`; vocabulary `pointed`, `flags`. The object
-claim sits per verb inside a grammar section, since one section can discuss
-two verbs.
+**The review-pass contract.** One call with the same instruction files and a
+review frame. It answers corrections only, never the guide written out (the
+whole guide written back timed out live at five and at fifteen minutes):
+`{ corrections: [{ section, item, find, replace, why, field? }], remove:
+[{ section, item, why }] }`. The server applies each to a copy of the checked
+guide: `find` is replaced once anywhere inside the named item (nested fields
+included); `find: "takes_object"` sets a drill's object claim; `find: ""` with
+`field` fills an empty row `flags`/`pointed` or a card's notes. A correction it
+cannot place is refused and listed; nothing can be added. The review is told
+the unmet checks, and is kept unless it breaks a check the guide had met. The
+page shows "Reviewed: N corrections", the list behind one tap.
+
+**Schema additions** (the system message tightened only where the brief named
+a fault): grammar `guys_lines`, `verb_claims[{verb, takes_object}]`; drill
+`deviation`, `takes_object`; vocabulary `pointed`, `flags`. The "For Guy"
+explanation is skipped (Dan's decision, 22 Sep 2026): not asked for, dropped
+if written, not drawn from older guides.
 
 **The prefix list** is one list in `public/tokenize.js`: `PROCLITICS`
 (`ו ש ה כש וש וכש מש לכש`, the phone page's, moved from `lib/demand.js`) and
@@ -409,31 +422,32 @@ two verbs.
 shortest first. A word tints with the mark of its surface, of a lemma it
 equals, or — when it has four letters or more — of itself minus one listed
 prefix, compared with saved surfaces and lemmas (`/marks-for-article` and
-`/marks-for-lesson` now carry `lemmas`). One prefix only; the map is only
-read.
+`/marks-for-lesson` carry `lemmas`). One prefix only; the map is only read.
 
-**The delete rule.** `DELETE /articles/:id` and `DELETE /lessons/:id`: the
-row goes (a lesson's items and guide with it); touches stay without it, spots
-keep their status, nothing is sent to the spine. The pages ask once, in the
-page: "Delete this article? Saved words stay."
+**The delete rule.** `DELETE /articles/:id` (since session one) and
+`DELETE /lessons/:id`: the row goes (a lesson's items and guide with it);
+touches stay without it, spots keep their status, nothing is sent to the
+spine. The pages ask once, in the page: "Delete this article? Saved words
+stay."
 
 **Try again.** `POST /lessons/:id/retry { surface }`: one lookup through the
 card path (a failed card is never cached); on success saved shaky like the
 lesson's other words and out of the footer's list.
 
-**The import script, for the laptop brief:**
+**The import script, for the laptop brief** (Windows PowerShell; the folder
+path is a placeholder the laptop session verifies):
 
-    APP_PASSWORD=<the site passphrase> node scripts/import-lessons.js "<the Guy Lessons folder>" https://hebrew-reader-dan.fly.dev --build-guides-from 2026-01-01
+    $env:APP_PASSWORD = "<the site passphrase>"
+    node scripts/import-lessons.js "<Dropbox folder>\Hebrew\Guy Lessons" https://hebrew-reader-dan.fly.dev --dry-run
+    node scripts/import-lessons.js "<Dropbox folder>\Hebrew\Guy Lessons" https://hebrew-reader-dan.fly.dev --build-guides-from 2026-01-01
 
-`--dry-run` first lists what would be added and uploads nothing. It reads the
-folder itself, not subfolders; takes only `Daniel Guy|Hebrew|HEB …` PDFs;
-skips a file whose name is already a lesson's `source_name`; prints one line
-per file. Decision carried from the brief: import all; build guides only for
-the 2026 lessons; older ones build on first open.
+It reads the folder itself, not subfolders; takes only `Daniel Guy|Hebrew|HEB …`
+PDFs; skips a file whose name is already a lesson's `source_name`; prints one
+line per file. Each guide build takes 10–20 minutes live, one at a time.
 
 **Open items.**
-- Whether `anthropic/claude-opus-4.6` exists at OpenRouter: Dan's rebuild.
-- The drill check sees verbs only through cached cards and the model's own
-  vocabulary rows; a lesson whose only irregular verbs sit inside phrases and
-  are missing from the vocabulary is not caught.
+- לזנק is still Pa'al in the June guide, and its word card says Pa'al: the card
+  model's error, which the guide build never sees and the review did not fix.
+- The drill check sees verbs only through cached cards and the guide's own
+  vocabulary rows.
 - The scheduled article finder.
