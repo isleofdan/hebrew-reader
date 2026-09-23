@@ -133,7 +133,8 @@ try {
 
   // 3b. nikud on the card (session seven, steps 2 and 4)
   {
-    const lk = createRequire(import.meta.url)(join(root, 'lib', 'lookup.js'));
+    const req0 = createRequire(import.meta.url);
+    const lk = req0(join(root, 'lib', 'lookup.js'));
     check('a new card carries the pointed headword and the pointed word as selected',
       look1.body.card.pointed?.lemma === 'נֶאֱלַץ' && look1.body.card.pointed?.surface === 'נֶאֶלְצָה' && !look1.body.points_missing, JSON.stringify(look1.body.card.pointed));
     const base = { lemma: 'נאלץ', pos: 'verb', root: 'א.ל.צ', binyan: 'nifal', meaning_en: 'was forced to' };
@@ -168,8 +169,23 @@ try {
     check('on the second open the card comes pointed from the cache, and no call is made again',
       old2.body.cached === true && !old2.body.points_missing && old2.body.card.pointed?.lemma === 'רֵפוֹרְמָה' && fill2.body.called === false && p3.calls === p2.calls,
       JSON.stringify({ old2: old2.body.card.pointed, fill2: fill2.body, calls: p3.calls - p2.calls }));
+    // a card whose pointed forms were all refused is not done: asked again when next opened
+    {
+      const Database = req0(join(root, 'node_modules', 'better-sqlite3'));
+      const d = new Database(join(dataDir, 'reader.db'));
+      d.prepare(`UPDATE cards SET json = json_set(json, '$.pointed', json('{"lemma":null,"surface":null}')) WHERE surface = 'רפורמה' AND context_hash = ?`).run(lk.contextHash('רפורמה', ''));
+      d.close();
+      const q0 = await pc();
+      const again = await api('POST', '/lookup', { surface: 'רפורמה', sentence: '' });
+      const refill = await api('POST', '/lookup/points', { surface: 'רפורמה', sentence: '' });
+      const q1 = await pc();
+      check('a card whose nikud was all refused is asked again on its next open (one call), and then has it',
+        again.body.points_missing === true && refill.body.called === true && refill.body.pointed.lemma === 'רֵפוֹרְמָה' && q1.points_calls - q0.points_calls === 1,
+        JSON.stringify({ missing: again.body.points_missing, refill: refill.body, calls: q1.points_calls - q0.points_calls }));
+    }
+    const p4 = await pc();
     const none = await api('POST', '/lookup/points', { surface: 'שלא-נפתחה', sentence: '' });
-    check('nikud is never fetched for a card that was not looked up: refused in one line, no call', none.status === 404 && /look the word up first/.test(none.body.error) && (await pc()).calls === p3.calls, none.body.error);
+    check('nikud is never fetched for a card that was not looked up: refused in one line, no call', none.status === 404 && /look the word up first/.test(none.body.error) && (await pc()).calls === p4.calls, none.body.error);
   }
 
   // 4. marks

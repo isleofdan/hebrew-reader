@@ -596,6 +596,28 @@ try {
         await page.screenshot({ path: join(out, `phone-lookup-nikud-${theme}-${name}.png`) });
       }
       await page.click('.theme button[data-theme-choice=device]');
+
+      // a lesson word whose card was cached before cards had nikud (Dan, 23 Sep
+      // 2026: "Nikud should be available anywhere I select a word")
+      {
+        const Database = createRequire(import.meta.url)(join(root, 'node_modules', 'better-sqlite3'));
+        const d = new Database(join(dataDir, 'reader.db'));
+        const stripped = d.prepare("UPDATE cards SET json = json_remove(json, '$.pointed') WHERE surface = ?").run('נחתם').changes;
+        d.close();
+        const target = 'נחתם';
+        const before = (await orCalls()).points_calls;
+        await page.goto(`${base}/lesson.html?id=${lessonId}`);
+        await page.waitForSelector('#items .w');
+        const w = page.locator('#items .w', { hasText: target }).first();
+        await w.scrollIntoViewIfNeeded();
+        if (isMobile) await w.tap(); else { await w.hover(); await page.waitForTimeout(500); }
+        const card = page.locator(isMobile ? '#card-phone' : '#card-desktop');
+        await card.locator('.meaning:not(:empty)').waitFor({ timeout: 10000 });
+        const got = await card.locator('.surface .pointed').filter({ hasText: POINTS }).waitFor({ timeout: 8000 }).then(() => true, () => false);
+        check(`${name}: a lesson word whose card was cached without nikud gets it on first open, in place, with one call`,
+          stripped > 0 && got && (await orCalls()).points_calls - before === 1, `rows stripped ${stripped}, pointed ${got}, headword ${await card.locator('.surface').innerText()}, calls ${(await orCalls()).points_calls - before}`);
+        await page.screenshot({ path: join(out, `lesson-card-nikud-${name}.png`) });
+      }
     }
 
     check(`${name}: no screen shows "map", "met" or "touch" in its visible text`, jargonSeen.length === 0, jargonSeen.join('; '));

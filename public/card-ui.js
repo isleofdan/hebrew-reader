@@ -112,7 +112,10 @@
         fill(card, data);
         el(card, 'foot').textContent = foot;
       }
-    } catch (e) { /* the card stays unpointed */ }
+    } catch (e) {
+      // the card stays unpointed, and says why, so a failure is never silent
+      if (isCurrent()) el(card, 'foot').textContent = `No nikud this time: ${e.message}`;
+    }
   }
 
   // What the lesson review corrected on this card, before and after:
