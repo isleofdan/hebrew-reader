@@ -6,7 +6,7 @@ themselves while he reads.
 
 He pastes or links an article; the page shows it right-to-left in a serif
 face, with words tinted by how they stand on his "map" (never met, shaky,
-solid). Tapping or hovering a word opens a card: root, binyan, form, meaning,
+solid). Tapping or hovering a word opens a card: the dictionary form with its nikud, root, binyan, form, meaning,
 what preposition it governs, and which of his weakness categories it touches.
 Saving or marking a word records a "spot" on the map. Every card opened is a
 "touch" on that spot.

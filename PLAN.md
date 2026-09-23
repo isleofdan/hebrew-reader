@@ -495,3 +495,71 @@ checked, as is the import leaving pre-2026 lessons with no guide. The
 - On the desktop lesson page the word card sits at the top of the right
   column and does not follow the scroll. A word tapped low on a long guide
   opens a card that is off screen. This is older than this session.
+
+## Close-out note — session hebrew-reader-seven, 23 Sep 2026
+
+Cloud session (no `flyctl` on the path). Baseline on a clean `main`: 139
+server checks, 161 page checks. After: 157 server checks, 183 page checks.
+
+**The review now runs.** Live on the June lesson (build 07:24) it said "the
+model did not return JSON", so the review never saw לזנק. What changed, all in
+`lookup.chat()` so every model call shares it:
+- The review asks OpenRouter for structured output against its schema
+  (`response_format: json_schema`, strict, `provider.require_parameters`).
+  If no provider of the model takes it (a 400 naming response_format or a 404
+  "requested parameters"), the same call goes once more in JSON mode;
+  `review.json` records which was used. OpenRouter lists structured output
+  for Claude Opus 4.6; it could not be tried from the sandbox.
+- The reader takes the first complete JSON object: the whole answer, one in a
+  code fence, or one after prose. A `{` that never closes is a cut-off answer
+  and is refused, never read for an inner object.
+- An answer that is not JSON is logged (its first 2,000 characters, with the
+  finish reason) and asked once more, and only once: "return only the JSON
+  object", or "your answer was cut off" when it was. A second miss leaves the
+  review "not run"; its first 2,000 characters are kept in
+  `guide.review.raw_head` and shown under the "Not reviewed" line.
+- The review's token limit went from 8,000 to 16,000. The June review had
+  applied 40 corrections before (session five); in Hebrew that is close to
+  8,000 tokens, and a cut-off answer is not JSON. The most likely cause of the
+  live failure, not proven.
+- Schema shape: every field is required, so `field` is `""` when a correction
+  fills nothing and `replace` is always text ("true"/"false"/"both" for
+  `takes_object`). The server treats `field: ""` as no field.
+
+**Nikud on the word card.** The card call also answers `lemma_pointed` and
+`surface_pointed`, kept in `card.pointed = { lemma, surface }`. A pointed form
+is taken only when it has points and the same letters as the unpointed word
+once ו and י are set aside (dictionary spelling drops them); otherwise it is
+null and the card shows the word unpointed. Nothing reads `card.pointed` but
+the card's display: spot ids, tints, prefix matching stay on unpointed text.
+The card shows the pointed headword large (Noto Serif Hebrew — Frank Ruhl
+Libre places points poorly), the unpointed spelling smaller beside it, and the
+word as it stands in the text, pointed. The card has no list of forms, so
+these two are the forms that carry nikud.
+
+**Old cached cards.** A card with no `pointed` opens at once, unpointed, with
+`points_missing`; the page then calls `POST /lookup/points` with the same word
+and sentence. One small call adds the two pointed forms, saves them back into
+the cached card (read again first, so a review correction is not lost), and
+the card updates in place. A card that has `pointed`, even with nulls, is
+never asked again. Two opens at once make one call. No bulk backfill.
+
+**Plain words.** "map", "met" and "touch" are gone from everything Dan sees:
+the color key is "Shaky · Looked up · Solid and new words have no color.";
+the card says "looked up · seen 3 times"; side panels "Your words in this
+piece / lesson"; the print sheet counts words "seen"; the unmet-checks line
+is "Checks not passed"; server messages and the two model prompts whose
+wording can come back on screen follow. Kept: "Root radiation map", a paper
+exercise named in Dan's own lesson instructions. Code, database and spine
+names are unchanged. The page checks read every screenshot's visible text for
+the three words.
+
+**Checks.** The screenshot browser now goes through the sandbox's proxy when
+there is one, so Google Fonts load as they do for Dan (before, no web font
+ever loaded in the screenshots).
+
+**Open items.**
+- Whether the live review runs and corrects לזנק: Dan's rebuild of the June
+  lesson.
+- Nikud comes from the model and can be wrong on rare words.
+- On the desktop lesson page the word card does not follow the scroll (older).
