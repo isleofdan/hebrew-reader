@@ -19,7 +19,7 @@
     card.classList.remove('idle');
     el(card, 'surface').textContent = surface;
     el(card, 'status').textContent = 'looking up…';
-    for (const c of ['meaning', 'grammar', 'chips', 'note', 'error', 'foot']) el(card, c).textContent = '';
+    for (const c of ['meaning', 'grammar', 'chips', 'note', 'corrected', 'error', 'foot']) el(card, c).textContent = '';
     el(card, 'actions').classList.add('hidden');
   }
 
@@ -27,7 +27,7 @@
     card.classList.remove('idle');
     el(card, 'surface').textContent = surface;
     el(card, 'status').textContent = '';
-    for (const c of ['meaning', 'grammar', 'chips', 'note', 'foot']) el(card, c).textContent = '';
+    for (const c of ['meaning', 'grammar', 'chips', 'note', 'corrected', 'foot']) el(card, c).textContent = '';
     el(card, 'error').textContent = message;
     el(card, 'actions').classList.add('hidden');
   }
@@ -66,6 +66,7 @@
       const chip = document.createElement('span'); chip.className = 'chip'; chip.textContent = LABELS[id] || id; chips.append(chip);
     }
     el(card, 'note').textContent = c.note || '';
+    drawCorrected(el(card, 'corrected'), c.corrected);
     el(card, 'error').textContent = '';
     const actions = el(card, 'actions');
     actions.classList.toggle('hidden', !spot);
@@ -73,6 +74,20 @@
     actions.querySelector('[data-act=solid]').disabled = !spot || spot.status === 'solid';
     actions.querySelector('[data-act=ask]').disabled = !c.root && !c.lemma;
     el(card, 'foot').textContent = spineLine(data.spine) || (data.cached ? 'from the cache' : '');
+  }
+
+  // What the lesson review corrected on this card, before and after:
+  // "Corrected by the lesson review: Pa'al → Pi'el", the lesson on a line of its own.
+  function drawCorrected(box, list) {
+    box.innerHTML = '';
+    if (!Array.isArray(list) || !list.length) return;
+    const show = (f, v) => (f === 'binyan' ? document.createTextNode(BINYAN[v] || v || 'none') : he(v || 'none'));
+    list.forEach((x, i) => {
+      if (i) box.append(document.createElement('br'));
+      box.append(document.createTextNode(`Corrected by the lesson review: ${x.field === 'root' ? 'root ' : ''}`));
+      box.append(show(x.field, x.before), document.createTextNode(' → '), show(x.field, x.after));
+      if (x.lesson_title) { const t = document.createElement('span'); t.className = 'src'; t.dir = 'rtl'; t.textContent = x.lesson_title; box.append(t); }
+    });
   }
 
   // "Ask about this root": Pealim and Hebrew Wiktionary in new tabs.

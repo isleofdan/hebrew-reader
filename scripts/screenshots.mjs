@@ -320,6 +320,12 @@ try {
     // lessons from Guy: the index with a lesson, the lesson page with its
     // guide, the flashcards front and back — light and dark
     if (name === 'desktop') {
+      // the June lesson's נחתם card comes back wrong (Pa'al, as לזנק did live),
+      // and the review corrects it, so the lesson's card shows the correction
+      await fetch(`http://127.0.0.1:${OR_PORT}/control`, { method: 'POST', body: JSON.stringify({
+        card_overrides: { 'נחתם': { surface: 'נחתם', lemma: 'נחתם', pos: 'verb', root: 'ח.ת.מ', binyan: 'paal', tense: 'past', person_gender_number: '3ms', meaning_en: 'was signed', governs: null, categories: ['conjugation'], note: null } },
+        review_extra: [{ section: 'word_cards', item: 'נחתם', field: 'binyan', find: "Pa'al", replace: 'nifal', why: "נחתם is Nif'al past of ח.ת.מ, not Pa'al." }],
+      }) });
       await page.goto(`${base}/`);
       await page.setInputFiles('#lesson-file', join(here, 'fixtures', 'Daniel HEB 15jun26.pdf'));
       await page.click('#add-lesson');
@@ -389,6 +395,26 @@ try {
         await lcard.locator('.meaning:not(:empty)').waitFor({ timeout: 10000 });
         check(`${name}: a lesson word opens the reader's card`, /was signed/.test(await lcard.innerText()) && /ח\.ת\.מ/.test(await lcard.innerText()));
         await page.screenshot({ path: join(out, `lesson-card-${name}.png`) });
+      }
+
+      // the card the lesson review corrected: the line under the card, before and after
+      {
+        const w = page.locator('#items .w', { hasText: 'נחתם' }).first();
+        await page.goto(`${base}/lesson.html?id=${lessonId}`);
+        await page.waitForSelector('.guide section');
+        await w.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+        if (isMobile) await w.tap(); else { await w.hover(); await page.waitForTimeout(500); }
+        const lcard = page.locator(isMobile ? '#card-phone' : '#card-desktop');
+        await lcard.locator('.meaning:not(:empty)').waitFor({ timeout: 10000 });
+        const line = lcard.locator('.corrected');
+        const text = (await line.innerText()).replace(/\s+/g, ' ');
+        check(`${name} ${scheme}: the corrected card says "Corrected by the lesson review: Pa'al → Nif'al", legible, and the card reads Nif'al`,
+          /^Corrected by the lesson review: Pa'al → Nif'al ?שיעור עם גיא — 15\.6\.2026$/.test(text) && await line.isVisible()
+          && /Nif'al/.test(await lcard.locator('.grammar').innerText()) && contrast(await paint(line, 'color'), await paint(line, 'backgroundColor')) >= 4.5 && await fits(), text);
+        await lcard.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+        await page.waitForTimeout(200);
+        await page.screenshot({ path: join(out, `lesson-card-corrected-${scheme}-${name}.png`) });
+        if (isMobile) await page.locator('#card-phone .close').click().catch(() => {});
       }
 
       // the reader: a pasted article with the lesson's words in prefixed forms

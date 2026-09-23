@@ -323,6 +323,7 @@ try {
   const first = await api('POST', `/lessons/${L1.body.id}/guide`, {});
   check('first open starts the guide build (202, building)', first.status === 202 && first.body.guide_state === 'building', JSON.stringify(first.body).slice(0, 120));
   const built = await until(L1.body.id, (v) => v.guide_state !== 'building' && !v.saving);
+  const firstReviewCards = (await (await fetch(`http://127.0.0.1:${OR_PORT}/calls`)).json()).last_review_cards;
   const kinds = [...new Set(built.guide.sections.map((x) => x.kind))].join(',');
   check("the guide has the instructions' sections in their order",
     built.guide_state === 'built' && kinds === 'topics,grammar,drills,paper,vocabulary,questions,expressions', kinds);
@@ -370,6 +371,14 @@ try {
   const lookupLib = req(join(root, 'lib', 'lookup.js'));
   const orCalls = async () => (await (await fetch(`http://127.0.0.1:${OR_PORT}/calls`)).json());
   const control = (c) => fetch(`http://127.0.0.1:${OR_PORT}/control`, { method: 'POST', body: JSON.stringify(c) });
+  // Two wrong cards for the February lesson's words, before its first build:
+  // להתבייש given as Pa'al (as the card model gave לזנק live), and להתייבש given
+  // the lemma of להתבייש (the letter-order confusion), so one word matches two
+  // cards.
+  await control({ card_overrides: {
+    'להתבייש': { surface: 'להתבייש', lemma: 'התבייש', pos: 'verb', root: 'ב.ו.ש', binyan: 'paal', tense: 'infinitive', person_gender_number: null, meaning_en: 'to be ashamed', governs: 'ב-', categories: ['letter-order'], note: null },
+    'להתייבש': { surface: 'להתייבש', lemma: 'התבייש', pos: 'verb', root: 'י.ב.ש', binyan: 'hitpael', tense: 'infinitive', person_gender_number: null, meaning_en: 'to dry out', governs: null, categories: ['letter-order'], note: null },
+  } });
   check('the guide is built by the guide model, not the card model',
     (await orCalls()).last_guide_model === 'anthropic/claude-opus-4.6' && rebuilt.guide.model === 'anthropic/claude-opus-4.6' && rebuilt.guide.built_with === 'guide model' && lookupLib.MODEL === 'anthropic/claude-sonnet-4.6',
     `${(await orCalls()).last_guide_model} / ${rebuilt.guide.built_with}`);
@@ -500,6 +509,64 @@ try {
       && (await api('GET', `/lessons/${L1.body.id}`)).body.saved.failed.length === 0, JSON.stringify(hit.body).slice(0, 200));
     const notListed = await api('POST', `/lessons/${L1.body.id}/retry`, { surface: 'הסלמה' });
     check('try again on a word that is not in the list is refused, naming it', notListed.status === 404 && /הסלמה is not among/.test(notListed.body.error), notListed.body.error);
+  }
+
+  // the review corrects the lesson's word cards (session six, step 1)
+  {
+    const Database = req(join(root, 'node_modules', 'better-sqlite3'));
+    const cardsNow = () => { const d = new Database(join(dataDir, 'reader.db'), { readonly: true }); const rows = d.prepare('SELECT surface, context_hash, spot_id, json FROM cards ORDER BY id').all(); d.close(); return rows; };
+    const cardOf = (rows, w) => rows.filter((r) => r.surface === w).map((r) => ({ ...r, card: JSON.parse(r.json) }));
+    const first = (await api('GET', `/lessons/${L1.body.id}`)).body;
+    const hs = cardOf(cardsNow(), 'הסלמה')[0].card;
+    check("on a lesson's first build the cards are made before the review, which sees them; its root fix reaches the card before the save, so the word is saved with the corrected root (הסלמה ס.ל.מ -> ס.ל.ם)",
+      hs.root === 'ס.ל.ם' && hs.corrected?.length >= 1 && hs.corrected[0].before === 'ס.ל.מ' && hs.corrected[0].after === 'ס.ל.ם' && hs.corrected[0].by === 'lesson review'
+      && (await spotRow('w:הסלמה')).root === 'ס.ל.ם' && /card הסלמה root ס\.ל\.מ -> ס\.ל\.ם \(the lesson review\)/.test(server.log) && Array.isArray(firstReviewCards) && firstReviewCards.map((c) => c.word).sort().join(',') === ['יו״ש', 'הסלמה', 'נאלצה', 'נחתם'].sort().join(',')
+      && firstReviewCards.find((c) => c.word === 'הסלמה').root === 'ס.ל.מ' && hasla.fields.root === 'ס.ל.ם' && built.guide.review.cards?.corrected.some((x) => x.surface === 'הסלמה' && x.field === 'root')
+      && first.guide.review.cards?.unchanged.includes('הסלמה: root ס.ל.ם'),
+      JSON.stringify(hs.corrected));
+    const before = cardsNow();
+    const wrongSpot = await spotRow('v:ב.ו.ש:paal');
+    const putsB = await putCounts();
+    await control({ review_extra: [
+      { section: 'word_cards', item: 'להתבייש', field: 'binyan', find: "Pa'al", replace: 'hitpael', why: "להתבייש is Hitpa'el (ב.ו.ש), not Pa'al." },
+      { section: 'word_cards', item: 'נלחם', field: 'binyan', find: 'nifal', replace: "Nif'al", why: 'checked: right as it is' },
+      { section: 'word_cards', item: 'התבייש', field: 'root', find: 'ב.ו.ש', replace: 'ב.ו.ש', why: 'the root of התבייש' },
+      { section: 'drills', item: 'להיאלץ', find: "Nif'al", replace: "Nif'al (passive)", why: 'the drill binyan named more fully' },
+    ] });
+    await api('POST', `/lessons/${L2.body.id}/guide`, { rebuild: true });
+    const v = await until(L2.body.id, (x) => x.guide_state !== 'building' && !x.saving);
+    await control({ review_extra: [] });
+    const after = cardsNow();
+    const rc = v.guide.review.cards || { corrected: [], unchanged: [], refused: [] };
+    const seen = (await orCalls()).last_review_cards || [];
+    check('the review is given the lesson\'s word cards alongside the guide, the wrong one as it stands',
+      seen.length === 4 && seen.some((c) => c.word === 'להתבייש' && c.binyan === 'paal') && seen.every((c) => 'root' in c && 'binyan' in c && 'lemma' in c), JSON.stringify(seen));
+    const nl0 = cardOf(before, 'נלחם')[0], nl1 = cardOf(after, 'נלחם')[0];
+    check('a correct card is left alone: נלחם already Nif\'al, the card unchanged and not marked corrected',
+      nl1.json === nl0.json && !nl1.card.corrected && rc.unchanged.some((u) => /^נלחם: binyan nifal$/.test(u)), JSON.stringify(rc.unchanged));
+    const zb = cardOf(after, 'להתבייש')[0];
+    const moved = await spotRow('v:ב.ו.ש:hitpael');
+    const gone = await api('GET', '/spots/' + encodeURIComponent('v:ב.ו.ש:paal'));
+    const putsA = await putCounts();
+    check("a wrong card is corrected (its current binyan named as \"Pa'al\", not refused for the spelling): להתבייש Pa'al -> Hitpa'el, logged, the card carrying before and after, its spot moved with its status and touches, the spine told",
+      zb.card.binyan === 'hitpael' && zb.spot_id === 'v:ב.ו.ש:hitpael' && zb.card.corrected?.length === 1 && zb.card.corrected[0].before === 'paal' && zb.card.corrected[0].after === 'hitpael'
+      && zb.card.corrected[0].lesson_title === 'שיעור עם גיא — 24.2.2026' && rc.corrected.some((x) => x.surface === 'להתבייש' && x.replaced === 'v:ב.ו.ש:paal')
+      && wrongSpot.status === 'shaky' && moved.status === 'shaky' && moved.touches >= wrongSpot.touches && gone.status === 404
+      && (putsA['v:ב.ו.ש:hitpael'] || 0) - (putsB['v:ב.ו.ש:hitpael'] || 0) === 1
+      && /card להתבייש binyan paal -> hitpael \(the lesson review\), spot v:ב\.ו\.ש:paal -> v:ב\.ו\.ש:hitpael/.test(server.log),
+      JSON.stringify({ card: zb.card.binyan, spot: zb.spot_id, moved, wrongSpot: wrongSpot.status, corrected: rc.corrected }));
+    const tap = await api('POST', '/lookup', { surface: 'להתבייש', sentence: 'להתבייש', lesson_id: L2.body.id });
+    check('a tap on the corrected word opens the corrected card, from the cache',
+      tap.status === 200 && tap.body.cached === true && tap.body.card.binyan === 'hitpael' && tap.body.card.corrected?.[0]?.before === 'paal' && tap.body.spot.id === 'v:ב.ו.ש:hitpael');
+    const tb0 = cardOf(before, 'להתייבש')[0], tb1 = cardOf(after, 'להתייבש')[0];
+    check('a correction matching two cards (התבייש: להתבייש by its lemma, and להתייבש given the same lemma) is refused and listed, neither card touched by it',
+      rc.refused.some((r) => /^התבייש \(root\): matches 2 word cards \(להתבייש, להתייבש\); not guessed$/.test(r)) && tb1.json === tb0.json && zb.card.root === 'ב.ו.ש',
+      JSON.stringify(rc.refused));
+    const drill = v.guide.sections.find((x) => x.kind === 'drills').verbs[0];
+    const others = (rows) => JSON.stringify(rows.filter((r) => r.surface !== 'להתבייש').map((r) => [r.context_hash, r.spot_id, r.json]));
+    check('a guide correction to a word with no card of this lesson (the drill להיאלץ) changes the guide and no card at all',
+      drill.binyan === "Nif'al (passive)" && others(after) === others(before) && !rc.refused.some((r) => r.startsWith('להיאלץ')) && after.length === before.length,
+      `${drill.binyan}; refused ${JSON.stringify(rc.refused)}`);
   }
 
   // the model refusing the guide

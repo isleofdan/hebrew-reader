@@ -190,6 +190,10 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 .card .chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .card .chip { font-size: 12px; padding: 3px 8px; border-radius: 999px; background: var(--amber); color: var(--amber-ink); }
 .card .note { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.card .corrected { font-size: 13px; line-height: 1.5; color: var(--ok-ink); background: var(--ok); border-left: 3px solid var(--ok-line); border-radius: 4px; padding: 6px 10px; }
+.card .corrected:empty { display: none; }
+.card .corrected .he { font-size: 14px; }
+.card .corrected .src { display: block; unicode-bidi: isolate; text-align: left; font-size: 12px; opacity: 0.85; }
 .card .actions { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 4px; }
 .card .actions .btn { height: 40px; padding: 0 12px; font-size: 14px; }
 .card .foot { font-size: 12px; color: var(--muted); }

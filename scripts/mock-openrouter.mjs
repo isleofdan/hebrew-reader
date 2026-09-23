@@ -48,7 +48,11 @@ let lastGuideModel = null;
 // guide written back instead of corrections, which the server must refuse).
 // extra_cards: surface -> card, answered from now on (a word the mock did
 // not know, known on the second try).
-const control = { unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {} };
+// card_overrides: surface -> card, answered in place of the known one (a card
+// the card model got wrong, as it did לזנק live).
+// review_extra: corrections the review adds to whatever its mode gives.
+const control = { unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [] };
+let lastReviewCards = null;
 let reviews = 0;
 let lastGuideNote = null;
 
@@ -56,6 +60,12 @@ const CATS = ['Nouns & Terms', 'Verbs', 'Expressions'];
 const SPELLING = /[חכךאעסשטת]/;
 const point = (w) => w[0] + '\u05b8' + w.slice(1); // one vowel point is enough for the check
 const flagFor = (w) => (SPELLING.test(w) ? `⚠️ Spelling: mind the letters of ${w}` : 'no spelling trap');
+
+// A guide gives a word's root and binyan as the right card has them (the
+// known card, not an override), so a wrong card disagrees with the guide.
+const BINYAN_NAME = { paal: "Pa'al", nifal: "Nif'al", piel: "Pi'el", pual: "Pu'al", hifil: "Hif'il", hufal: "Huf'al", hitpael: "Hitpa'el" };
+const rootOf = (w) => (known[w] && known[w].root) || '';
+const binyanOf = (w) => (known[w] && known[w].binyan ? BINYAN_NAME[known[w].binyan] : '');
 
 // A guide that passes the server's five checks (and still writes a for_guy,
 // which the server must drop), unless `fault` names one to
@@ -79,10 +89,10 @@ function mockGuide(items, date, n, fault) {
         deviations: 'The guttural א takes a hataf vowel where the template has a shva.', paal_comparison: "Pa'al אָלַץ (to force) is rare; the active form in use is the Pi'el אִלֵּץ.",
         exercises: [{ sentence: 'הממשלה ___ לדחות את ההצבעה.', cue: '3fs past', answer: 'נאלצה' }, { sentence: 'אני ___ לעבוד מהבית מחר.', cue: '1s future', answer: 'אאלץ' }, { sentence: 'הוא ___ לוותר.', cue: '3ms past', answer: 'נאלץ' }] }] },
       { kind: 'paper', prompts: [{ type: 'Root radiation map', anchor: 'ס.ל.ם', prompt: 'Put ס.ל.ם in the center and radiate outward to הסלמה and whatever else you recall. Where does the meaning stay military, and where does it go metaphorical?', categories: ['Verb conjugation production', 'Homophonous letter spelling'] }] },
-      { kind: 'vocabulary', rows: [...singles.map((w, i) => ({ he: w, pointed: point(w), en: `meaning of ${w}`, root: i % 2 ? 'ס.ל.מ' : '', binyan: i % 2 ? "Hif'il" : '', category: CATS[i % 3], flags: flagFor(w) })), { he: 'מילה שלא בשיעור', pointed: 'מִילָה', en: 'a word not in the lesson', root: '', binyan: '', category: 'Nouns & Terms', flags: '' }] },
+      { kind: 'vocabulary', rows: [...singles.map((w, i) => ({ he: w, pointed: point(w), en: `meaning of ${w}`, root: rootOf(w), binyan: binyanOf(w), category: CATS[i % 3], flags: flagFor(w) })), { he: 'מילה שלא בשיעור', pointed: 'מִילָה', en: 'a word not in the lesson', root: '', binyan: '', category: 'Nouns & Terms', flags: '' }] },
       { kind: 'questions', items: ['מה הנושא העיקרי של השיעור?', 'איזה פועל בנפעל הופיע בשיעור?'] },
     ],
-    cards: [...items.map((w, i) => [w, w, `translit-${i}`, `meaning of ${w}`, i % 2 ? 'ס.ל.מ' : '', i % 2 ? "Hif'il" : '', CATS[i % 3], i % 2 ? 'verb' : 'noun', w, `an example with ${w}`, [flagFor(w), i % 2 ? '⚠️ Prep: ל- where English has no preposition' : ''].filter(Boolean).join(' ')]),
+    cards: [...items.map((w, i) => [w, w, `translit-${i}`, `meaning of ${w}`, rootOf(w), binyanOf(w), CATS[i % 3], known[w] ? known[w].pos : 'phrase', w, `an example with ${w}`, [flagFor(w), i % 2 ? '⚠️ Prep: ל- where English has no preposition' : ''].filter(Boolean).join(' ')]),
       ['מוּמְצָא', 'מומצא', 'mumtza', 'invented', '', '', 'Nouns & Terms', 'noun', '', '', '']],
   };
   const grammar = g.sections.filter((x) => x.kind === 'grammar');
@@ -96,7 +106,7 @@ function mockGuide(items, date, n, fault) {
   return g;
 }
 http.createServer((req, res) => {
-  if (req.url === '/calls') { res.end(JSON.stringify({ calls, guides, reviews, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote })); return; }
+  if (req.url === '/calls') { res.end(JSON.stringify({ calls, guides, reviews, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards })); return; }
   let raw = '';
   req.on('data', (c) => raw += c);
   req.on('end', () => {
@@ -153,9 +163,11 @@ http.createServer((req, res) => {
       reviews++;
       const guide = JSON.parse(user.split('\n\nGuide:\n')[1]);
       const items = user.split('one per line:\n')[1].split('\n\n')[0].split('\n').filter(Boolean);
-      const corrections = [], remove = [];
-      if (control.review === 'fix-root' || control.review === 'add-item') {
-        const row = guide.sections.find((x) => x.kind === 'vocabulary').rows.find((r) => r.root === 'ס.ל.מ');
+      const cardList = /\n\nWord cards saved from this lesson's single words \(\d+\):\n(.*)\n\nGuide:\n/.exec(user);
+      lastReviewCards = cardList ? JSON.parse(cardList[1]) : (/single words: none yet\./.test(user) ? [] : null);
+      const corrections = [...control.review_extra], remove = [];
+      const row = guide.sections.find((x) => x.kind === 'vocabulary').rows.find((r) => r.root === 'ס.ל.מ');
+      if (row && (control.review === 'fix-root' || control.review === 'add-item')) {
         corrections.push({ section: 'vocabulary', item: row.he, find: 'ס.ל.מ', replace: 'ס.ל.ם', why: `Root of ${row.he} corrected from ס.ל.מ to ס.ל.ם (a final mem; the root of סולם, a ladder).` });
       }
       if (control.review === 'add-item') {
@@ -185,7 +197,7 @@ http.createServer((req, res) => {
         : mockGuide(items, date, guides, control.guide_faults.shift());
     } else {
       const surface = /Surface: (\S+)/.exec(user)[1];
-      answer = known[surface] || control.extra_cards[surface] || { error: `unknown word ${surface} in this mock` };
+      answer = control.card_overrides[surface] || known[surface] || control.extra_cards[surface] || { error: `unknown word ${surface} in this mock` };
     }
     res.writeHead(200, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ id: 'mock', model: body.model, choices: [{ message: { role: 'assistant', content: JSON.stringify(answer) } }] }));

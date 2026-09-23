@@ -183,6 +183,14 @@ function drawReview(box, rv) {
   if (n) { const ol = el('ol', 'review-changes'); for (const c of rv.changes) ol.append(auto('li', c)); d.append(ol); }
   else d.append(el('p', 'caption', 'The review found nothing to correct.'));
   if (rv.refused.length) d.append(el('p', 'caption', `Refused as additions: ${rv.refused.join(', ')}.`));
+  const wc = rv.cards;
+  if (wc && wc.corrected.length) {
+    d.append(el('p', 'caption', `Word cards corrected by the review (${wc.corrected.length}):`));
+    const ul = el('ul', 'review-changes');
+    for (const x of wc.corrected) ul.append(auto('li', `${x.surface}: ${x.field} ${x.field === 'binyan' ? (window.CardUI.BINYAN[x.before] || x.before || 'none') : (x.before || 'none')} → ${x.field === 'binyan' ? (window.CardUI.BINYAN[x.after] || x.after) : x.after}`));
+    d.append(ul);
+  }
+  if (wc && wc.refused.length) d.append(el('p', 'caption', `Word card corrections not made (not guessed): ${wc.refused.join('; ')}.`));
   box.append(d);
 }
 
