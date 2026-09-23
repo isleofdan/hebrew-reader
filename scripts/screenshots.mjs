@@ -7,6 +7,8 @@
 // lesson, the lesson page with its guide, the flashcards front and back.
 //   node scripts/screenshots.mjs
 import { chromium } from 'playwright';
+import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -27,6 +29,16 @@ const start = (args, env = {}) => { const k = spawn('node', args, { cwd: root, e
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 async function up(url) { for (let i = 0; i < 50; i++) { try { await fetch(url); return; } catch { await wait(100); } } throw new Error(`nothing at ${url}`); }
 
+// A card cached before cards carried nikud (session seven, step 4): the phone
+// quick lookup of דם opens it unpointed and fills it in place, once.
+{
+  const Database = createRequire(import.meta.url)(join(root, 'node_modules', 'better-sqlite3'));
+  const seed = new Database(join(dataDir, 'reader.db'));
+  seed.exec('CREATE TABLE cards (id INTEGER PRIMARY KEY AUTOINCREMENT, surface TEXT NOT NULL, context_hash TEXT NOT NULL UNIQUE, spot_id TEXT, json TEXT NOT NULL, built_at TEXT NOT NULL)');
+  seed.prepare('INSERT INTO cards (surface, context_hash, spot_id, json, built_at) VALUES (?, ?, ?, ?, ?)').run('דם', createHash('sha256').update('דם\n').digest('hex'), 'w:דם',
+    JSON.stringify({ surface: 'דם', lemma: 'דם', pos: 'noun', root: 'ד.מ.מ', binyan: null, tense: null, person_gender_number: 'ms', meaning_en: 'blood', governs: null, categories: [], note: null }), '2026-09-22T00:00:00.000Z');
+  seed.close();
+}
 start(['scripts/mock-openrouter.mjs', String(OR_PORT)]);
 start(['scripts/mock-spine.mjs', String(SPINE_PORT), 'test-spine-token']);
 start(['server.js'], {
@@ -83,13 +95,29 @@ const paint = (locator, prop) => locator.evaluate((el, p) => getComputedStyle(el
 
 try {
   await up(`${base}/health`);
-  const browser = await chromium.launch({ executablePath: exe });
+  // Through the sandbox's proxy when there is one, so the web fonts (Frank
+  // Ruhl Libre, Assistant, Noto Serif Hebrew) load as they do for Dan; the
+  // local servers are reached directly.
+  const proxy = process.env.HTTPS_PROXY || process.env.https_proxy;
+  const browser = await chromium.launch({ executablePath: exe, ...(proxy ? { proxy: { server: proxy, bypass: '127.0.0.1,localhost' } } : {}) });
   const sample = readFileSync(join(here, 'sample-article.txt'), 'utf8');
 
   // each viewport works a different Nif'al verb so the second run does not find the first run's mark
   for (const [name, viewport, isMobile, target, rootRe, headTarget] of [['desktop', { width: 1280, height: 800 }, false, 'שנאלצה', /א\.ל\.צ/, 'מקדם'], ['phone', { width: 412, height: 915 }, true, 'ייקבעו', /ק\.ב\.ע/, 'רפורמה']]) {
     const ctx = await browser.newContext({ viewport, isMobile, hasTouch: isMobile, deviceScaleFactor: isMobile ? 2 : 1, locale: 'en-GB', ignoreHTTPSErrors: true });
     const page = await ctx.newPage();
+    // Every screen shot is also read for the three words Dan called jargon
+    // (session seven, step 5): "map", "met" and "touch" in any visible text.
+    // Kept: "Root radiation map", the name of a paper exercise in Dan's own
+    // lesson instructions, which the guide quotes.
+    const jargonSeen = [];
+    const shoot = page.screenshot.bind(page);
+    page.screenshot = async (opts) => {
+      const visible = await page.evaluate(() => document.body.innerText).catch(() => '');
+      const hits = visible.replace(/Root radiation map/gi, '').match(/\b(maps?|mapped|met|touch(es|ed)?)\b/gi);
+      if (hits) jargonSeen.push(`${opts.path.split('/').pop()}: ${[...new Set(hits)].join(', ')}`);
+      return shoot(opts);
+    };
     page.on('pageerror', (e) => { console.log('page error:', e.message); failed++; });
     page.on('console', (m) => { if (m.type() === 'error') { console.log('console error:', m.text()); } });
 
@@ -151,7 +179,7 @@ try {
     if (isMobile) await headWord.tap(); else { await headWord.hover(); await page.waitForTimeout(500); }
     await card.locator('.meaning:not(:empty)').waitFor({ timeout: 10000 });
     const headText = await card.innerText();
-    check(`${name}: a headline word opens the same card`, headText.includes(headTarget) && /[a-z]/.test(headText), headText.replace(/\s+/g, ' ').slice(0, 120));
+    check(`${name}: a headline word opens the same card`, headText.replace(/[\u0591-\u05C7]/g, '').includes(headTarget) && /[a-z]/.test(headText), headText.replace(/\s+/g, ' ').slice(0, 120));
     await card.locator('[data-act=shaky]').click();
     await card.locator('.foot', { hasText: /recorded on the spine|saved/ }).waitFor({ timeout: 5000 });
     check(`${name}: headline word tinted amber after save`, await headWord.evaluate((el) => el.classList.contains('shaky')));
@@ -346,7 +374,7 @@ try {
       await page.waitForSelector('.guide section', { timeout: 15000 });
       const msgs = await page.evaluate(() => window.__msgs);
       check(`${name}: a lesson with no guide builds one on first open — "Building the study guide…" shown — and a dropped connection mid-build is said, retried, and the guide still draws`,
-        gets >= 3 && msgs.some((m) => /^Building the study guide from Guy's lesson/.test(m)) && msgs.some((m) => /Lost touch with the server/.test(m)) && !msgs.some((m) => /Failed to fetch/.test(m)) && (await page.locator('#guide-msg').innerText()) === '', JSON.stringify(msgs));
+        gets >= 3 && msgs.some((m) => /^Building the study guide from Guy's lesson/.test(m)) && msgs.some((m) => /The connection to the server dropped/.test(m)) && !msgs.some((m) => /Failed to fetch/.test(m)) && (await page.locator('#guide-msg').innerText()) === '', JSON.stringify(msgs));
       await page.unroute(`**/lessons/${second.id}`);
     }
     for (const scheme of ['light', 'dark']) {
@@ -512,6 +540,65 @@ try {
     check(`${name}: print sheet has no chrome and lists Nif'al first`, await page.locator('.topbar, nav, button').count() === 0 && h2s[0] === "Nif'al" && await page.locator('.item').count() >= 2, h2s.join(', '));
     check(`${name}: print sheet fits the viewport width`, await fits());
     await page.screenshot({ path: join(out, `sheet-${name}.png`), fullPage: true });
+    // nikud on the card and the color key (session seven, steps 3 and 5), light and dark
+    {
+      const POINTS = /[\u0591-\u05C7]/;
+      const orCalls = async () => (await (await fetch(`http://127.0.0.1:${OR_PORT}/calls`)).json());
+      const clipped = (loc) => loc.evaluate((el) => {
+        const r = el.getBoundingClientRect(), fs = parseFloat(getComputedStyle(el).fontSize);
+        let p = el.parentElement, hidden = false;
+        while (p && !hidden) { const o = getComputedStyle(p).overflowY; hidden = o === 'hidden' || o === 'clip'; p = p.parentElement; }
+        const lh = parseFloat(getComputedStyle(el).lineHeight);
+        // a block's own box, or for a word inside a line, the line's height
+        return { tall: getComputedStyle(el).display === 'inline' ? lh >= fs * 1.45 : r.height >= fs * 1.45, fits: el.scrollHeight <= el.clientHeight + 1, hidden, family: getComputedStyle(el).fontFamily };
+      });
+      for (const theme of ['light', 'dark']) {
+        await page.goto(`${base}/read.html?id=${stored.id}`);
+        await page.waitForSelector('.body .w');
+        await page.click(`.theme button[data-theme-choice=${theme}]`);
+        const legend = (await page.locator('.legend').innerText()).replace(/\s+/g, ' ').trim();
+        check(`${name} ${theme}: the color key reads "Shaky · Looked up · Solid and new words have no color."`, legend === 'Shaky Looked up Solid and new words have no color.', legend);
+        await page.locator('.legend').screenshot({ path: join(out, `legend-${theme}-${name}.png`) });
+        const w = page.locator('.body .w', { hasText: 'להתמודד' }).first();
+        await w.scrollIntoViewIfNeeded();
+        if (isMobile) await w.tap(); else { await w.hover(); await page.waitForTimeout(500); }
+        const card = page.locator(isMobile ? '#card-phone' : '#card-desktop');
+        await card.locator('.surface .pointed').filter({ hasText: POINTS }).waitFor({ timeout: 10000 });
+        await page.evaluate(() => document.fonts.ready);
+        const big = card.locator('.surface .pointed'), small = card.locator('.surface .plain'), inText = card.locator('.grammar .pointed');
+        const [bigText, smallText, inTextText] = [await big.innerText(), await small.innerText(), await inText.innerText()];
+        const m = await clipped(big), mi = await clipped(inText);
+        // loaded, not merely declared: fonts.check() is true for a face nobody declared
+        const noto = await page.evaluate(() => [...document.fonts].some((f) => f.family.replace(/"/g, '') === 'Noto Serif Hebrew' && f.status === 'loaded'));
+        check(`${name} ${theme}: the card's headword shows with nikud, large, the plain spelling beside it smaller, and the word in the text pointed`,
+          bigText === 'הִתְמוֹדֵד' && smallText === 'התמודד' && inTextText === 'לְהִתְמוֹדֵד'
+          && parseFloat(await paint(big, 'fontSize')) > parseFloat(await paint(small, 'fontSize')), `${bigText} / ${smallText} / ${inTextText}`);
+        check(`${name} ${theme}: the points are set in Noto Serif Hebrew, loaded, with room above and below (nothing clipped)`,
+          noto && /^"?Noto Serif Hebrew/.test(m.family) && m.tall && m.fits && !m.hidden && mi.tall && mi.fits && !mi.hidden, JSON.stringify({ noto, m, mi }));
+        check(`${name} ${theme}: the pointed headword is legible on the card`, contrast(await paint(big, 'color'), await paint(card, 'backgroundColor')) >= 7);
+        await card.screenshot({ path: join(out, `card-nikud-${theme}-${name}.png`) });
+        await page.screenshot({ path: join(out, `reader-card-nikud-${theme}-${name}.png`) });
+
+        // the phone page's quick lookup: דם was cached before cards had nikud
+        await page.goto(`${base}/phone`);
+        const before = (await orCalls()).points_calls;
+        await page.fill('#lookup', 'דם');
+        await page.click('#lookup-go');
+        const lookCard = page.locator('#card-lookup');
+        await lookCard.locator('.meaning:not(:empty)').waitFor({ timeout: 10000 });
+        await lookCard.locator('.surface .pointed').filter({ hasText: POINTS }).waitFor({ timeout: 10000 });
+        const after = (await orCalls()).points_calls;
+        const first = name === 'desktop' && theme === 'light';
+        check(`${name} ${theme}: the quick lookup shows the pointed headword${first ? '; the old card got its nikud with one call and updated in place' : ', from the cache, with no call'}`,
+          (await lookCard.locator('.surface .pointed').innerText()) === 'דָּם' && after - before === (first ? 1 : 0), `points calls ${after - before}`);
+        await lookCard.scrollIntoViewIfNeeded();
+        await page.waitForTimeout(200);
+        await page.screenshot({ path: join(out, `phone-lookup-nikud-${theme}-${name}.png`) });
+      }
+      await page.click('.theme button[data-theme-choice=device]');
+    }
+
+    check(`${name}: no screen shows "map", "met" or "touch" in its visible text`, jargonSeen.length === 0, jargonSeen.join('; '));
     await ctx.close();
   }
   await browser.close();

@@ -139,10 +139,10 @@
   if (!data.count) {
     $('#lead').textContent = '';
     $('#none').classList.remove('hidden');
-    $('#none').textContent = `Nothing qualifies: no word was touched ${data.min_touches} or more times across these articles.`;
+    $('#none').textContent = `Nothing qualifies: no word was seen ${data.min_touches} or more times in these articles.`;
     return;
   }
-  $('#lead').textContent = `Words touched ${data.min_touches} or more times, Nif'al first. A line under each to write the form.`;
+  $('#lead').textContent = `Words you've seen ${data.min_touches} or more times, Nif'al first. A line under each to write the form.`;
   const groups = $('#groups');
   for (const g of data.groups) {
     const h = document.createElement('h2'); h.textContent = g.title; groups.append(h);
@@ -160,7 +160,7 @@
       const m = document.createElement('div'); m.className = 'meaning'; m.textContent = i.meaning_en || '(no card on record)'; it.append(m);
       const sen = document.createElement('div'); sen.className = 'sentence'; sen.textContent = i.sentence || '(no sentence on record)'; it.append(sen);
       if (i.sentence_article) { const f = document.createElement('div'); f.className = 'from'; f.append(document.createTextNode('from '), he(i.sentence_article)); it.append(f); }
-      const st = document.createElement('div'); st.className = 'status'; st.textContent = `${i.status} · ${i.touches} touches`; it.append(st);
+      const st = document.createElement('div'); st.className = 'status'; st.textContent = `${i.status} · ${i.touches === 1 ? 'seen once' : `seen ${i.touches} times`}`; it.append(st);
       const w = document.createElement('div'); w.className = 'write'; it.append(w);
       groups.append(it);
     }

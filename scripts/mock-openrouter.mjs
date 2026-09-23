@@ -43,7 +43,7 @@ const known = {
 const POINTED = {
   'נאלצה': ['נֶאֱלַץ', 'נֶאֶלְצָה'], 'שנאלצה': ['נֶאֱלַץ', 'שֶׁנֶּאֶלְצָה'], 'באמינות': ['אֲמִינוּת', 'בָּאֲמִינוּת'],
   'להתמודד': ['הִתְמוֹדֵד', 'לְהִתְמוֹדֵד'], 'מקדם': ['קִדֵּם', 'מְקַדֵּם'], 'רפורמה': ['רֵפוֹרְמָה', 'רֵפוֹרְמָה'],
-  'ייקבעו': ['נִקְבַּע', 'יִיקָּבְעוּ'], 'נחתם': ['נֶחְתַּם', 'נֶחְתַּם'], 'הסלמה': ['הַסְלָמָה', 'הַסְלָמָה'],
+  'ייקבעו': ['נִקְבַּע', 'יִיקָּבְעוּ'], 'נחתם': ['נֶחְתַּם', 'נֶחְתַּם'], 'הסלמה': ['הַסְלָמָה', 'הַסְלָמָה'], 'דם': ['דָּם', 'דָּם'],
 };
 for (const [w, [lemma, surface]] of Object.entries(POINTED)) if (known[w]) Object.assign(known[w], { lemma_pointed: lemma, surface_pointed: surface });
 let pointsCalls = 0;
@@ -164,18 +164,18 @@ http.createServer((req, res) => {
       }
       if (/no reference/i.test(question)) {
         res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ id: 'mock', model: body.model, choices: [{ message: { role: 'assistant', content: JSON.stringify({ answer: 'No Nif\'al verb form appears among the words of this piece on your map.', links: [] }) } }] }));
+        res.end(JSON.stringify({ id: 'mock', model: body.model, choices: [{ message: { role: 'assistant', content: JSON.stringify({ answer: 'No Nif\'al verb form appears among the words of this piece you have looked up.', links: [] }) } }] }));
         return;
       }
       if (/list my map/i.test(question)) {
         const surfaces = [...user.matchAll(/^- (\S+): /gm)].map((m) => m[1]);
         res.writeHead(200, { 'content-type': 'application/json' });
-        res.end(JSON.stringify({ id: 'mock', model: body.model, choices: [{ message: { role: 'assistant', content: JSON.stringify({ answer: `On your map in this piece: ${surfaces.join(', ')}.`, links: [] }) } }] }));
+        res.end(JSON.stringify({ id: 'mock', model: body.model, choices: [{ message: { role: 'assistant', content: JSON.stringify({ answer: `Your words in this piece: ${surfaces.join(', ')}.`, links: [] }) } }] }));
         return;
       }
       const nifal = [...user.matchAll(/^- (\S+): root \S+, nifal/gm)].map((m) => m[1]);
-      answer = /nif.?al/i.test(user) && user.includes('map (surface')
-        ? { answer: nifal.length ? `The Nif'al forms on your map in this piece: ${nifal.join(', ')}.` : 'No Nif\'al form of this piece is on your map yet.', links: nifal.map((w) => ({ claim: w, reference: 'pealim', term: w })) }
+      answer = /nif.?al/i.test(user) && user.includes('looked up or saved (surface')
+        ? { answer: nifal.length ? `The Nif'al forms among your words in this piece: ${nifal.join(', ')}.` : 'None of your words in this piece is a Nif\'al form yet.', links: nifal.map((w) => ({ claim: w, reference: 'pealim', term: w })) }
         : { answer: "נאלץ is the Nif'al of א.ל.צ, 'to be forced'; it takes ל- plus an infinitive (not sure about older usage with את).", links: [{ claim: "Nif'al of א.ל.צ", reference: 'pealim', term: 'אלצ' }, { claim: 'takes ל- plus an infinitive', reference: 'wiktionary', term: 'נאלץ' }, { claim: 'older usage', reference: 'academy', term: 'נאלץ' }] };
     } else if (user.startsWith('Review: ')) {
       // the review answers corrections only, never the guide written out

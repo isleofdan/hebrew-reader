@@ -154,7 +154,7 @@ function drawGuide(guide) {
   if (d.over_cap) notes.push(`${d.over_cap} card${d.over_cap === 1 ? '' : 's'} over the 35-card cap left out.`);
   if (guide.built_with === 'fallback') notes.push('Built with the fallback model.');
   const unmet = (guide.checks && guide.checks.unmet) || [];
-  if (unmet.length) box.append(el('p', 'unmet', `Not met: ${unmet.map((f) => `${f.check} — ${f.detail}`).join('; ')}.`));
+  if (unmet.length) box.append(el('p', 'unmet', `Checks not passed: ${unmet.map((f) => `${f.check} — ${f.detail}`).join('; ')}.`));
   notes.push(`Built ${new Date(guide.built_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}.`);
   box.append(el('p', 'caption', notes.join(' ')));
   drawReview(box, guide.review);
@@ -210,11 +210,11 @@ function drawReview(box, rv) {
 function drawSaved(v) {
   const line = $('#saved-line');
   line.innerHTML = '';
-  if (v.saving) { line.textContent = "Saving the lesson's words to your map…"; return; }
+  if (v.saving) { line.textContent = "Saving the lesson's words…"; return; }
   const s = v.saved;
   if (!s) return;
   const bits = [`${s.words} word${s.words === 1 ? '' : 's'} saved`, `${s.phrases} phrase${s.phrases === 1 ? '' : 's'} kept in the guide only`];
-  if (s.touched) bits.push(`${s.touched} already on your map, touched`);
+  if (s.touched) bits.push(`${s.touched} you already had, counted as seen again`);
   const outcome = ['unreachable', 'not configured', 'recorded'].find((o) => s.spine[o]);
   if (outcome) bits.push(window.CardUI.spineLine(outcome));
   line.append(el('span', '', bits.join(' · ')));
@@ -248,7 +248,7 @@ async function retry(button, surface) {
     const out = await api('POST', `/lessons/${LESSON_ID}/retry`, { surface });
     lesson.saved = out.saved;
     drawSaved(lesson);
-    msg.textContent = `${surface}: ${out.result === 'saved' ? 'identified and saved to your map' : 'identified; already on your map'}.`;
+    msg.textContent = `${surface}: ${out.result === 'saved' ? 'identified and saved' : 'identified; you already had it'}.`;
     await loadMarks();
   } catch (e) {
     msg.className = 'msg error';
@@ -303,7 +303,7 @@ async function refresh() {
   } catch (e) {
     if (e.status) { $('#guide-msg').className = 'msg error'; $('#guide-msg').textContent = e.message; return; }
     $('#guide-msg').className = 'msg';
-    $('#guide-msg').textContent = 'Lost touch with the server for a moment; trying again…';
+    $('#guide-msg').textContent = 'The connection to the server dropped for a moment; trying again…';
     clearTimeout(pollTimer);
     pollTimer = setTimeout(refresh, POLL_MS);
     return;
@@ -319,7 +319,7 @@ async function build(rebuild) {
   } catch (e) {
     if (!e.status) {
       $('#guide-msg').className = 'msg';
-      $('#guide-msg').textContent = 'Lost touch with the server for a moment; trying again…';
+      $('#guide-msg').textContent = 'The connection to the server dropped for a moment; trying again…';
       clearTimeout(pollTimer);
       pollTimer = setTimeout(refresh, POLL_MS);
       return;

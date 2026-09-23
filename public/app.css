@@ -72,7 +72,6 @@ button { font: inherit; cursor: pointer; }
 .legend i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
 .legend .sw-shaky { background: var(--amber); }
 .legend .sw-new { background: var(--blue); }
-.legend .sw-solid { background: var(--panel); border: 1px solid var(--line-strong); }
 
 /* the theme switch: Light / Dark / Device, one setting per browser */
 .theme { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 999px; overflow: hidden; background: var(--field); }
@@ -186,8 +185,8 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 
 /* the card */
 .card { background: var(--panel); border: 1px solid var(--line-strong); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
-.card .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
-.card .surface { font-family: var(--serif); font-size: 24px; font-weight: 700; direction: rtl; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.card .head { display: flex; justify-content: space-between; align-items: baseline; gap: 2px 12px; flex-wrap: wrap; }
+.card .surface { font-family: var(--serif); font-size: 24px; font-weight: 700; direction: rtl; display: flex; align-items: baseline; gap: 10px; }
 /* room above and below for the points: nothing clipped in either theme */
 .card .surface .pointed { font-family: var(--pointed); font-size: 30px; font-weight: 600; line-height: 1.6; }
 .card .surface .plain { font-family: var(--serif); font-size: 17px; font-weight: 500; color: var(--muted); }

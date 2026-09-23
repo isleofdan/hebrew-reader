@@ -6,7 +6,7 @@
 (function () {
   const BINYAN = { paal: "Pa'al", nifal: "Nif'al", piel: "Pi'el", pual: "Pu'al", hifil: "Hif'il", hufal: "Huf'al", hitpael: "Hitpa'el" };
   const LABELS = { conjugation: 'conjugation', 'sound-pattern-deviation': 'sound pattern deviation', 'preposition-government': 'preposition government', 'letter-order': 'letter order', 'homophonous-spelling': 'homophonous spelling' };
-  const STATUS_TEXT = { new: 'met, not yet marked', shaky: 'shaky on your map', solid: 'solid' };
+  const STATUS_TEXT = { new: 'looked up', shaky: 'shaky', solid: 'solid' };
   const SPINE_TEXT = { recorded: 'recorded on the spine', unreachable: 'saved here; spine unreachable', 'not configured': 'saved here; spine not configured' };
 
   function el(card, cls) { return card.querySelector('.' + cls); }
@@ -39,6 +39,9 @@
     return c.pos || '';
   }
 
+  // How often a word has come up: "seen once", "seen 3 times".
+  function seen(n) { return n === 1 ? 'seen once' : `seen ${n} times`; }
+
   // The footer line for a spine outcome; '' when there is nothing to say.
   function spineLine(outcome) { return SPINE_TEXT[outcome] || ''; }
 
@@ -61,7 +64,7 @@
     const c = data.card, spot = data.spot;
     card.classList.remove('idle');
     headword(el(card, 'surface'), c);
-    el(card, 'status').textContent = spot ? `${STATUS_TEXT[spot.status] || spot.status} · ${spot.touches} touch${spot.touches === 1 ? '' : 'es'}` : 'no spot for this word';
+    el(card, 'status').textContent = spot ? `${STATUS_TEXT[spot.status] || spot.status} · ${seen(spot.touches)}` : 'no spot for this word';
     el(card, 'meaning').textContent = c.meaning_en;
     const g = el(card, 'grammar');
     g.innerHTML = '';
@@ -164,5 +167,5 @@
     }
   }
 
-  window.CardUI = { BINYAN, LABELS, STATUS_TEXT, fill, addPoints, setLoading, setError, hint, spineLine, askAbout, wire, saveStatus };
+  window.CardUI = { BINYAN, LABELS, STATUS_TEXT, seen, fill, addPoints, setLoading, setError, hint, spineLine, askAbout, wire, saveStatus };
 })();
