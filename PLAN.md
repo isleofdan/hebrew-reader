@@ -617,3 +617,42 @@ note still say Pa'al: a binyan correction does not refresh them.
   refused.
 
 Checks: 171 server, 189 page.
+
+## Session nine — hebrew-reader-nine (23–24 Sep 2026, cloud)
+
+**The two checks must agree.** The verb-card check no longer changes a card
+on its own. After the review, the check answers per verb card; then
+`settleCards` weighs, per card and field, the review's view (its card fixes,
+else what its guide gives for the word: vocabulary rows, drills, flashcards)
+against the check's (a fix, or "correct"). Both propose the same value, or
+one proposes and the other said nothing about the card: applied. They
+differ: left, and listed under the verb-card check as "Not changed — the two
+checks disagree: <word>: review says X, verb check says Y". A card's
+correction line names who made it (lesson review / verb check / both).
+
+**Refresh after a correction.** `lookup.refreshCard`: one small JSON-mode
+call re-points the headword and the word as it is in the text and rewrites
+the note for the corrected root or binyan. Run straight after corrections;
+a card corrected earlier gets it on its first open (`refresh_due`, then
+POST /lookup/refresh). `card.refreshed = { for, at, failed? }`; a failure is
+shown on the card and retried at the next open.
+
+**One-time put-back.** `restoreContradicted()` at start, recorded in the new
+`steps` table. For each verb-check fix made before this session where the
+review's card fixes, else its guide, give the word a value and none equals
+the check's, the earlier value is restored and the card shows "Restored: the
+verb check's change was contradicted by the lesson review".
+
+**Drill fixes by field.** The review prompt says to write find text from the
+guide's visible text, never its JSON keys; a drills correction may name
+"field": "deviation" or "takes_object", set on the data and checked like any
+other correction.
+
+**Live (Dan, 24 Sep 2026, deploy run 22):** נוצץ restored to Pa'al with the
+"Restored" line and a Pa'al note — as expected. **לזנק was also restored to
+Pa'al — wrong.** Its card shows זָנַק, "in the text לִזְנֹק", "Pa'al,
+infinitive", a Pa'al note, and the "Restored" line. The put-back read the
+June guide as the review's view, and the guide evidently gives לזנק as
+Pa'al somewhere. Per the brief, no second round: the rebuild check was not
+run. The step is recorded and will not run again. Checks: 188 server, 201
+page.
