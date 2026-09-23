@@ -345,8 +345,8 @@ try {
       await page.goto(`${base}/lesson.html?id=${second.id}`);
       await page.waitForSelector('.guide section', { timeout: 15000 });
       const msgs = await page.evaluate(() => window.__msgs);
-      check(`${name}: a dropped connection mid-build is said, retried, and the guide still draws`,
-        gets >= 3 && msgs.some((m) => /Lost touch with the server/.test(m)) && !msgs.some((m) => /Failed to fetch/.test(m)) && (await page.locator('#guide-msg').innerText()) === '', JSON.stringify(msgs));
+      check(`${name}: a lesson with no guide builds one on first open — "Building the study guide…" shown — and a dropped connection mid-build is said, retried, and the guide still draws`,
+        gets >= 3 && msgs.some((m) => /^Building the study guide from Guy's lesson/.test(m)) && msgs.some((m) => /Lost touch with the server/.test(m)) && !msgs.some((m) => /Failed to fetch/.test(m)) && (await page.locator('#guide-msg').innerText()) === '', JSON.stringify(msgs));
       await page.unroute(`**/lessons/${second.id}`);
     }
     for (const scheme of ['light', 'dark']) {
@@ -415,6 +415,22 @@ try {
         await page.waitForTimeout(200);
         await page.screenshot({ path: join(out, `lesson-card-corrected-${scheme}-${name}.png`) });
         if (isMobile) await page.locator('#card-phone .close').click().catch(() => {});
+      }
+
+      // a lesson opened with no guide yet: the "being built" state, as the
+      // upload shows it (the server's answer held at building so it can be seen)
+      {
+        const lesson = await (await ctx.request.get(`${base}/lessons/${lessonId}`)).json();
+        const held = JSON.stringify({ ...lesson, guide: null, guide_state: 'building', saving: false });
+        await page.route(new RegExp(`/lessons/${lessonId}(/guide)?$`), (route) => route.fulfill({ status: 200, contentType: 'application/json', body: held }));
+        await page.goto(`${base}/lesson.html?id=${lessonId}`);
+        await page.locator('#guide-msg', { hasText: 'Building the study guide' }).waitFor({ timeout: 10000 });
+        const msg = await page.locator('#guide-msg').innerText();
+        check(`${name} ${scheme}: a lesson with no guide shows the upload's "being built" line, legible, with Rebuild held off, and the page fits`,
+          /^Building the study guide from Guy's lesson and your instructions/.test(msg) && await page.locator('#rebuild').isDisabled()
+          && contrast(await paint(page.locator('#guide-msg'), 'color'), await ground()) >= 4.5 && await fits(), msg);
+        await page.screenshot({ path: join(out, `lesson-building-${scheme}-${name}.png`) });
+        await page.unroute(new RegExp(`/lessons/${lessonId}(/guide)?$`));
       }
 
       // the reader: a pasted article with the lesson's words in prefixed forms

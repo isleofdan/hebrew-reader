@@ -569,9 +569,13 @@ try {
       `${drill.binyan}; refused ${JSON.stringify(rc.refused)}`);
   }
 
-  // the model refusing the guide
-  await api('POST', `/lessons/${L3.body.id}/guide`, {});
+  // the model refusing the guide; opened twice at once, as two tabs would (session six, step 2)
+  const gBefore = await guideCalls();
+  const [open1, open2] = await Promise.all([api('POST', `/lessons/${L3.body.id}/guide`, {}), api('POST', `/lessons/${L3.body.id}/guide`, {})]);
   const failedGuide = await until(L3.body.id, (v) => v.guide_state !== 'building');
+  check('a lesson with no guide opened twice at once starts one build, not two: both answer "building", one guide call',
+    open1.status === 202 && open2.status === 202 && open1.body.guide_state === 'building' && open2.body.guide_state === 'building' && (await guideCalls()) - gBefore === 1,
+    `${open1.status}/${open2.status}, guide calls ${(await guideCalls()) - gBefore}`);
   check('the model refusing leaves the raw items and one line, nothing saved',
     failedGuide.guide_state === 'failed' && failedGuide.guide === null && failedGuide.saved === null && failedGuide.items.length === 5
     && /^The study guide could not be built: the model declined — /.test(failedGuide.guide_error), failedGuide.guide_error);
@@ -644,6 +648,21 @@ try {
     && has(/^imported\s+Daniel Guy 10FEB2025\.pdf\s+2025-02-10\s+5 items$/) && has(/^skipped\s+notes two lines\.pdf\s+not one of Guy's file names$/) && has(/^skipped\s+IMG_0412\.jpg\s+not a PDF$/), one.out);
   check('import --build-guides-from 2026-01-01: guides built for the two 2026 lessons, one at a time; the 2025 lesson left for first open',
     has(/^guides: 2 lessons dated 2026-01-01 or later without one$/) && has(/^guide\s+Daniel HEB 15jun26\.pdf\s+built in \d+ s$/) && has(/^guide\s+Daniel Hebrew 24feb26\.pdf\s+built in \d+ s$/) && !has(/Daniel Guy 10FEB2025\.pdf\s+built/), one.out);
+  const siteApi = async (method, path, body) => {
+    const login = await fetch('http://127.0.0.1:8795/login', { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ passphrase: PASS }) });
+    const c = (login.headers.get('set-cookie') || '').split(';')[0];
+    const r2 = await fetch(`http://127.0.0.1:8795${path}`, { method, headers: { cookie: c, 'content-type': 'application/json', accept: 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r2.status, body: await r2.json() };
+  };
+  const listed = (await siteApi('GET', '/lessons')).body.items;
+  const older = listed.find((l) => l.lesson_date === '2025-02-10');
+  check('import --build-guides-from 2026-01-01 leaves the 2025 lesson with no guide, and the 2026 ones with theirs',
+    older && older.guide === false && listed.filter((l) => l.lesson_date >= '2026-01-01').every((l) => l.guide === true), JSON.stringify(listed.map((l) => [l.lesson_date, l.guide])));
+  const opened = await siteApi('POST', `/lessons/${older.id}/guide`, {});
+  let olderView = opened.body;
+  for (let i = 0; i < 100 && olderView.guide_state === 'building'; i++) { await wait(100); olderView = (await siteApi('GET', `/lessons/${older.id}`)).body; }
+  check('the older lesson builds its guide when it is first opened, by the same path (it declines here, as its fixture asks the mock to)',
+    opened.status === 202 && opened.body.guide_state === 'building' && olderView.guide_state === 'failed' && /the model declined/.test(olderView.guide_error || ''), `${opened.status} ${olderView.guide_state} ${olderView.guide_error}`);
   const uploads = () => (site.log.match(/^lesson \d+: ".*" from /gm) || []).length;
   const uploadsBefore = uploads();
   const two = await runImport();

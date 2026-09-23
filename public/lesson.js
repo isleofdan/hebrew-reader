@@ -261,7 +261,7 @@ function showGuideState(v) {
   if (v.guide_state === 'building') {
     msg.textContent = v.guide
       ? 'Rebuilding the study guide… the one below is replaced when the new one is done.'
-      : "Building the study guide from Guy's lesson and your instructions… this takes a minute or two.";
+      : "Building the study guide from Guy's lesson and your instructions… this can take ten minutes or more; you can leave the page and come back.";
     pollTimer = setTimeout(refresh, POLL_MS);
   } else if (v.guide_state === 'failed') {
     msg.className = 'msg error';
