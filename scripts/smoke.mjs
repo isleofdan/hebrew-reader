@@ -1000,6 +1000,22 @@ try {
         sh('binyan', 'Polal', 'pual') && sh('binyan', 'hitpolel', "Hitpa'el") && sh('binyan', 'Polel', "Pi'el") && !sh('binyan', 'piel', 'hitpolel') && !sh('binyan', 'polel', 'paal')
         && !sh('root', 'ש.ו.ט', 'ש.ט.ט') && nlNow().card.binyan === 'nifal', nlNow().card.binyan);
     }
+    // verbs only in the verb check (session eleven, step 5): the noun שביתה
+    // is left out of the check and of the review's verdict list; the card
+    // maker is told a verbal noun (שוטטות) is a noun, which is how the 26 Jan
+    // noun reached the check (its card was made as a verb)
+    {
+      r = await rebuild({});
+      const all = cardsNow().filter((x) => ['שביתה', 'נלחם', 'להתבייש', 'להתייבש'].includes(x.surface));
+      const vv = r.v.guide.review;
+      const lk = req(join(root, 'lib', 'lookup.js'));
+      check('a noun card (שביתה) is left out of the verb check and of the review\'s verdict list, and not named as missing a verdict; the verbs go',
+        all.find((x) => x.surface === 'שביתה')?.card.pos === 'noun' && !r.sent.some((c) => c.word === 'שביתה') && r.sent.length === 3
+        && !vv.verdicts.some((v) => v.word === 'שביתה') && !vv.verdicts_missing.includes('שביתה') && vv.verdicts.length + vv.verdicts_missing.length === 3,
+        JSON.stringify({ sent: r.sent.map((c) => c.word), verdicts: vv.verdicts.map((v) => v.word), missing: vv.verdicts_missing }));
+      check('the card maker is told a verbal noun such as שוטטות is a noun, never a verb',
+        /A verbal noun \(שם פעולה[^)]*שוטטות[^)]*\) is a "noun", never a "verb"/.test(lk.CARD_SYSTEM), '');
+    }
     // a card Dan confirmed (session ten, step 1): no check changes it, and
     // the page lists what was proposed
     {
