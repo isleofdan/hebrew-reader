@@ -4,7 +4,7 @@
 // { card, spot, cached, spine } answer; the pages wire the buttons.
 
 (function () {
-  const BINYAN = { paal: "Pa'al", nifal: "Nif'al", piel: "Pi'el", pual: "Pu'al", hifil: "Hif'il", hufal: "Huf'al", hitpael: "Hitpa'el" };
+  const BINYAN = { paal: "Pa'al", nifal: "Nif'al", piel: "Pi'el", pual: "Pu'al", hifil: "Hif'il", hufal: "Huf'al", hitpael: "Hitpa'el", polel: 'Polel', polal: 'Polal', hitpolel: 'Hitpolel' };
   const LABELS = { conjugation: 'conjugation', 'sound-pattern-deviation': 'sound pattern deviation', 'preposition-government': 'preposition government', 'letter-order': 'letter order', 'homophonous-spelling': 'homophonous spelling' };
   const STATUS_TEXT = { new: 'looked up', shaky: 'shaky', solid: 'solid' };
   const SPINE_TEXT = { recorded: 'recorded on the spine', unreachable: 'saved here; spine unreachable', 'not configured': 'saved here; spine not configured' };
@@ -89,6 +89,7 @@
     }
     el(card, 'note').textContent = c.note || '';
     drawCorrected(el(card, 'corrected'), c.corrected, c.refreshed, c.confirmed);
+    drawSetVerb(card, c);
     el(card, 'error').textContent = '';
     const actions = el(card, 'actions');
     actions.classList.toggle('hidden', !spot);
@@ -169,6 +170,47 @@
     }
   }
 
+  // Dan's own root and binyan for a verb card (session eleven): a small
+  // control under the corrections, on a page that wired onSetVerb. Saving,
+  // changed or as it stands, marks the card confirmed by him; a root or
+  // binyan the server refuses says why here, and nothing is saved.
+  function drawSetVerb(card, c) {
+    const old = card.querySelector('.setverb');
+    if (old) old.remove();
+    if (!card._onSetVerb || c.pos !== 'verb') return;
+    const box = document.createElement('details'); box.className = 'setverb';
+    const sum = document.createElement('summary'); sum.textContent = c.confirmed ? 'Set root or binyan again' : 'Set root or binyan';
+    const form = document.createElement('form');
+    const bl = document.createElement('label'); bl.textContent = 'Binyan';
+    const sel = document.createElement('select'); sel.name = 'binyan';
+    for (const [k, name] of Object.entries(BINYAN)) { const o = document.createElement('option'); o.value = k; o.textContent = name; sel.append(o); }
+    if (c.binyan && BINYAN[c.binyan]) sel.value = c.binyan;
+    else { const o = document.createElement('option'); o.value = ''; o.textContent = 'choose…'; sel.prepend(o); sel.value = ''; }
+    bl.append(sel);
+    const rl = document.createElement('label'); rl.textContent = 'Root';
+    const input = document.createElement('input'); input.type = 'text'; input.name = 'root'; input.dir = 'rtl'; input.lang = 'he';
+    input.value = c.root || ''; input.placeholder = 'ה.מ.ר'; input.autocomplete = 'off'; input.spellcheck = false;
+    rl.append(input);
+    const save = document.createElement('button'); save.type = 'submit'; save.className = 'btn primary'; save.textContent = 'Save';
+    const row = document.createElement('div'); row.className = 'row'; row.append(bl, rl, save);
+    const hintLine = document.createElement('p'); hintLine.className = 'hint'; hintLine.textContent = 'Saving, changed or as it stands, marks the card as confirmed by you: no check changes it after that.';
+    const msg = document.createElement('p'); msg.className = 'setverb-msg';
+    form.append(row, hintLine, msg);
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      save.disabled = true; msg.className = 'setverb-msg'; msg.textContent = 'saving…';
+      try {
+        const data = await card._onSetVerb({ root: input.value, binyan: sel.value });
+        fill(card, data);
+        el(card, 'foot').textContent = spineLine(data.spine) || 'saved';
+      } catch (e) {
+        msg.className = 'setverb-msg bad'; msg.textContent = e.message; save.disabled = false;
+      }
+    });
+    box.append(sum, form);
+    el(card, 'corrected').after(box);
+  }
+
   // "2026-09-23" -> "23 Sep 2026"
   function dayName(iso) {
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
@@ -187,7 +229,9 @@
 
   // Wires one card element: `getCurrent()` answers { card, spot } for the
   // word on the card; `onStatus(status)` saves; `onClose()` for the sheet.
-  function wire(card, { onStatus, getCurrent, onClose }) {
+  function wire(card, { onStatus, getCurrent, onClose, onSetVerb }) {
+    // the root and binyan control shows on verb cards of a page that saves it
+    if (onSetVerb) card._onSetVerb = onSetVerb;
     card.querySelector('[data-act=shaky]').addEventListener('click', () => onStatus('shaky'));
     card.querySelector('[data-act=solid]').addEventListener('click', () => onStatus('solid'));
     card.querySelector('[data-act=ask]').addEventListener('click', () => askAbout((getCurrent() || {}).card));

@@ -542,6 +542,72 @@ try {
         await page.unroute('**/lookup');
       }
 
+      // Dan's own root and binyan (session eleven): the control on a verb card,
+      // a root the server refuses said there, and the card after a save (the
+      // save's answer shaped as the server's, so the lesson stays as it is for
+      // the checks after this; the save itself is checked by the smoke)
+      {
+        let opened = null;
+        await page.route('**/lookup', async (route) => {
+          const res = await route.fetch();
+          const data = await res.json();
+          if (data.card && data.card.surface === 'נחתם') opened = data;
+          await route.fulfill({ response: res, json: data });
+        });
+        const w = page.locator('#items .w', { hasText: 'נחתם' }).first();
+        await page.goto(`${base}/lesson.html?id=${lessonId}`);
+        await page.waitForSelector('.guide section');
+        await w.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+        if (isMobile) await w.tap(); else { await w.hover(); await page.waitForTimeout(500); }
+        const lcard = page.locator(isMobile ? '#card-phone' : '#card-desktop');
+        await lcard.locator('.meaning:not(:empty)').waitFor({ timeout: 10000 });
+        const sv = lcard.locator('.setverb');
+        await sv.locator('summary').click();
+        const sel = sv.locator('select[name=binyan]'), root = sv.locator('input[name=root]'), save = sv.locator('button[type=submit]');
+        const names = await sel.locator('option').evaluateAll((os) => os.map((o) => o.textContent));
+        await sv.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+        await page.waitForTimeout(200);
+        const inView = async (loc) => { const b = await loc.boundingBox(); const v = page.viewportSize(); return b && b.x >= 0 && b.y >= 0 && b.x + b.width <= v.width && b.y + b.height <= v.height; };
+        check(`${name} ${scheme}: a verb card has "Set root or binyan": the binyan list (the seven, Polel, Polal, Hitpolel) on Nif'al, the root ח.ת.מ, a Save button, all on screen and legible`,
+          (await sv.locator('summary').innerText()) === 'Set root or binyan' && names.join() === "Pa'al,Nif'al,Pi'el,Pu'al,Hif'il,Huf'al,Hitpa'el,Polel,Polal,Hitpolel"
+          && (await sel.inputValue()) === 'nifal' && (await root.inputValue()) === 'ח.ת.מ' && await inView(sel) && await inView(root) && await inView(save)
+          && contrast(await paint(sv.locator('summary'), 'color'), await paint(lcard, 'backgroundColor')) >= 4.5
+          && contrast(await paint(sv.locator('.hint'), 'color'), await paint(lcard, 'backgroundColor')) >= 4.5 && await fits(), names.join());
+        await page.screenshot({ path: join(out, `lesson-setverb-${scheme}-${name}.png`) });
+        await root.fill('חת');
+        await save.click();
+        const msg = sv.locator('.setverb-msg.bad');
+        await msg.waitFor({ timeout: 5000 });
+        check(`${name} ${scheme}: a root of two letters is refused on the card with the reason, legible, and Save stays usable`,
+          (await msg.innerText()) === 'A root has 3 or 4 letters; "חת" has 2.' && !(await save.isDisabled())
+          && contrast(await paint(msg, 'color'), await paint(lcard, 'backgroundColor')) >= 4.5, await msg.innerText());
+        await page.screenshot({ path: join(out, `lesson-setverb-refused-${scheme}-${name}.png`) });
+        const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo' }).format(new Date());
+        const [y, m, d] = today.split('-').map(Number);
+        const shown = `${d} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1]} ${y}`;
+        let sent = null;
+        await page.route('**/lookup/confirm', async (route) => {
+          sent = JSON.parse(route.request().postData() || '{}');
+          const card = { ...opened.card, confirmed: { on: today, root: opened.card.root, binyan: opened.card.binyan } };
+          await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ card, spot: opened.spot, spine: 'recorded', changed: [] }) });
+        });
+        await root.fill('ח.ת.מ');
+        await save.click();
+        const conf = lcard.locator('.corrected .confirmed');
+        await conf.waitFor({ timeout: 5000 });
+        await lcard.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+        await page.waitForTimeout(200);
+        check(`${name} ${scheme}: saved as it stands, the card says "Confirmed by you, ${shown}" and offers "Set root or binyan again"; the word and sentence of the card went with it`,
+          (await conf.innerText()) === `Confirmed by you, ${shown}` && (await lcard.locator('.setverb summary').innerText()) === 'Set root or binyan again'
+          && sent && sent.surface === 'נחתם' && sent.sentence === 'נחתם' && sent.root === 'ח.ת.מ' && sent.binyan === 'nifal'
+          && /recorded on the spine/.test(await lcard.locator('.foot').innerText()) && contrast(await paint(conf, 'color'), await paint(lcard.locator('.corrected'), 'backgroundColor')) >= 4.5 && await fits(),
+          `${await conf.innerText()} / ${JSON.stringify(sent)}`);
+        await page.screenshot({ path: join(out, `lesson-setverb-saved-${scheme}-${name}.png`) });
+        if (isMobile) await page.locator('#card-phone .close').click().catch(() => {});
+        await page.unroute('**/lookup/confirm');
+        await page.unroute('**/lookup');
+      }
+
       // a check proposing a change to a card Dan confirmed: the lesson page's
       // verb-card lines say it was not changed (the rule itself is in the smoke)
       {

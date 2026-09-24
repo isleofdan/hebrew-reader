@@ -201,6 +201,20 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 .card .corrected:empty { display: none; }
 .card .corrected .he { font-size: 14px; }
 .card .corrected .src { display: block; unicode-bidi: isolate; text-align: left; font-size: 12px; opacity: 0.85; }
+/* Dan's own root and binyan, on a verb card */
+.card .setverb { font-size: 13px; }
+.card .setverb summary { cursor: pointer; color: var(--accent); font-size: 13px; padding: 2px 0; }
+.card .setverb form { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; }
+.card .setverb .row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.card .setverb label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+.card .setverb select, .card .setverb input[type=text] { height: 40px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--field); color: var(--text); font-size: 15px; }
+.card .setverb input[type=text] { width: 7.5em; font-family: var(--serif); font-size: 17px; }
+.card .setverb .btn { height: 40px; font-size: 14px; }
+.card .setverb .hint { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.card .setverb-msg { margin: 0; font-size: 13px; color: var(--muted); }
+.card .setverb-msg:empty { display: none; }
+.card .setverb-msg.bad { color: var(--danger); }
+.card.idle .setverb { display: none; }
 .card .actions { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 4px; }
 .card .actions .btn { height: 40px; padding: 0 12px; font-size: 14px; }
 .card .foot { font-size: 12px; color: var(--muted); }

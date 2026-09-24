@@ -105,6 +105,10 @@ route('POST', /^\/lookup$/, async (req, res) => {
 // its nikud, added once to a card cached before cards carried it.
 route('POST', /^\/lookup\/points$/, async (req, res) => sendJson(res, 200, await lookup.addPoints(await readJson(req))));
 route('POST', /^\/lookup\/refresh$/, async (req, res) => sendJson(res, 200, await lookup.refreshCard(await readJson(req))));
+// { surface, sentence, root, binyan } of a verb card already looked up ->
+// { card, spot, spine, changed }: Dan's own root and binyan, saved and the
+// card marked confirmed by him (a bad root or binyan answers 400 and why).
+route('POST', /^\/lookup\/confirm$/, async (req, res) => sendJson(res, 200, await guyLesson.confirmCard(await readJson(req))));
 
 route('GET', /^\/categories$/, (req, res) => sendJson(res, 200, { items: CATEGORIES, state: 'ok' }));
 

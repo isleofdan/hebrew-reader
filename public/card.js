@@ -50,8 +50,23 @@
     current.span.classList.add('active');
   }
 
+  // Dan's own root and binyan for the card shown: saved, then the card and
+  // the page's tints follow its spot (a new binyan is a new spot)
+  async function setVerb({ root, binyan }) {
+    const was = current;
+    const data = await window.Reader.api('POST', '/lookup/confirm', { surface: was.surface, sentence: was.sentence, root, binyan });
+    if (current !== was) return data;
+    current.card = data.card; current.spot = data.spot;
+    if (data.spot) {
+      window.Reader.marks[was.surface] = { spot_id: data.spot.id, status: data.spot.status, hint: UI.hint(data.card) };
+      window.Reader.applyTints();
+      was.span.classList.add('active');
+    }
+    return data;
+  }
+
   for (const card of cards) {
-    UI.wire(card, { onStatus: setStatus, getCurrent: () => current, onClose: () => { card.classList.add('idle'); seq++; } });
+    UI.wire(card, { onStatus: setStatus, getCurrent: () => current, onClose: () => { card.classList.add('idle'); seq++; }, onSetVerb: setVerb });
   }
 
   window.showCard = showCard;

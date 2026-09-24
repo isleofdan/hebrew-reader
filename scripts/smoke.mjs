@@ -1002,6 +1002,54 @@ try {
       check('checks proposing nothing for a confirmed card list nothing', unchanged() && !(r.v.guide.review.cards.kept || []).length, JSON.stringify(r.v.guide.review.cards));
       setConfirmed(false);
     }
+    // Dan sets a verb's root or binyan himself (session eleven, step 1)
+    {
+      const nlRow = () => { const d = new Database(join(dataDir, 'reader.db'), { readonly: true }); const row = d.prepare("SELECT id, spot_id, json FROM cards WHERE surface = 'נלחם'").get(); d.close(); return row; };
+      const saved0 = nlRow();
+      const c0 = JSON.parse(saved0.json);
+      const refreshes = async () => (await orCalls()).refresh_calls;
+      const setIt = (b) => api('POST', '/lookup/confirm', { surface: 'נלחם', sentence: 'נלחם', ...b });
+      const r0 = await refreshes();
+      let x = await setIt({ root: 'ל.ח.מ', binyan: 'piel' });
+      const nl = JSON.parse(nlRow().json);
+      check("Dan sets a new binyan (Nif'al → Pi'el): saved, confirmed by him today, a \"Set by you\" line, the spot moved, refreshed once",
+        x.status === 200 && c0.binyan === 'nifal' && !c0.confirmed && nl.binyan === 'piel' && nl.root === 'ל.ח.מ' && /^\d{4}-\d{2}-\d{2}$/.test(nl.confirmed?.on || '')
+        && nl.confirmed.binyan === 'piel' && nl.confirmed.root === 'ל.ח.מ' && nl.corrected.at(-1).by === 'Dan' && nl.corrected.at(-1).before === 'nifal' && nl.corrected.at(-1).after === 'piel'
+        && nlRow().spot_id === 'v:ל.ח.מ:piel' && x.body.spot?.id === 'v:ל.ח.מ:piel' && x.body.changed.join() === 'binyan'
+        && (await refreshes()) - r0 === 1 && nl.refreshed?.for === nl.corrected.length && !nl.refreshed.failed && x.body.card.refreshed?.for === nl.corrected.length
+        && /card נלחם: set by Dan, binyan nifal -> piel, confirmed/.test(server.log), JSON.stringify({ status: x.status, body: x.body, card: nl }));
+      const r1 = await refreshes();
+      const lines1 = nl.corrected.length;
+      x = await setIt({ root: 'לחמ', binyan: "Pi'el" });
+      const nl2 = JSON.parse(nlRow().json);
+      check('Dan confirms it as it stands (root typed without dots, binyan spelled "Pi\'el"): confirmed, no new line, no refresh call',
+        x.status === 200 && nl2.binyan === 'piel' && nl2.root === 'ל.ח.מ' && nl2.corrected.length === lines1 && (await refreshes()) === r1 && x.body.changed.length === 0
+        && /card נלחם: set by Dan, confirmed as it stands \(piel, ל\.ח\.מ\)/.test(server.log), JSON.stringify({ status: x.status, body: x.body }));
+      const bad = await setIt({ root: 'לח', binyan: 'piel' });
+      const bad2 = await setIt({ root: 'lxm', binyan: 'piel' });
+      const bad3 = await setIt({ root: 'ל.ח.מ', binyan: 'pinal' });
+      check('a bad root or binyan is refused with the reason, and nothing is saved',
+        bad.status === 400 && bad.body.error === 'A root has 3 or 4 letters; "לח" has 2.' && bad2.status === 400 && /Hebrew letters only/.test(bad2.body.error)
+        && bad3.status === 400 && bad3.body.error === 'Choose a binyan from the list.' && nlRow().json === JSON.stringify(nl2), JSON.stringify([bad.body, bad2.body, bad3.body]));
+      const ok = ['ה.מ.ר', 'המר', 'ק.ל.ך', 'הִמֵּר', 'ש.ו.ט.ט'].map((v) => guy.readRoot(v));
+      check('roots written as Dan may write them are accepted (false-rejection check): ה.מ.ר, המר, ק.ל.ך with its final letter, one with nikud, one of 4 letters',
+        ok.map((o) => o.root).join(' ') === 'ה.מ.ר ה.מ.ר ק.ל.ך ה.מ.ר ש.ו.ט.ט', JSON.stringify(ok));
+      const noun = await api('POST', '/lookup/confirm', { surface: 'שביתה', sentence: 'שביתה', root: 'ש.ב.ת', binyan: 'paal' });
+      check("a noun's card is not set: refused, saying why", noun.status === 400 && /not a verb/.test(noun.body.error), JSON.stringify(noun));
+      x = await setIt({ root: 'ל.ח.מ', binyan: 'polel' });
+      check('a doubled-pattern binyan can be set (Polel), and the card shows it', x.status === 200 && x.body.card.binyan === 'polel', JSON.stringify(x.body.card));
+      x = await setIt({ root: 'ל.ח.מ', binyan: 'piel' });
+      const held = nlRow().json;
+      const rr = await rebuild({ review_extra: [{ section: 'word_cards', item: 'נלחם', field: 'binyan', find: "Pi'el", replace: "Nif'al", why: "the review's card fix" }],
+        review_verdicts: { 'נלחם': { verdict: 'fix', root: 'ל.ח.מ', binyan: 'nifal', why: "the review's verdict" } }, verb_fixes: { 'נלחם': { binyan: 'nifal', why: 'the check' } } });
+      check('a card Dan set survives a review fix the verb check agrees with: not changed, listed as "you confirmed this card"',
+        nlRow().json === held && (rr.v.guide.review.cards.kept || []).some((k) => (k.word || k) === 'נלחם') && rr.vc.corrected.length === 0, JSON.stringify({ kept: rr.v.guide.review.cards.kept, vc: rr.vc }));
+      // put the card back as it was for what follows, its spot with it
+      await setIt({ root: 'ל.ח.מ', binyan: 'nifal' });
+      const d = new Database(join(dataDir, 'reader.db'));
+      d.prepare('UPDATE cards SET json = ?, spot_id = ? WHERE id = ?').run(saved0.json, saved0.spot_id, saved0.id);
+      d.close();
+    }
     await control({ verb_fixes: {}, verb_extra: [], verb_decline: false });
   }
 

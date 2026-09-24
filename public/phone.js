@@ -27,13 +27,19 @@ for (const id of ['card-demand', 'card-also', 'card-lookup']) {
   UI.wire(el, {
     onStatus: (status) => UI.saveStatus(el, api, slot.current, status),
     getCurrent: () => slot.current,
+    onSetVerb: async ({ root, binyan }) => {
+      const cur = slot.current;
+      const data = await api('POST', '/lookup/confirm', { surface: cur.card.surface, sentence: cur.sentence || '', root, binyan });
+      cur.card = data.card; cur.spot = data.spot;
+      return data;
+    },
   });
   slots[id] = slot;
 }
 
 function showOnSlot(id, data, sentence) {
   const slot = slots[id];
-  const current = slot.current = { card: data.card, spot: data.spot };
+  const current = slot.current = { card: data.card, spot: data.spot, sentence: sentence || '' };
   UI.fill(slot.el, data);
   UI.addPoints(slot.el, data, { api, sentence, isCurrent: () => slot.current === current });
 }
