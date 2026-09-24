@@ -689,3 +689,30 @@ a verb card; 15 minutes + 3 s a verb card.
 "Restored" line. נוצץ Pa'al, unchanged. After a rebuild of the June lesson:
 both unchanged; "Verb cards checked: 3, corrected: 0, not changed: 1" with
 "Not changed — you confirmed this card: לזנק". Checks: 204 server, 209 page.
+
+## Import — hebrew-reader-import (24 Sep 2026, laptop)
+
+No code changed. `scripts/import-lessons.js` run from Dan's laptop against
+the live site, on the folder `Dropbox\Hebrew\Guy Lessons` (58 files, 51 PDFs).
+Dan typed the passphrase into his own PowerShell window (masked `Read-Host`);
+it never reached a file or this session.
+
+- **Imported 44, failed 0.** Skipped 14: the June lesson (already on the
+  site), 6 PDFs not named as Guy's, 7 non-PDFs. The confirming dry run shows
+  45 already on the site, 0 to add. The site holds 45 lessons.
+- **2026 guides: 7 built, one at a time** (282–595 s each), none with
+  "Checks not passed". The run was cut by the laptop sleeping on battery
+  ("fetch failed" after 3 guides); the site finished the 4th on its own, and a
+  re-run built the last 3. Re-running is safe: it skips what is on the site
+  and builds only missing guides.
+- **Mis-dated lesson:** `Daniel Guy hebrew 08july25.pdf` has a word between
+  "Daniel Guy" and the date, so `nameAndDate` misses the pattern and the
+  lesson took the upload day, 2026-09-24. It therefore also got a guide now.
+  Not hand-fixed.
+- **Verb cards across the 2026 lessons: checked 17, corrected 2** (להמר in
+  9 Feb: root מ.ר.ר → ה.מ.ר, Hif'il → Pi'el). "Not changed — the two checks
+  disagree": 2, both 26 Jan (לשוטט, שוטטות: review Pi'el, verb check Polel).
+  June untouched: לזנק still "you confirmed".
+- **Live (Dan, 24 Sep 2026):** lesson 45 (9 Feb 2026) shows a full guide,
+  "about right". Lesson 27 (27 Dec 2023) showed "being built", then a guide
+  (512 s, saved with the drill check unmet — a "Checks not passed" line).
