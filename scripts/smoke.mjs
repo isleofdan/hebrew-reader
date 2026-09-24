@@ -978,6 +978,28 @@ try {
         /"verb_cards" has one entry for every verb card in the card list, none left out/.test(sys) && /judged from the word itself, not from what the guide says of it/.test(sys)
         && /A verb card is corrected by its verdict, never through "word_cards"/.test(sys) && lam.length > 0, '');
     }
+    // doubled-pattern names agree (session eleven, step 4): the 26 Jan case,
+    // review Pi'el and verb check Polel for לשוטט, here on נלחם made Pi'el
+    {
+      const nlNow = () => cardsNow().find((x) => x.surface === 'נלחם');
+      r = await rebuild({ review_verdicts: { 'נלחם': { verdict: 'fix', root: 'ל.ח.מ', binyan: 'piel', why: 'set up' } }, verb_fixes: { 'נלחם': { binyan: 'piel', why: 'set up' } } });
+      const p0 = nlNow();
+      const disLines = () => server.log.split('card נלחם binyan not changed, the two checks disagree').length;
+      const d0 = disLines();
+      r = await rebuild({ review_verdicts: { 'נלחם': { verdict: 'correct', root: 'ל.ח.מ', binyan: "Pi'el", why: '' } }, verb_fixes: { 'נלחם': { binyan: 'Polel', why: 'a hollow-root pattern' } } });
+      check("the 26 Jan case: the review says Pi'el, the verb check Polel: they agree, no \"disagree\" line, the card keeps Pi'el",
+        p0.card.binyan === 'piel' && JSON.stringify(nlNow()) === JSON.stringify(p0) && r.vc.disagreed.length === 0 && r.vc.corrected.length === 0
+        && r.vc.answers.some((a) => a.word === 'נלחם' && a.verdict === 'fix' && a.binyan === 'Polel') && disLines() === d0,
+        JSON.stringify({ vc: r.vc, card: nlNow().card.binyan }));
+      r = await rebuild({ review_verdicts: { 'נלחם': { verdict: 'fix', root: 'ל.ח.מ', binyan: 'polel', why: 'the review names the pattern' } }, verb_fixes: {} });
+      check("the review naming Polel for a Pi'el card while the check says it is right: the same, nothing changed or listed; the card keeps Pi'el",
+        JSON.stringify(nlNow()) === JSON.stringify(p0) && r.vc.disagreed.length === 0 && r.v.guide.review.cards.corrected.length === 0, JSON.stringify({ vc: r.vc, cards: r.v.guide.review.cards }));
+      r = await rebuild({ review_verdicts: { 'נלחם': { verdict: 'fix', root: 'ל.ח.מ', binyan: 'nifal', why: 'back' } }, verb_fixes: { 'נלחם': { binyan: 'nifal', why: 'back' } } });
+      const sh = guy.sameInAgreement;
+      check("…Polal counts as Pu'al and Hitpolel as Hitpa'el the same way, any spelling; Pi'el still differs from Hitpolel and Polel from Pa'al; roots unaffected",
+        sh('binyan', 'Polal', 'pual') && sh('binyan', 'hitpolel', "Hitpa'el") && sh('binyan', 'Polel', "Pi'el") && !sh('binyan', 'piel', 'hitpolel') && !sh('binyan', 'polel', 'paal')
+        && !sh('root', 'ש.ו.ט', 'ש.ט.ט') && nlNow().card.binyan === 'nifal', nlNow().card.binyan);
+    }
     // a card Dan confirmed (session ten, step 1): no check changes it, and
     // the page lists what was proposed
     {
