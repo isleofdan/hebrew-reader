@@ -619,6 +619,8 @@ try {
           // saved before then, which names the word alone
           if (data.guide && data.guide.review && data.guide.review.cards) {
             data.guide.review.cards.kept = [{ word: 'לזנק', review: "Pa'al", check: "Pa'al" }, { word: 'נוצץ', review: null, check: "Pi'el, root נ.צ.ץ" }, 'להמר'];
+            // and verb cards the review gave no verdict on (session eleven, step 3)
+            data.guide.review.verdicts_missing = ['שוטטות', 'לשוטט'];
           }
           await route.fulfill({ response: res, json: data });
         });
@@ -640,6 +642,14 @@ try {
           && await kept.evaluate((el) => getComputedStyle(el).direction === 'ltr' || el.matches(':dir(ltr)')) && contrast(await paint(kept, 'color'), await ground()) >= 7 && await fits(),
           verbText.replace(/\s+/g, ' ').slice(0, 300));
         await page.screenshot({ path: join(out, `lesson-kept-${scheme}-${name}.png`) });
+        const missing = page.locator('.guide .review-missing');
+        await missing.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+        await page.waitForTimeout(200);
+        check(`${name} ${scheme}: under the review, one line without opening anything: "The review gave no verdict on: שוטטות, לשוטט", left to right, legible`,
+          await missing.count() === 1 && (await missing.innerText()) === 'The review gave no verdict on: \u2068שוטטות\u2069, \u2068לשוטט\u2069' && await missing.isVisible()
+          && await missing.evaluate((el) => getComputedStyle(el).direction === 'ltr' || el.matches(':dir(ltr)')) && contrast(await paint(missing, 'color'), await ground()) >= 4.5 && await fits(),
+          await missing.innerText().catch(() => ''));
+        await page.screenshot({ path: join(out, `lesson-noverdict-${scheme}-${name}.png`) });
         await page.unroute(lessonRe);
       }
 

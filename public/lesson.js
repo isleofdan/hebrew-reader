@@ -220,6 +220,9 @@ function drawReview(box, rv, kept = []) {
   if (wc && wc.refused.length) d.append(el('p', 'caption', `Word card corrections not made (not guessed): ${wc.refused.join('; ')}.`));
   if (kept.length) d.append(keptList(kept));
   box.append(d);
+  // verb cards the review said nothing about (session eleven): one line, open
+  const missing = rv.verdicts_missing || [];
+  if (missing.length) box.append(auto('p', `The review gave no verdict on: ${missing.map((w) => `\u2068${w}\u2069`).join(', ')}`, 'caption review-line review-missing'));
 }
 
 // One corrected card, English first so the line reads left to right:

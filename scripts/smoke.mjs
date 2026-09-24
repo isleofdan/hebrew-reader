@@ -946,6 +946,14 @@ try {
         gRow2.binyan === "Nif'al" && nlNow().card.binyan === 'piel' && nlNow().card.corrected.at(-1).by === 'verb-card check' && r.vc.disagreed.length === 0
         && r.v.guide.review.verdicts_missing.includes('נלחם') && /review verdicts on verb cards: 2 of 3, none for נלחם/.test(server.log),
         JSON.stringify({ vc: r.vc, missing: r.v.guide.review.verdicts_missing }));
+      {
+        // the lesson page reads the lesson's own data: the names are there
+        const page = (await api('GET', `/lessons/${L2.body.id}`)).body;
+        const full = await rebuild({});
+        check('the verb cards with no verdict reach the lesson page\'s data by name (["נלחם"]), and a review with a verdict on every verb card leaves the list empty (session eleven, step 3)',
+          JSON.stringify(page.guide.review.verdicts_missing) === '["נלחם"]' && Array.isArray(full.v.guide.review.verdicts_missing) && full.v.guide.review.verdicts_missing.length === 0,
+          JSON.stringify([page.guide.review.verdicts_missing, full.v.guide.review.verdicts_missing]));
+      }
       // a verdict written with nikud and a binyan spelled "Nif'al" is still read (false-rejection check);
       // one naming another lesson's word or a noun of this one is refused and listed
       r = await rebuild({ review_verdicts: { 'נלחם': { word: 'נִלְחַם', verdict: 'fix', root: 'ל.ח.מ', binyan: "Nif'al", why: "נלחם is Nif'al" } },
