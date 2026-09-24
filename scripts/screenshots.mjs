@@ -615,7 +615,11 @@ try {
         await page.route(lessonRe, async (route) => {
           const res = await route.fetch();
           const data = await res.json();
-          if (data.guide && data.guide.review && data.guide.review.cards) data.guide.review.cards.kept = ['לזנק'];
+          // what each check proposed (session eleven): both, one, and a guide
+          // saved before then, which names the word alone
+          if (data.guide && data.guide.review && data.guide.review.cards) {
+            data.guide.review.cards.kept = [{ word: 'לזנק', review: "Pa'al", check: "Pa'al" }, { word: 'נוצץ', review: null, check: "Pi'el, root נ.צ.ץ" }, 'להמר'];
+          }
           await route.fulfill({ response: res, json: data });
         });
         await page.goto(`${base}/lesson.html?id=${lessonId}`);
@@ -627,8 +631,12 @@ try {
         await page.waitForTimeout(200);
         const verbText = await verbLine.innerText();
         const kept = verbLine.locator('.review-kept li').first();
-        check(`${name} ${scheme}: "Verb cards checked: 2, corrected: 1, not changed: 2" opens to "Not changed — you confirmed this card: לזנק", left to right, legible, and the page fits`,
-          /^Verb cards checked: 2, corrected: 1, not changed: 2\b/.test(verbText) && (await kept.innerText()) === 'Not changed — you confirmed this card: \u2068לזנק\u2069'
+        const keptLines = await verbLine.locator('.review-kept li').allInnerTexts();
+        check(`${name} ${scheme}: "Verb cards checked: 2, corrected: 1, not changed: 4" opens to "Not changed — you confirmed this card: לזנק — review proposed Pa'al; verb check proposed Pa'al", one side alone, and a word alone for an older guide; left to right, legible, and the page fits`,
+          /^Verb cards checked: 2, corrected: 1, not changed: 4\b/.test(verbText)
+          && keptLines.join('\n') === ["Not changed — you confirmed this card: \u2068לזנק\u2069 — review proposed \u2068Pa'al\u2069; verb check proposed \u2068Pa'al\u2069",
+            "Not changed — you confirmed this card: \u2068נוצץ\u2069 — verb check proposed \u2068Pi'el, root נ.צ.ץ\u2069",
+            'Not changed — you confirmed this card: \u2068להמר\u2069'].join('\n')
           && await kept.evaluate((el) => getComputedStyle(el).direction === 'ltr' || el.matches(':dir(ltr)')) && contrast(await paint(kept, 'color'), await ground()) >= 7 && await fits(),
           verbText.replace(/\s+/g, ' ').slice(0, 300));
         await page.screenshot({ path: join(out, `lesson-kept-${scheme}-${name}.png`) });

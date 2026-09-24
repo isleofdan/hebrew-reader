@@ -240,11 +240,18 @@ function disagreeLine(x) {
   return `Not changed — the two checks disagree: ${iso(x.surface)}: review says ${what}${iso(x.review)}, verb check says ${what}${iso(x.check)}`;
 }
 
-// "Not changed — you confirmed this card: לזנק", one line per card Dan
-// confirmed that a check proposed to change.
+// "Not changed — you confirmed this card: לזנק — review proposed Pa'al;
+// verb check proposed Pa'al", one line per card Dan confirmed that a check
+// proposed to change, with what each proposed (session eleven). A guide saved
+// before then lists the word alone.
 function keptList(kept) {
+  const iso = (t) => `\u2068${t}\u2069`;
   const ul = el('ul', 'review-changes review-kept');
-  for (const w of kept) ul.append(auto('li', `Not changed — you confirmed this card: \u2068${w}\u2069`));
+  for (const k of kept) {
+    const x = typeof k === 'string' ? { word: k } : k;
+    const said = [x.review && `review proposed ${iso(x.review)}`, x.check && `verb check proposed ${iso(x.check)}`].filter(Boolean);
+    ul.append(auto('li', `Not changed — you confirmed this card: ${iso(x.word)}${said.length ? ` — ${said.join('; ')}` : ''}`));
+  }
   return ul;
 }
 

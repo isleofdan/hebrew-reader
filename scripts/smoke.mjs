@@ -988,14 +988,23 @@ try {
       const unchanged = () => JSON.stringify(cardsNow().find((x) => x.surface === 'נלחם')) === JSON.stringify(conf0);
       r = await rebuild({ review_extra: reviewPiel, verb_decline: true });
       check('a card Dan confirmed survives a review fix on its own (the verb check not run): not changed, listed as "you confirmed this card", logged',
-        conf0.card.binyan === 'nifal' && unchanged() && r.v.guide.review.cards.kept?.join() === 'נלחם' && r.v.guide.review.cards.corrected.length === 0
+        conf0.card.binyan === 'nifal' && unchanged() && r.v.guide.review.cards.kept?.map((k) => k.word).join() === 'נלחם' && r.v.guide.review.cards.corrected.length === 0
         && /card נלחם binyan not changed, Dan confirmed it/.test(server.log), JSON.stringify({ cards: r.v.guide.review.cards, vc: r.vc.state }));
+      check("…and says what was proposed, one side: the review proposed Pi'el, the verb check nothing (session eleven, step 2)",
+        JSON.stringify(r.v.guide.review.cards.kept) === JSON.stringify([{ word: 'נלחם', review: "Pi'el", check: null }]), JSON.stringify(r.v.guide.review.cards.kept));
       r = await rebuild({ guide_silent: ['נלחם'], verb_fixes: { 'נלחם': { binyan: 'piel', why: "a mock's claim" } } });
       check('a card Dan confirmed survives a verb-check fix the review is silent on: not changed, listed, "not changed" counted',
-        unchanged() && r.vc.corrected.length === 0 && r.vc.disagreed.length === 0 && r.v.guide.review.cards.kept?.join() === 'נלחם', JSON.stringify({ vc: r.vc, cards: r.v.guide.review.cards }));
+        unchanged() && r.vc.corrected.length === 0 && r.vc.disagreed.length === 0 && r.v.guide.review.cards.kept?.map((k) => k.word).join() === 'נלחם', JSON.stringify({ vc: r.vc, cards: r.v.guide.review.cards }));
+      check("…and says what was proposed, the other side: the verb check proposed Pi'el, the review nothing",
+        JSON.stringify(r.v.guide.review.cards.kept) === JSON.stringify([{ word: 'נלחם', review: null, check: "Pi'el" }]), JSON.stringify(r.v.guide.review.cards.kept));
       r = await rebuild({ review_extra: reviewPiel, verb_fixes: { 'נלחם': { binyan: 'piel', why: 'both say so here' } } });
       check('a card Dan confirmed survives the review and the verb check agreeing on a fix: not changed, listed once',
-        unchanged() && r.vc.corrected.length === 0 && r.v.guide.review.cards.corrected.length === 0 && r.v.guide.review.cards.kept?.join() === 'נלחם', JSON.stringify({ vc: r.vc, cards: r.v.guide.review.cards }));
+        unchanged() && r.vc.corrected.length === 0 && r.v.guide.review.cards.corrected.length === 0 && r.v.guide.review.cards.kept?.map((k) => k.word).join() === 'נלחם', JSON.stringify({ vc: r.vc, cards: r.v.guide.review.cards }));
+      check("…and says what was proposed, both sides: review proposed Pi'el, verb check proposed Pi'el",
+        JSON.stringify(r.v.guide.review.cards.kept) === JSON.stringify([{ word: 'נלחם', review: "Pi'el", check: "Pi'el" }]), JSON.stringify(r.v.guide.review.cards.kept));
+      r = await rebuild({ review_verdicts: { 'נלחם': { verdict: 'fix', root: 'ל.ח.ם', binyan: 'piel', why: "the review's verdict" } }, verb_fixes: { 'נלחם': { root: 'ל.ח.ם', why: 'the check' } } });
+      check("…and a root proposed with a binyan reads \"Pi'el, root ל.ח.ם\"; the check's root alone \"root ל.ח.ם\"",
+        unchanged() && JSON.stringify(r.v.guide.review.cards.kept) === JSON.stringify([{ word: 'נלחם', review: "Pi'el, root ל.ח.ם", check: 'root ל.ח.ם' }]), JSON.stringify(r.v.guide.review.cards.kept));
       const tapC = await api('POST', '/lookup', { surface: 'נלחם', sentence: 'נלחם', lesson_id: L2.body.id });
       check('the confirmed card opens with its confirmation on it', tapC.body.card.confirmed?.on === '2026-09-24' && tapC.body.card.binyan === 'nifal', JSON.stringify(tapC.body.card.confirmed));
       r = await rebuild({});
