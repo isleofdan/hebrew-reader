@@ -574,6 +574,11 @@ try {
           && contrast(await paint(sv.locator('summary'), 'color'), await paint(lcard, 'backgroundColor')) >= 4.5
           && contrast(await paint(sv.locator('.hint'), 'color'), await paint(lcard, 'backgroundColor')) >= 4.5 && await fits(), names.join());
         await page.screenshot({ path: join(out, `lesson-setverb-${scheme}-${name}.png`) });
+        // the card drawn again as it is (its nikud arriving): the open control keeps what is typed
+        await root.fill('ה.מ');
+        await lcard.evaluate((el, data) => window.CardUI.fill(el, data), opened);
+        check(`${name} ${scheme}: the card drawn again while the control is open keeps it open with what was typed`,
+          await sv.evaluate((el) => el.open && el.isConnected) && (await root.inputValue()) === 'ה.מ', await root.inputValue().catch(() => 'gone'));
         await root.fill('חת');
         await save.click();
         const msg = sv.locator('.setverb-msg.bad');

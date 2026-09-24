@@ -17,6 +17,7 @@
 
   function setLoading(card, surface) {
     card.classList.remove('idle');
+    const sv = card.querySelector('.setverb'); if (sv) sv.remove();
     el(card, 'surface').textContent = surface;
     el(card, 'status').textContent = 'looking up…';
     for (const c of ['meaning', 'grammar', 'chips', 'note', 'corrected', 'error', 'foot']) el(card, c).textContent = '';
@@ -25,6 +26,7 @@
 
   function setError(card, surface, message) {
     card.classList.remove('idle');
+    const sv = card.querySelector('.setverb'); if (sv) sv.remove();
     el(card, 'surface').textContent = surface;
     el(card, 'status').textContent = '';
     for (const c of ['meaning', 'grammar', 'chips', 'note', 'corrected', 'foot']) el(card, c).textContent = '';
@@ -176,9 +178,13 @@
   // binyan the server refuses says why here, and nothing is saved.
   function drawSetVerb(card, c) {
     const old = card.querySelector('.setverb');
+    // the same card drawn again (its nikud or note arrived): the control
+    // stays as it is, open or not, with whatever is typed in it
+    const key = [c.surface, c.root, c.binyan, c.confirmed ? c.confirmed.on : ''].join('|');
+    if (old && old.dataset.key === key && card._onSetVerb && c.pos === 'verb') return;
     if (old) old.remove();
     if (!card._onSetVerb || c.pos !== 'verb') return;
-    const box = document.createElement('details'); box.className = 'setverb';
+    const box = document.createElement('details'); box.className = 'setverb'; box.dataset.key = key;
     const sum = document.createElement('summary'); sum.textContent = c.confirmed ? 'Set root or binyan again' : 'Set root or binyan';
     const form = document.createElement('form');
     const bl = document.createElement('label'); bl.textContent = 'Binyan';
@@ -201,6 +207,7 @@
       save.disabled = true; msg.className = 'setverb-msg'; msg.textContent = 'saving…';
       try {
         const data = await card._onSetVerb({ root: input.value, binyan: sel.value });
+        box.remove(); // drawn again from the saved card
         fill(card, data);
         el(card, 'foot').textContent = spineLine(data.spine) || 'saved';
       } catch (e) {
