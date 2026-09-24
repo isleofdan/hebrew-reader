@@ -656,3 +656,36 @@ June guide as the review's view, and the guide evidently gives לזנק as
 Pa'al somewhere. Per the brief, no second round: the rebuild check was not
 run. The step is recorded and will not run again. Checks: 188 server, 201
 page.
+
+## Session ten — hebrew-reader-ten (24 Sep 2026, cloud)
+
+**Confirmed by Dan.** `card.confirmed = { on, root, binyan }`. `agree()` skips
+a confirmed card for every field; when either check proposes a change it is
+listed in `review.cards.kept`, and `correctCards` refuses to change a
+confirmed card as a second guard (so the review's path, the verb check's, the
+agreement and any one-time step all stop there). The lesson page shows "Not
+changed — you confirmed this card: <word>" under the verb-card check (under
+the review when the check did not run), counted in "not changed". The card
+shows "Confirmed by you, <date>" first in its correction box.
+
+**לזנק put back.** `confirmZinek()` at start, after `restoreContradicted()`,
+recorded in `steps`: the June lesson (lesson date 2026-06-15 or file name
+15jun26) card לזנק only, set to Pi'el, root ז.נ.ק, confirmed 2026-09-23; the
+put-back's "Restored" entry removed and the correction it had undone shown
+again; removed from `verb_check.restored`; spot moved; refreshed.
+
+**The review's verdict per verb card.** The review schema has a required
+`verb_cards` list (word, "correct" | "fix", root, binyan, why); parsed by
+`verbVerdicts` (card found by surface or lemma, nikud ignored; a word that is
+not a verb card of this lesson refused and listed; a verb card with no entry
+named in `verdicts_missing`). For a verb card, `agree()` reads the verdict
+only — not the review's word_cards fixes, not its guide. A missing verdict
+means the review said nothing. `guideSays` is now read only by session nine's
+put-back, which is recorded as run live. Review limits: 16,000 tokens + 150
+a verb card; 15 minutes + 3 s a verb card.
+
+**Live (Dan, 24 Sep 2026, deploy run 23):** לזנק Pi'el, root ז.נ.ק,
+זִנֵּק / לְזַנֵּק, a Pi'el note, "Confirmed by you, 23 Sep 2026", no
+"Restored" line. נוצץ Pa'al, unchanged. After a rebuild of the June lesson:
+both unchanged; "Verb cards checked: 3, corrected: 0, not changed: 1" with
+"Not changed — you confirmed this card: לזנק". Checks: 204 server, 209 page.
