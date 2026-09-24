@@ -366,6 +366,9 @@ try {
   const L3 = await upload('Daniel Guy 10FEB2025.pdf');
   check('lesson upload "Daniel Guy 10FEB2025": 10 Feb 2025, 5 items', L3.status === 201 && L3.body.lesson_date === '2025-02-10' && L3.body.items.length === 5, JSON.stringify(L3.body).slice(0, 160));
   const other = guy.nameAndDate('Daniel Guy 21oct2024.pdf'), plainName = guy.nameAndDate('my notes.pdf', '2026-09-22');
+  const july = guy.nameAndDate('Daniel Guy hebrew 08july25.pdf', '2026-09-24'), two = guy.nameAndDate('Daniel Guy hebrew notes 08july25.pdf', '2026-09-24');
+  check('a word between "Daniel Guy" and the date is read (session eleven, step 6): "Daniel Guy hebrew 08july25" is 8 Jul 2025; two words still are not',
+    july.lesson_date === '2025-07-08' && july.title === 'שיעור עם גיא — 8.7.2025' && july.from === 'file name pattern' && two.from === 'file name' && two.lesson_date === '2026-09-24', JSON.stringify([july, two]));
   check('file-name patterns: "Daniel Guy 21oct2024" read; any other name keeps the file name and today',
     other.lesson_date === '2024-10-21' && plainName.title === 'my notes' && plainName.lesson_date === '2026-09-22' && plainName.from === 'file name', JSON.stringify([other, plainName]));
   const refused = await upload('notes two lines.pdf');
@@ -1376,6 +1379,54 @@ try {
       /one-time step already run on .*: put לזנק back to Pi'el/.test(s2.log) && !/one-time step done/.test(s2.log) && JSON.stringify(rows().out) === JSON.stringify(out), s2.log.split('\n').filter((l) => /one-time/.test(l)).join(' | '));
     s2.kill();
     rmSync(zDir, { recursive: true, force: true });
+  }
+
+  // the one-time re-date (session eleven, step 6): a database shaped as the
+  // live one after the import — the July 2025 lesson dated the upload day,
+  // titled by its file name, with a guide — beside a lesson dated right
+  {
+    const Database = createRequire(import.meta.url)(join(root, 'node_modules', 'better-sqlite3'));
+    const rDir = mkdtempSync(join(tmpdir(), 'hr-redate-'));
+    const env = { DATA_DIR: rDir, APP_PASSWORD: PASS, COOKIE_SECRET: 'r'.repeat(64), COOKIE_INSECURE: '1',
+      OPENROUTER_API_KEY: 'test-key', OPENROUTER_URL: `http://127.0.0.1:${OR_PORT}/v1/chat/completions`,
+      SPINE_TOKEN: 'test-spine-token', SPINE_URL: `http://127.0.0.1:${SPINE_PORT}` };
+    const s0 = start('node', ['server.js'], { ...env, PORT: '8798' });
+    await up('http://127.0.0.1:8798/health');
+    for (let i = 0; i < 50 && !/one-time step done: re-date/.test(s0.log); i++) await wait(100);
+    s0.kill();
+    await wait(300);
+    const d = new Database(join(rDir, 'reader.db'));
+    d.prepare("DELETE FROM steps WHERE name LIKE 're-date%'").run();
+    const at = '2026-09-24T01:00:00.000Z';
+    const guide = { title: 'שיעור עם גיא — 8.7.2025', date: '2025-07-08', built_at: at, sections: [], cards: [], checks: { passed: [], failed_first: [], unmet: [] } };
+    const add = d.prepare('INSERT INTO lessons (title, lesson_date, source_name, text, items_json, guide_json, guide_built_at, saved_json, added_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    add.run('Daniel Guy hebrew 08july25', '2026-09-24', 'Daniel Guy hebrew 08july25.pdf', 'שוטטות\nלשוטט', JSON.stringify(['שוטטות', 'לשוטט']), JSON.stringify(guide), at, null, at);
+    add.run('שיעור עם גיא — 9.2.2026', '2026-02-09', 'Daniel Guy 09feb26.pdf', 'להמר', JSON.stringify(['להמר']), null, null, null, at);
+    add.run('my notes', '2026-09-20', 'my notes.pdf', 'שלום', JSON.stringify(['שלום']), null, null, null, at);
+    d.close();
+    const s1 = start('node', ['server.js'], { ...env, PORT: '8798' });
+    await up('http://127.0.0.1:8798/health');
+    for (let i = 0; i < 50 && !/one-time step done: re-date/.test(s1.log); i++) await wait(100);
+    const rows = () => { const x = new Database(join(rDir, 'reader.db'), { readonly: true }); const ls = x.prepare('SELECT id, title, lesson_date, source_name, guide_json FROM lessons ORDER BY id').all(); const st = x.prepare("SELECT * FROM steps WHERE name LIKE 're-date%'").all(); x.close(); return { ls, st }; };
+    const { ls, st } = rows();
+    const jl = ls.find((l) => l.source_name === 'Daniel Guy hebrew 08july25.pdf');
+    const cookie = (await fetch('http://127.0.0.1:8798/login', { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ passphrase: PASS }) })).headers.get('set-cookie').split(';')[0];
+    const order = (await (await fetch('http://127.0.0.1:8798/lessons', { headers: { cookie, accept: 'application/json' } })).json()).items.map((l) => l.lesson_date);
+    check('the one-time step re-dates the July 2025 lesson to 2025-07-08 with the title the pattern gives, keeps its guide, touches no other lesson, logs and records the count, 1; the list puts it after the 2026 lessons',
+      jl.lesson_date === '2025-07-08' && jl.title === 'שיעור עם גיא — 8.7.2025' && jl.guide_json === JSON.stringify(guide)
+      && ls.find((l) => l.source_name === 'Daniel Guy 09feb26.pdf').lesson_date === '2026-02-09' && ls.find((l) => l.source_name === 'my notes.pdf').lesson_date === '2026-09-20'
+      && /one-time step: lesson \d+ \(Daniel Guy hebrew 08july25\.pdf\): date 2026-09-24 -> 2025-07-08/.test(s1.log) && /one-time step done: re-date .*: 1 lesson re-dated/.test(s1.log)
+      && st.length === 1 && JSON.parse(st[0].result_json).touched === 1 && order.join() === '2026-09-20,2026-02-09,2025-07-08',
+      JSON.stringify({ ls: ls.map(({ guide_json, ...l }) => l), order, log: s1.log.split('\n').filter((l) => /re-date/.test(l)) }));
+    s1.kill();
+    await wait(300);
+    const s2 = start('node', ['server.js'], { ...env, PORT: '8798' });
+    await up('http://127.0.0.1:8798/health');
+    for (let i = 0; i < 50 && !/already run on .*: re-date/.test(s2.log); i++) await wait(100);
+    check('the re-date step never runs twice: the next start says it already ran and changes nothing',
+      /one-time step already run on .*: re-date lessons/.test(s2.log) && !/one-time step done: re-date/.test(s2.log) && JSON.stringify(rows().ls) === JSON.stringify(ls), s2.log.split('\n').filter((l) => /re-date/.test(l)).join(' | '));
+    s2.kill();
+    rmSync(rDir, { recursive: true, force: true });
   }
 
   // 6. fail closed
