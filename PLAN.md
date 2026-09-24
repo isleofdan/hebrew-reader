@@ -716,3 +716,45 @@ it never reached a file or this session.
 - **Live (Dan, 24 Sep 2026):** lesson 45 (9 Feb 2026) shows a full guide,
   "about right". Lesson 27 (27 Dec 2023) showed "being built", then a guide
   (512 s, saved with the drill check unmet — a "Checks not passed" line).
+
+## Session eleven — hebrew-reader-eleven (24–25 Sep 2026, cloud)
+
+**Dan sets a verb's root or binyan.** `POST /lookup/confirm { surface,
+sentence, root, binyan }` → `guyLesson.confirmCard`: verb cards only; binyan
+from `lookup.BINYANIM_ALL` (the seven plus polel, polal, hitpolel; the card
+call itself still answers the seven); root through `readRoot` (3 or 4 Hebrew
+letters, dots/spaces/dashes and nikud ignored, final letters kept as written,
+so לחם is ל.ח.ם, not ל.ח.מ). Writes the values, a `by: 'Dan'` line per
+changed field, and `card.confirmed = { on (Tokyo date), root, binyan }`
+through `saveCard`; refreshes once when a field changed, never when saved as
+it stands. The control is built by `CardUI` (`drawSetVerb`) on any page that
+wires `onSetVerb` (reader, lesson, phone); a redraw of the same card keeps it
+as typed.
+
+**What was proposed.** `review.cards.kept` is now `[{ word, review, check }]`
+("Pa'al", "root ה.מ.ר", "Pa'al, root ה.מ.ר", or null); the page also reads the
+older list of plain words.
+
+**No verdict.** `review.verdicts_missing` already reached `GET /lessons/:id`
+(an empty list meant none missing); the page now shows "The review gave no
+verdict on: <words>" under the review.
+
+**Doubled patterns.** `sameHere` in `agree()` only: polel = piel, polal =
+pual, hitpolel = hitpael. A review fix naming only the doubled pattern of the
+card's own binyan changes nothing.
+
+**Verbs only.** Selection was already `pos === 'verb'`; שוטטות got there
+because the card call made its card a verb. The card instruction now says a
+verbal noun (שם פעולה) is a noun. The live שוטטות card still says verb until
+it is made again.
+
+**Re-date.** `NAME_PATTERN` takes one word before the date. One-time step
+`redateLessons()` at start, after `confirmZinek()`, recorded in `steps`: a
+lesson whose file name the pattern reads but whose title is still the file
+name gets the pattern's date and title; guide kept.
+
+**Live (Dan, 25 Sep 2026, deploy run 24):** the lesson list shows
+"שיעור עם גיא — 8.7.2025" between 26.1.2026 and 10.2.2025. להמר (9 Feb
+2026), saved as it stands: "Confirmed by you, 25 Sep 2026", "Set root or
+binyan again", "recorded on the spine". Checks: 224 server, 229 page (the
+web-font check flaked once on clean main and twice later; passed on rerun).
