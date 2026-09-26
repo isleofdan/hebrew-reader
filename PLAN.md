@@ -889,3 +889,79 @@ conjugation (הם מהמרים) is still refused; the card view ignores a reply 
 arrives after another card was opened, runs one action at a time, keeps a note
 as typed before it is saved, and labels "Cut here (every layer)" by the
 server's own order.
+
+## Session fourteen — hebrew-reader-fourteen (26 Sep 2026, cloud): the desk with a pen and with paper
+
+**Data.** `inks(id, made_at)` → the layer key `ink:<id>`, tied to its card by a
+`card_links` row of kind `layer` like any layer (so it orders, branches and
+cuts as one); `ink_strokes(id, ink_id, points_json, drawn_at)`, one row per
+stroke, points `[[x, y, pressure?], …]` with x and y as fractions of the ink
+area's width (so one drawing shows the same at any width). Strokes are keyed
+by the ink layer, not by the card key, so a cut carries them. `card_links`
+gains `sentence` (migration): a row of kind `linked` is a link Dan drew, child
+→ parent as he picked them, one per pair whichever way round (drawn again, the
+sentence is replaced). `sheets(id, desk_id, desk_name, made_at, groups_json,
+prompts_json)` and `sheet_cards(sheet_id, card)` (for "on N sheets"). `notes`
+gains `link_url`, `link_title` (migration): a note whose text is only a web
+address, or a caught link, holds it; the title is filled in afterwards.
+
+**Rules.** Ink: drawing adds to the card's newest ink layer; a card with none
+gets one at the first stroke; "undo last stroke" (or the pen's eraser) removes
+the newest stroke, and an ink layer left with none goes with its link. Only
+the pen and the mouse draw (a finger scrolls); the phone shows ink, never
+takes it. Groups: the connected cards of a desk through born-from,
+branched-from, cut-from and linked links; the strip counts groups of two or
+more. A `linked` link never reads as where a card came from (origin, the
+phone list's nesting, Find's "and N cards from it" all skip it). The blue
+line shows only while both cards are on the desk. Find: a card Dan linked has
+a thread even with nothing grown on it, its line ending "· linked to <word>:
+<sentence>"; Threads read "last worked on" (the jargon exclusion is gone).
+An answer's links are labelled by page title when the citation carries one,
+else the site's name, numbered when repeated (fixes "Milog · Milog", also on
+answers already saved). The fragments behind an opened card: while it is
+open the Find and Desks panels are `visibility: hidden` and the holder has
+`overscroll-behavior: contain`. "(K out of view)" counts placed cards outside
+the part of the desk on screen; "bring every card into view" moves each to
+the next free spot inside it (the Find panel excluded), saved as any move.
+
+**The sheet.** `POST /desks/:id/sheets` snapshots the desk's groups (a card
+alone joins "cards on their own", last), each card with headword and nikud,
+root · binyan · gloss, kept examples with source names (no links), asked
+lines, notes, ink; Dan's links as "you linked these: <sentence>". Prompts: one
+`lookup.chat` call per group, side by side, structured output (`json_schema`),
+no web search, 700 tokens, 30 s (about 6 s expected). A prompt is refused
+when a Hebrew word in it is not on the sheet: accepted are the sheet's words
+by the reader's matching, a word carrying a sheet word's root letters in
+order (an inflection: הימרתי), a dotted root of a sheet word, or a word
+written on the sheet (an example, a note, an answer, a link sentence). A
+failed call leaves the group without prompts and says so; the sheet is made
+anyway. Delivery: the Fly image is Node alone (Playwright is a dev
+dependency), so the server cannot print; the page at `/desk/sheet/<id>` is
+made to print (`@page` 702×936 px, the reMarkable 2's 1404×1872 at half size,
+light whatever the device) and says "Print this page to PDF, then send it to
+the reMarkable". Pages are laid out in the browser after the faces load (and
+again if a face arrives late); a group that does not fit continues on the
+next page, "(continued)".
+
+**Catching.** `public/manifest.webmanifest` (start `/desk`, share target GET
+`/share` with title, text, url), `public/sw.js` (no cache; the network
+answers), icons from `scripts/make-icons.mjs`; the four are served without
+the sign-in cookie (the browser fetches a manifest without it). `/share`
+serves the desk page, which POSTs `/desks/catch` and puts the address back to
+`/desk`, so a GET writes nothing and a reload saves nothing twice. The card
+goes to the desk worked on last, not yet placed; the phone says "Saved to
+tonight's desk, unplaced. Put it somewhere when you're at the computer." (it
+stays until the next message). A link's title: `lib/catch.js`, one try
+through `articles.fetchHtml`, og:title else `<title>`; a failure leaves the
+bare link. Voice: the phone keyboard's microphone types into "New card".
+
+**Routes.** `POST /card/:key/ink {points}`, `DELETE /card/:key/ink/last`,
+`POST /card/:key/link {to, sentence}`, `POST /desks/:id/sheets`,
+`GET /sheets/:id`, `POST /desks/catch {text?, url?, title?}`; pages
+`/desk/sheet/<id>`, `/share`. `GET /desks/:id` answers `groups` and `sheets
+{count, last, line}`; `GET /card/:key` answers `ink`, `linked` and
+`footer.sheets`.
+
+**Checks.** 391 server (320 + 71 in `scripts/paper-smoke.mjs`), 374 page
+(324 + 50 in `scripts/paper-pages.mjs`). Twelve's count check reads past the
+new "·" separator; thirteen's action-row check skips "Draw here".

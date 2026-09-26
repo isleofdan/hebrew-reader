@@ -30,7 +30,12 @@ finds them again; a card opened there grows layers under its entry: example
 sentences found online that Dan keeps, questions asked on it with the answers
 and the pages they leaned on, notes, and lookups in seven references. A new
 card can be branched from any layer, or a card cut in two; Find shows each
-card's thread. A scheduled article hunt is a later session.
+card's thread. Since session fourteen Dan can draw on a card with a pen or
+the mouse (ink, kept as a layer), link two cards with a sentence saying why
+(a blue line), make a printable sheet for his reMarkable from a desk (with
+writing prompts), and, with the site installed on his phone, share a line or
+a link from another app onto tonight's desk. A scheduled article hunt is a
+later session.
 
 ## Running it
 
@@ -45,8 +50,8 @@ the environment variables, and how the app talks to the spine.
 ## Layout
 
 - `server.js` — one plain Node server: the passphrase gate, the JSON routes, static files.
-- `lib/` — database, auth, rate limit, article extraction, the word card (OpenRouter), the spine client, the category list, the demand, the ask surface and its reference list, the lesson sheet, the lesson guide and its rule checks (`guide-checks.js`), the desk and a card's layers (`desk.js`), and the two web-search calls that grow a card (`grow.js`).
-- `public/` — the pages: `index.html` (articles + add form), `read.html?id=…` (the reader), `phone.html` (the demand and quick lookup), `sheet.html` (the print sheet; `?lesson=` for a lesson's guide), `lesson.html?id=…` (a lesson from Guy and its study guide), `cards.html?lesson=…` (its flashcards), `login.html`; `card-ui.js` is the card shared by the reader, the lesson page and the phone page, `guide-ui.js` the study guide shared by the lesson page and its print sheet; `desk.html` the desk, with `grow-ui.js` for a card's layers.
+- `lib/` — database, auth, rate limit, article extraction, the word card (OpenRouter), the spine client, the category list, the demand, the ask surface and its reference list, the lesson sheet, the lesson guide and its rule checks (`guide-checks.js`), the desk and a card's layers (`desk.js`), the two web-search calls that grow a card (`grow.js`), the sheet's writing prompts (`sheet.js`), and a caught link's title (`catch.js`).
+- `public/` — the pages: `index.html` (articles + add form), `read.html?id=…` (the reader), `phone.html` (the demand and quick lookup), `sheet.html` (the print sheet; `?lesson=` for a lesson's guide), `lesson.html?id=…` (a lesson from Guy and its study guide), `cards.html?lesson=…` (its flashcards), `login.html`; `card-ui.js` is the card shared by the reader, the lesson page and the phone page, `guide-ui.js` the study guide shared by the lesson page and its print sheet; `desk.html` the desk, with `grow-ui.js` for a card's layers and `ink-ui.js` for drawing; `desk-sheet.html` the sheet for the reMarkable; `manifest.webmanifest`, `sw.js` and `install.js` make the site installable with a share target.
 - `scripts/import-lessons.js` — bulk import of Guy's PDFs from a folder into the site (see `PLAN.md`).
 - `scripts/` — local checks: smoke test, screenshots, mock servers for OpenRouter and the spine; sample lesson PDFs in `scripts/fixtures/`, made by `make-fixtures.mjs`.
 - `docs/` — screenshots and session reports.
