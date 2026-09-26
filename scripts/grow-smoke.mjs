@@ -67,6 +67,20 @@ try {
   const W = `word:${cardId}`;
   check('setup: a lesson and the word card להמר looked up in it', looked.status === 200 && Boolean(lesson.id), JSON.stringify(looked.body).slice(0, 200));
 
+  // a card cached before cards kept their sentence gets it when opened again,
+  // and keeps the time it was built (Find's time chips and thread order read it)
+  {
+    const Dw0 = new Database(join(dataDir, 'reader.db'));
+    Dw0.prepare("UPDATE cards SET sentence = NULL, built_at = '2025-01-02T00:00:00.000Z' WHERE id = ?").run(cardId);
+    Dw0.close();
+    await api('POST', '/lookup', { surface: 'להמר', sentence, lesson_id: lesson.id });
+    const r0 = peek('SELECT sentence, built_at FROM cards WHERE id = ?', cardId)[0];
+    check('an old card opened again gets its sentence and keeps the time it was built', r0.sentence === sentence && r0.built_at === '2025-01-02T00:00:00.000Z', JSON.stringify(r0));
+    const Dw1 = new Database(join(dataDir, 'reader.db'));
+    Dw1.prepare('UPDATE cards SET built_at = ? WHERE id = ?').run(new Date().toISOString(), cardId);
+    Dw1.close();
+  }
+
   // --- step 1: layers in the database --------------------------------------------------
   let full = await api('GET', `/card/${W}`);
   check('a card with no layers says so plainly: "No layers yet", state no data',
@@ -125,6 +139,7 @@ try {
   check('Find more examples: five mocked results with one refused (no url) -> four layers, not yet kept',
     ex.status === 200 && ex.body.added.length === 4 && ex.body.refused.length === 1 && ex.body.refused[0].why === 'no source link' && ex.body.added.every((l) => l.kept === false), JSON.stringify(ex.body).slice(0, 400));
   const exAsk = (await calls()).search_asks.find((x) => x.kind === 'examples');
+  check('Find more examples tells the search which forms of the word the app will accept', exAsk && exAsk.forms === 'הימר, להמר', JSON.stringify(exAsk && exAsk.forms));
   check('Find more examples: the web search with no domain list, max_uses 3, max_total_results 15', exAsk && !exAsk.parameters.allowed_domains && exAsk.parameters.max_uses === 3 && exAsk.parameters.max_total_results === 15, JSON.stringify(exAsk));
   const added = ex.body.added;
   check('false-rejection: an example with the word after a prefix ו (והימר) or ש (שלהמר) is accepted',

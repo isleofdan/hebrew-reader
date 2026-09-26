@@ -57,18 +57,24 @@
 
   function show(box, key, opts) {
     const api = opts.api;
+    const seq = String(Number(box.dataset.growSeq || 0) + 1);
+    box.dataset.growSeq = seq;
+    const current = () => box.dataset.growSeq === seq;
     const state = { key, view: null, cutting: false, asking: false, noting: null, othersOpen: false, msg: '', bad: false, busy: '' };
 
     async function reload() {
+      if (!current()) return;
       try { state.view = await api('GET', `/card/${key}`); }
       catch (e) { state.msg = `This card could not be opened: ${e.message}`; state.bad = true; }
       draw();
     }
 
-    function say(text, bad = false) { state.msg = text; state.bad = bad; const m = box.querySelector('.grow-msg'); if (m) { m.textContent = text; m.classList.toggle('bad', bad); } }
+    function say(text, bad = false) { if (!current()) return; state.msg = text; state.bad = bad; const m = box.querySelector('.grow-msg'); if (m) { m.textContent = text; m.classList.toggle('bad', bad); } }
 
+    // one action at a time: a second press while one runs does nothing
     async function act(fn, busy) {
-      state.busy = busy || ''; draw();
+      if (state.busy) return;
+      state.busy = busy || 'working'; draw();
       try { await fn(); } catch (e) { say(e.message, true); }
       state.busy = ''; draw();
     }
@@ -103,7 +109,7 @@
         ta.placeholder = 'Type here — עברית or English';
         let timer = null;
         const save = async () => { clearTimeout(timer); timer = null; try { await api('PATCH', `/notes/${l.key.split(':')[1]}`, { text: ta.value }); l.text = ta.value; } catch (e) { say(`Not saved: ${e.message}`, true); } };
-        ta.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(save, 500); });
+        ta.addEventListener('input', () => { l.text = ta.value; clearTimeout(timer); timer = setTimeout(save, 500); });
         ta.addEventListener('blur', () => { if (timer) save(); });
         li.append(ta);
         if (state.noting === l.key) setTimeout(() => ta.focus(), 0);
@@ -112,7 +118,7 @@
       if (l.kind !== 'example' || l.kept) {
         const row = el('div', 'layer-acts');
         row.append(btn('Branch a new card from here', 'linklike', () => branchFrom(l.key)));
-        if (state.cutting) row.append(btn(i === 0 ? 'Cut here (every layer)' : 'Cut here', 'btn small cut-here', () => cutAt(l.key)));
+        if (state.cutting) row.append(btn(state.view.layers[0].key === l.key ? 'Cut here (every layer)' : 'Cut here', 'btn small cut-here', () => cutAt(l.key)));
         li.append(row);
       }
       return li;
@@ -135,6 +141,7 @@
 
     // --- the whole view ------------------------------------------------------------
     function draw() {
+      if (!current()) return;
       box.innerHTML = '';
       box.classList.add('grow');
       const v = state.view;
@@ -190,7 +197,7 @@
         input.value = state.question || '';
         input.addEventListener('input', () => { state.question = input.value; });
         const send = el('button', 'btn primary small', state.busy === 'asking' ? 'Asking…' : 'Send');
-        send.type = 'submit'; send.disabled = state.busy === 'asking';
+        send.type = 'submit'; send.disabled = Boolean(state.busy);
         f.append(input, send);
         f.addEventListener('submit', (e) => {
           e.preventDefault();
@@ -229,7 +236,7 @@
           await reload();
           opts.onChange && opts.onChange();
         }, 'examples'));
-        find.disabled = state.busy === 'examples';
+        find.disabled = Boolean(state.busy);
         acts.append(find);
       }
       box.append(acts);

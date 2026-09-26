@@ -263,6 +263,28 @@ try {
         && /The cut-off layers are on a new card beside להמר\./.test(await page.locator('#desk-msg').innerText()));
     }
 
+    // --- races: a slow answer arriving after another card is opened; a double press ---
+    if (!phone) {
+      await page.route(/\/card\/[a-z]+:\d+\/ask$/, async (route) => { await wait(1500); await route.continue(); });
+      await openCard(W);
+      await g.locator('.grow-acts button', { hasText: 'Ask here' }).click();
+      await g.locator('.ask-input').fill('A slow question?');
+      await g.locator('.ask-here button[type=submit]').click();
+      await page.locator('#full-card .close').click();
+      await openCard(S);
+      await page.waitForTimeout(2500);
+      check('desktop: an answer that arrives after another card was opened never draws into that card', (await g.locator('.layers-line').innerText()) === 'No layers yet' && (await g.locator('.layer.answer').count()) === 0
+        && (await api('GET', `/card/${W}`)).body.layers.some((l) => l.kind === 'answer' && l.question === 'A slow question?'));
+      await page.unroute(/\/card\/[a-z]+:\d+\/ask$/);
+      await page.locator('#full-card .close').click();
+      await openCard(W);
+      const n0 = (await api('GET', `/card/${W}`)).body.layers.length;
+      await g.locator('.grow-acts button', { hasText: 'Note here' }).dblclick();
+      await page.waitForTimeout(800);
+      check('desktop: "Note here" pressed twice at once makes one note', (await api('GET', `/card/${W}`)).body.layers.length === n0 + 1);
+      await page.locator('#full-card .close').click();
+    }
+
     // --- Find: threads, the chips ------------------------------------------------------
     await page.fill('#find', 'המר');
     await page.locator('#results-threads .result-thread').first().waitFor({ timeout: 5000 });

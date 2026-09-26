@@ -876,7 +876,16 @@ holds a card, never the desk open now; tapping it opens it. "Note on a new
 card" left the full view (the card's own "Branch a new card from here" does
 the same); it stays on the desk card itself.
 
-**Checks.** 318 server (254 + 64 in `scripts/grow-smoke.mjs`), 322 page (276 +
-46 in `scripts/grow-pages.mjs`). One session-twelve page check waited for
+**Checks.** 320 server (254 + 66 in `scripts/grow-smoke.mjs`), 324 page (276 +
+48 in `scripts/grow-pages.mjs`). One session-twelve page check waited for
 "On the desk" with a case-blind match and so read "putting it on the desk…"
 too early; it now waits for the finished line.
+
+**After review (same session).** An old card given its sentence on a later
+open no longer has its built time reset (`db.setCardSentence`, not `putCard`);
+the example search is told the forms the app accepts (`desk.formsOf`), since
+the gate knows only the lemma, the surfaces met, and one prefix — a new
+conjugation (הם מהמרים) is still refused; the card view ignores a reply that
+arrives after another card was opened, runs one action at a time, keeps a note
+as typed before it is saved, and labels "Cut here (every layer)" by the
+server's own order.

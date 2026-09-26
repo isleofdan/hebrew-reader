@@ -153,7 +153,7 @@ const searchAsks = [];
 function webSearch(res, body, user) {
   searchCalls++;
   const tool = body.tools[0];
-  searchAsks.push({ tool: tool.type, parameters: tool.parameters || {}, response_format: body.response_format || null, max_tokens: body.max_tokens, kind: user.startsWith('The card:') ? 'ask' : 'examples', has_entry: /Root: /.test(user), has_layers: /What the reader has added/.test(user) });
+  searchAsks.push({ tool: tool.type, parameters: tool.parameters || {}, response_format: body.response_format || null, max_tokens: body.max_tokens, kind: user.startsWith('The card:') ? 'ask' : 'examples', has_entry: /Root: /.test(user), has_layers: /What the reader has added/.test(user), forms: (/Forms to look for: (.*)/.exec(user) || [])[1] || null });
   let content, cites = [];
   const cite = (url, title) => ({ type: 'url_citation', url_citation: { url, title, content: `from ${title}`, start_index: 0, end_index: 10 } });
   if (user.startsWith('The card:')) {
