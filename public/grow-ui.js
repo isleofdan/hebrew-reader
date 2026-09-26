@@ -220,7 +220,7 @@
       })));
       if (isWord) {
         const find = btn(state.busy === 'examples' ? 'Finding examples…' : 'Find more examples', 'btn small', () => act(async () => {
-          say('Searching Hebrew sites for examples… this can take up to a minute and a half.');
+          say('Searching Hebrew sites for examples… this can take up to a minute.');
           const out = await api('POST', `/card/${key}/examples`);
           const refused = out.refused.length ? ` Left out ${out.refused.length}: ${[...new Set(out.refused.map((r) => r.why))].join('; ')}.` : '';
           say(out.added.length ? `Found ${out.added.length} new example${out.added.length === 1 ? '' : 's'}; keep the ones you want.${refused}`
