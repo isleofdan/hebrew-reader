@@ -33,6 +33,7 @@ for (const id of ['card-demand', 'card-also', 'card-lookup']) {
       cur.card = data.card; cur.spot = data.spot;
       return data;
     },
+    onPut: () => api('POST', '/desks/put', { surface: slot.current.card.surface, sentence: slot.current.sentence || '' }),
   });
   slots[id] = slot;
 }

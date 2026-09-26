@@ -67,10 +67,12 @@ try {
     page.on('pageerror', (e) => { console.log('page error:', e.message); failed++; });
     page.jargon = [];
     const shoot = page.screenshot.bind(page);
-    // every shot is read for the words Dan called jargon, and the ones the brief names
+    // every shot is read for the words Dan called jargon, and the ones the brief
+    // names; kept, as in the other checks: "Root radiation map", an exercise in
+    // his own lesson instructions
     page.screenshot = async (opts) => {
       const visible = await page.evaluate(() => document.body.innerText).catch(() => '');
-      const hits = visible.match(/\b(maps?|mapped|met|touch(es|ed)?|spots?)\b/gi);
+      const hits = visible.replace(/Root radiation map/gi, '').match(/\b(maps?|mapped|met|touch(es|ed)?|spots?)\b/gi);
       if (hits) page.jargon.push(`${opts.path.split('/').pop()}: ${[...new Set(hits)].join(', ')}`);
       return shoot(opts);
     };
@@ -232,6 +234,80 @@ try {
     // back to the first desk for the next steps
     await api('POST', `/desks/${firstDesk.id}/open`);
     check('desktop: no screen of the desk shows "map", "met", "touch" or "spot"', page.jargon.length === 0, page.jargon.join('; '));
+    await ctx.close();
+  }
+
+  // --- step 3: "Put on the desk" from the reader, the phone page and a lesson -------
+  const sample = readFileSync(join(here, 'sample-article.txt'), 'utf8');
+  const article = (await api('POST', '/articles', { text: sample })).body;
+  const form = new FormData();
+  form.append('file', new Blob([readFileSync(join(here, 'fixtures', 'Daniel HEB 15jun26.pdf'))], { type: 'application/pdf' }), 'Daniel HEB 15jun26.pdf');
+  const lesson = await (await fetch(`${base}/lessons`, { method: 'POST', headers: { cookie }, body: form })).json();
+  for (const [name, viewport, isMobile] of [['desktop', { width: 1280, height: 800 }, false], ['phone', { width: 412, height: 915 }, true]]) {
+    const { ctx, page } = await context(viewport, isMobile, 'light');
+    const onDesk = async () => (await api('GET', '/desks/current')).body.cards.length;
+    const cardEl = page.locator(isMobile ? '#card-phone' : '#card-desktop');
+    const tap = async (loc) => { await loc.scrollIntoViewIfNeeded(); if (isMobile) await loc.tap(); else await loc.click(); };
+
+    // the reader
+    const word = name === 'desktop' ? 'שנאלצה' : 'מקדם';
+    await page.goto(`${base}/read.html?id=${article.id}`);
+    await tap(page.locator(`.w[data-surface="${word}"]`).first());
+    await cardEl.locator('.meaning:not(:empty)').waitFor({ timeout: 10000 });
+    let n0 = await onDesk();
+    await tap(cardEl.locator('[data-act=desk]'));
+    await cardEl.locator('.foot', { hasText: 'On the desk' }).waitFor({ timeout: 5000 });
+    const n1 = await onDesk();
+    const deskName = (await api('GET', '/desks/current')).body.desk.name;
+    check(`${name}: "Put on the desk" on the reader's card puts it on the current desk and says so quietly, with a way to the desk`,
+      n1 === n0 + 1 && (await cardEl.locator('.foot').innerText()).startsWith(`On the desk “${deskName}”.`) && (await cardEl.locator('.foot a[href="/desk"]').count()) === 1, await cardEl.locator('.foot').innerText());
+    for (const theme of ['light', 'dark']) {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.waitForTimeout(150);
+      await page.screenshot({ path: join(out, `desk-put-reader-${theme}-${name}.png`) });
+    }
+    await page.emulateMedia({ colorScheme: 'light' });
+    await tap(cardEl.locator('[data-act=desk]'));
+    await cardEl.locator('.foot', { hasText: 'Already on the desk' }).waitFor({ timeout: 5000 });
+    check(`${name}: putting the same card twice does nothing, and says so quietly`, (await onDesk()) === n1, await cardEl.locator('.foot').innerText());
+
+    // the phone page's quick lookup
+    const looked = name === 'desktop' ? 'שביתה' : 'נלחם';
+    await page.goto(`${base}/phone`);
+    await page.fill('#lookup', looked);
+    await page.click('#lookup-go');
+    const lc = page.locator('#card-lookup');
+    await lc.locator('.meaning:not(:empty)').waitFor({ timeout: 10000 });
+    n0 = await onDesk();
+    await tap(lc.locator('[data-act=desk]'));
+    await lc.locator('.foot', { hasText: 'On the desk' }).waitFor({ timeout: 5000 });
+    const cur = (await api('GET', '/desks/current')).body;
+    check(`${name}: "Put on the desk" on the phone page's quick lookup puts that card on the desk`, (await onDesk()) === n0 + 1 && cur.cards.some((c) => c.kind === 'word' && c.card.surface === looked));
+    await lc.scrollIntoViewIfNeeded();
+    for (const theme of ['light', 'dark']) {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.waitForTimeout(150);
+      await page.screenshot({ path: join(out, `desk-put-phone-${theme}-${name}.png`) });
+    }
+    await page.emulateMedia({ colorScheme: 'light' });
+
+    // a word in a lesson's word list
+    const lw = name === 'desktop' ? 'נחתם' : 'יו״ש';
+    await page.goto(`${base}/lesson.html?id=${lesson.id}`);
+    await page.waitForSelector('#items .w');
+    await tap(page.locator('#items .w', { hasText: lw }).first());
+    await cardEl.locator('.meaning:not(:empty)').waitFor({ timeout: 10000 });
+    n0 = await onDesk();
+    await tap(cardEl.locator('[data-act=desk]'));
+    await cardEl.locator('.foot', { hasText: 'On the desk' }).waitFor({ timeout: 5000 });
+    const cur2 = (await api('GET', '/desks/current')).body;
+    check(`${name}: "Put on the desk" on a lesson word's card puts that card on the desk`, (await onDesk()) === n0 + 1 && cur2.cards.some((c) => c.kind === 'word' && c.card.surface === lw));
+    for (const theme of ['light', 'dark']) {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.waitForTimeout(150);
+      await page.screenshot({ path: join(out, `desk-put-lesson-${theme}-${name}.png`) });
+    }
+    check(`${name}: no screen here shows "map", "met", "touch" or "spot"`, page.jargon.length === 0, page.jargon.join('; '));
     await ctx.close();
   }
 

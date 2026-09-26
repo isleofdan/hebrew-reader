@@ -72,6 +72,8 @@ button { font: inherit; cursor: pointer; }
 .topbar nav a { padding: 8px 14px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 15px; }
 .topbar nav a.active { background: var(--accent-soft); color: var(--accent-dark); font-weight: 600; }
 .topbar .spacer { flex-grow: 1; }
+/* Find, from the reader's top strip: it opens the desk with the word found */
+.topbar .topfind input { height: 36px; width: 11em; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; font: inherit; font-size: 14px; background: var(--field); color: var(--text); }
 .legend { display: flex; gap: 14px; align-items: center; font-size: 13px; color: var(--muted); flex-wrap: wrap; padding: 8px 0; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }

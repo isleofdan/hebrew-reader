@@ -65,8 +65,11 @@
     return data;
   }
 
+  // the card on screen onto the desk (session twelve)
+  const put = () => window.Reader.api('POST', '/desks/put', { surface: current.surface, sentence: current.sentence });
+
   for (const card of cards) {
-    UI.wire(card, { onStatus: setStatus, getCurrent: () => current, onClose: () => { card.classList.add('idle'); seq++; }, onSetVerb: setVerb });
+    UI.wire(card, { onStatus: setStatus, getCurrent: () => current, onClose: () => { card.classList.add('idle'); seq++; }, onSetVerb: setVerb, onPut: put });
   }
 
   window.showCard = showCard;
