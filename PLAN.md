@@ -962,6 +962,19 @@ bare link. Voice: the phone keyboard's microphone types into "New card".
 {count, last, line}`; `GET /card/:key` answers `ink`, `linked` and
 `footer.sheets`.
 
-**Checks.** 391 server (320 + 71 in `scripts/paper-smoke.mjs`), 374 page
-(324 + 50 in `scripts/paper-pages.mjs`). Twelve's count check reads past the
+**After review (same session).** A `/share` reached from a link on another
+website (`Sec-Fetch-Site` cross-site or same-site) goes to `/share/confirm`,
+which shows the share and saves it only on a tap; the share sheet's own
+arrives as `none` and saves at once. Signed out, `/share` goes to
+`/login?next=…` and sign-in returns there (only `/share…` is accepted as a
+return address). The title fetch (`lib/catch.js`) checks every hop and
+refuses loopback, private, link-local and Fly-internal (`fdaa::`) addresses
+(`CATCH_ALLOW_PRIVATE=1` only for the local checks). A note's link is compared
+as an address (`desk.linksIn`), so Hebrew or a bare domain keeps its title and
+is not written twice. Undoing the last stroke of ink a card was branched from
+keeps the empty ink layer. Strokes and undos reach the server in the order
+drawn.
+
+**Checks.** 401 server (320 + 81 in `scripts/paper-smoke.mjs`), 375 page
+(324 + 51 in `scripts/paper-pages.mjs`). Twelve's count check reads past the
 new "·" separator; thirteen's action-row check skips "Draw here".
