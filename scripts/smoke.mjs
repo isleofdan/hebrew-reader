@@ -1539,6 +1539,56 @@ try {
     }
   }
 
+  // the one-time re-make of שוטטות (session twelve, step 6a): the 26 Jan
+  // lesson's card labeled a verb, as it is live; beside it לשוטט, confirmed
+  {
+    const Database = createRequire(import.meta.url)(join(root, 'node_modules', 'better-sqlite3'));
+    const { createHash } = await import('node:crypto');
+    const mDir = mkdtempSync(join(tmpdir(), 'hr-remake-'));
+    const env = { DATA_DIR: mDir, APP_PASSWORD: PASS, COOKIE_SECRET: 'm'.repeat(64), COOKIE_INSECURE: '1',
+      OPENROUTER_API_KEY: 'test-key', OPENROUTER_URL: `http://127.0.0.1:${OR_PORT}/v1/chat/completions`,
+      SPINE_TOKEN: 'test-spine-token', SPINE_URL: `http://127.0.0.1:${SPINE_PORT}` };
+    const run = async (re) => { const k = start('node', ['server.js'], { ...env, PORT: '8799' }); await up('http://127.0.0.1:8799/health'); for (let i = 0; i < 60 && !re.test(k.log); i++) await wait(100); k.kill(); await wait(300); return k.log; };
+    await run(/one-time step done: make the 26 Jan/);
+    const at = '2026-09-24T01:00:00.000Z';
+    const hash = (w) => createHash('sha256').update(`${w}\n${w}`).digest('hex');
+    const verbCard = { surface: 'שוטטות', lemma: 'שוטטות', pos: 'verb', root: 'ש.ו.ט', binyan: 'piel', tense: null, person_gender_number: null, meaning_en: 'wandering', governs: null, categories: [], note: null, pointed: { lemma: null, surface: null } };
+    const confirmedCard = { surface: 'לשוטט', lemma: 'שוטט', pos: 'verb', root: 'ש.ו.ט', binyan: 'polel', tense: 'infinitive', person_gender_number: null, meaning_en: 'to wander', governs: null, categories: [], note: null, confirmed: { on: '2026-09-25', root: 'ש.ו.ט', binyan: 'polel' } };
+    const seed = (card) => {
+      const d = new Database(join(mDir, 'reader.db'));
+      d.prepare("DELETE FROM steps WHERE name LIKE 'make the 26 Jan%'").run();
+      d.prepare('DELETE FROM cards').run(); d.prepare('DELETE FROM touches').run(); d.prepare('DELETE FROM spots').run(); d.prepare('DELETE FROM lessons').run();
+      d.prepare('INSERT INTO lessons (title, lesson_date, source_name, text, items_json, added_at) VALUES (?, ?, ?, ?, ?, ?)').run('שיעור עם גיא — 26.1.2026', '2026-01-26', 'Daniel Guy 26jan26.pdf', 'שוטטות\nלשוטט', JSON.stringify(['שוטטות', 'לשוטט']), at);
+      d.prepare("INSERT INTO spots (id, kind, root, binyan, lemma, status, categories_json, updated_at, on_spine) VALUES ('v:ש.ו.ט:piel', 'verb', 'ש.ו.ט', 'piel', 'שוטטות', 'shaky', '[]', ?, 1)").run(at);
+      d.prepare("INSERT INTO spots (id, kind, root, binyan, lemma, status, categories_json, updated_at, on_spine) VALUES ('v:ש.ו.ט:polel', 'verb', 'ש.ו.ט', 'polel', 'שוטט', 'shaky', '[]', ?, 1)").run(at);
+      const put = d.prepare('INSERT INTO cards (surface, context_hash, spot_id, json, built_at, sentence) VALUES (?, ?, ?, ?, ?, ?)');
+      put.run('שוטטות', hash('שוטטות'), 'v:ש.ו.ט:piel', JSON.stringify(card), at, 'שוטטות');
+      put.run('לשוטט', hash('לשוטט'), 'v:ש.ו.ט:polel', JSON.stringify(confirmedCard), at, 'לשוטט');
+      d.close();
+    };
+    const rows = () => { const x = new Database(join(mDir, 'reader.db'), { readonly: true }); const cs = x.prepare('SELECT id, surface, spot_id, json FROM cards ORDER BY id').all(); const st = x.prepare("SELECT * FROM steps WHERE name LIKE 'make the 26 Jan%'").all(); const sp = x.prepare('SELECT id, status FROM spots ORDER BY id').all(); x.close(); return { cs, st, sp }; };
+    seed(verbCard);
+    const before = rows();
+    const log1 = await run(/one-time step done: make the 26 Jan/);
+    const after = rows();
+    const sh = after.cs.find((c) => c.surface === 'שוטטות'), shCard = JSON.parse(sh.json);
+    check('the one-time step makes the 26 Jan card שוטטות again as a noun: same card (a desk still holds it), its spot follows as a word, status kept; logs and records the count, 1',
+      shCard.pos === 'noun' && shCard.binyan === null && shCard.remade && shCard.remade.before.pos === 'verb' && sh.id === before.cs.find((c) => c.surface === 'שוטטות').id
+      && sh.spot_id === 'w:שוטטות' && after.sp.find((x) => x.id === 'w:שוטטות').status === 'shaky'
+      && /card שוטטות made again: verb \(piel\) -> noun/.test(log1) && /one-time step done: make the 26 Jan .*: 1 card made again/.test(log1)
+      && after.st.length === 1 && JSON.parse(after.st[0].result_json).touched === 1, JSON.stringify({ shCard, spot: sh.spot_id, log: log1.split('\n').filter((l) => /26 Jan|שוטטות/.test(l)) }));
+    check('the re-make leaves the confirmed card לשוטט as Dan set it', after.cs.find((c) => c.surface === 'לשוטט').json === before.cs.find((c) => c.surface === 'לשוטט').json);
+    const log2 = await run(/already run on .*: make the 26 Jan/);
+    check('the re-make never runs twice: the next start says it already ran and changes nothing',
+      /one-time step already run on .*: make the 26 Jan/.test(log2) && !/one-time step done: make the 26 Jan/.test(log2) && JSON.stringify(rows().cs) === JSON.stringify(after.cs));
+    seed({ ...verbCard, confirmed: { on: '2026-09-25', root: 'ש.ו.ט', binyan: 'piel' } });
+    const held = rows();
+    const log3 = await run(/one-time step done: make the 26 Jan/);
+    check('a שוטטות card Dan confirmed is left as he set it: 0 cards made again',
+      JSON.stringify(rows().cs) === JSON.stringify(held.cs) && /card שוטטות confirmed by Dan, left as it is/.test(log3) && /: 0 cards made again/.test(log3), log3.split('\n').filter((l) => /26 Jan|שוטטות/.test(l)).join(' | '));
+    rmSync(mDir, { recursive: true, force: true });
+  }
+
   // 6. fail closed
   const closed = start('node', ['server.js'], { PORT: '8794', DATA_DIR: dataDir, COOKIE_INSECURE: '1' });
   await up('http://127.0.0.1:8794/health');
