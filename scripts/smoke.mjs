@@ -1468,7 +1468,7 @@ try {
     check('a size past the limits is held to them (140×90 to 900×900)', mv.body.place.w === 140 && mv.body.place.h === 900, JSON.stringify(mv.body.place));
     mv = await api('PATCH', `/desks/${deskId}/cards/${wordKey}`, { x: 'left' });
     check('a place that is not a number is refused and says why', mv.status === 400 && /x must be a number/.test(mv.body.error), mv.body.error);
-    await api('PATCH', `/desks/${deskId}/cards/${wordKey}`, { w: 260, h: 176 });
+    await api('PATCH', `/desks/${deskId}/cards/${wordKey}`, { w: 260, h: 196 });
     const note = await api('POST', '/notes', { text: 'על מה מהמרים? bet on', desk_id: deskId, born_from: wordKey });
     d = await api('GET', `/desks/${deskId}`);
     const nk = note.body.card && note.body.card.key;

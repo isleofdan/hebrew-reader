@@ -1,0 +1,680 @@
+'use strict';
+// The desk: word cards and note cards laid out freely, moved, resized,
+// grouped by placing them near each other; found again one card at a time
+// or a whole desk as it was left. Every change is sent to the server as it
+// happens (there is no Save button); this page keeps no copy of its own.
+// At phone width the desk is a list, grouped by which card grew from which.
+
+const $ = (s) => document.querySelector(s);
+const UI = window.CardUI;
+const LIST = window.matchMedia('(max-width: 699px)');
+const MIN_W = 140, MIN_H = 90;
+
+let desk = null;              // { id, name, ... }
+let cards = new Map();        // key -> { data (as the server gave it), el }
+let links = [];               // [{ child, parent }]
+let topZ = 0;
+
+async function api(method, path, body) {
+  const res = await fetch(path, {
+    method,
+    headers: { 'accept': 'application/json', ...(body ? { 'content-type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 401) { location.href = '/login'; throw new Error('signed out'); }
+  const data = await res.json().catch(() => ({ error: `The server answered ${res.status}.` }));
+  if (!res.ok) throw Object.assign(new Error(data.error || `The server answered ${res.status}.`), { status: res.status });
+  return data;
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined && text !== null) e.textContent = text;
+  return e;
+}
+function he(text, cls) { const s = el('span', cls ? `he ${cls}` : 'he', text); s.dir = 'rtl'; return s; }
+
+// A quiet line under the strip: what did not save, or a put that did nothing.
+let msgTimer = null;
+function say(text, bad = false) {
+  const m = $('#desk-msg');
+  m.textContent = text || '';
+  m.classList.toggle('bad', bad);
+  clearTimeout(msgTimer);
+  if (text && !bad) msgTimer = setTimeout(() => { m.textContent = ''; }, 5000);
+}
+const notSaved = (e) => say(`Not saved: ${e.message}`, true);
+
+// --- what a card shows ----------------------------------------------------------
+
+const bare = (s) => String(s || '').replace(/[֑-ׇ]/g, '');
+
+// A word card as the reader draws it, small: the pointed headword with the
+// plain spelling beside it, the word as it stands in the text, root · binyan
+// · meaning, and how it stands ("shaky · seen 4 times").
+function wordFace(box, c) {
+  box.innerHTML = '';
+  const k = c.card;
+  const word = k.lemma || k.surface;
+  const pointed = k.pointed ? (k.lemma ? k.pointed.lemma : k.pointed.surface) : null;
+  const head = el('div', 'dhead');
+  head.append(he(pointed || word, 'pointed'));
+  if (pointed) head.append(he(word, 'plain'));
+  box.append(head);
+  if (k.lemma && bare(k.lemma) !== bare(k.surface)) {
+    const t = el('div', 'dintext', 'in the text ');
+    t.append(he((k.pointed && k.pointed.surface) || k.surface, 'pointed'));
+    box.append(t);
+  }
+  const line = el('div', 'dline');
+  const bits = [];
+  if (k.root) bits.push(he(k.root));
+  if (k.binyan) bits.push(document.createTextNode(UI.BINYAN[k.binyan] || k.binyan));
+  else if (k.pos) bits.push(document.createTextNode(k.pos));
+  if (k.meaning_en) bits.push(document.createTextNode(k.meaning_en));
+  bits.forEach((b, i) => { if (i) line.append(document.createTextNode(' · ')); line.append(b); });
+  box.append(line);
+  const st = el('div', 'dstatus');
+  if (c.spot) {
+    st.append(el('i', `dot ${c.spot.status}`));
+    st.append(document.createTextNode(`${UI.STATUS_TEXT[c.spot.status] || c.spot.status} · ${UI.seen(c.spot.touches)}`));
+  }
+  box.append(st);
+}
+
+function noteFace(box, c) {
+  box.innerHTML = '';
+  const t = el('div', 'dnote-text', c.text || 'An empty note');
+  t.dir = 'auto';
+  if (!c.text) t.classList.add('empty-note');
+  box.append(t);
+}
+
+function face(box, c) { return c.kind === 'word' ? wordFace(box, c) : noteFace(box, c); }
+
+// The name a card goes by in a line: the word as met, or the note's start.
+function label(c) {
+  if (c.kind === 'word') return c.card.surface || c.card.lemma;
+  const t = (c.text || '').replace(/\s+/g, ' ').trim();
+  return t.length > 30 ? t.slice(0, 29) + '…' : t || 'an empty note';
+}
+
+// --- drawing the desk -------------------------------------------------------------
+
+function count(n) { return n === 0 ? 'no cards' : n === 1 ? '1 card' : `${n} cards`; }
+
+function drawStrip() {
+  const name = $('#desk-name');
+  if (document.activeElement !== name) name.value = desk.name;
+  $('#desk-count').textContent = count(cards.size);
+  document.title = `${desk.name} — Desk`;
+  $('#empty').classList.toggle('hidden', cards.size > 0);
+}
+
+function load(view) {
+  desk = view.desk;
+  links = view.links || [];
+  cards = new Map();
+  topZ = 0;
+  for (const c of view.cards) {
+    cards.set(c.key, { data: c, el: null });
+    topZ = Math.max(topZ, c.place.z || 0);
+  }
+  draw();
+  fillPoints();
+}
+
+function draw() {
+  drawStrip();
+  const plane = $('#plane');
+  for (const n of [...plane.querySelectorAll('.dcard')]) n.remove();
+  $('#list').innerHTML = '';
+  if (LIST.matches) return drawList();
+  for (const entry of cards.values()) {
+    entry.el = deskCard(entry.data);
+    plane.append(entry.el);
+  }
+  placeUnplaced();
+  sizePlane();
+  drawLines();
+}
+
+function position(entry) {
+  const p = entry.data.place, e = entry.el;
+  e.style.left = `${p.x || 0}px`; e.style.top = `${p.y || 0}px`;
+  e.style.width = `${p.w}px`; e.style.height = `${p.h}px`;
+  e.style.zIndex = String(10 + (p.z || 0));
+  e.classList.toggle('unplaced', p.x === null || p.y === null);
+}
+
+function deskCard(c) {
+  const card = el('article', `dcard ${c.kind}`);
+  card.dataset.key = c.key;
+  const body = el('div', 'dface');
+  if (c.kind === 'note') {
+    card.append(el('div', 'dnote-bar', 'note'));
+    const ta = el('textarea', 'dnote-edit');
+    ta.dir = 'auto';
+    ta.value = c.text || '';
+    ta.placeholder = 'Type here — עברית or English';
+    ta.setAttribute('aria-label', 'Note card text');
+    ta.addEventListener('input', () => saveNoteSoon(c, ta.value));
+    ta.addEventListener('blur', () => flushNote(c));
+    body.append(ta);
+  } else {
+    wordFace(body, c);
+  }
+  card.append(body);
+  const acts = el('div', 'dacts');
+  const act = (text, fn) => { const b = el('button', 'linklike', text); b.type = 'button'; b.addEventListener('click', (e) => { e.stopPropagation(); fn(); }); acts.append(b); return b; };
+  if (c.kind === 'word') act('open', () => openFull(c.key));
+  act('note on a new card', () => noteFrom(c.key));
+  act('remove from the desk', () => removeCard(c.key));
+  card.append(acts);
+  const grip = el('span', 'grip');
+  grip.setAttribute('aria-hidden', 'true');
+  card.append(grip);
+  wireDrag(card, c.key);
+  wireResize(grip, c.key);
+  const entry = cards.get(c.key);
+  entry.el = card;
+  position(entry);
+  return card;
+}
+
+// The plane is as large as the cards on it need, and never smaller than the view.
+function sizePlane() {
+  const s = $('#surface'), plane = $('#plane');
+  let w = s.clientWidth, h = s.clientHeight;
+  for (const { data: { place: p } } of cards.values()) {
+    if (p.x === null) continue;
+    w = Math.max(w, p.x + p.w + 120);
+    h = Math.max(h, p.y + p.h + 160);
+  }
+  plane.style.width = `${w}px`; plane.style.height = `${h}px`;
+  const svg = $('#lines');
+  svg.setAttribute('width', w); svg.setAttribute('height', h);
+}
+
+// Thin grey lines join a card to the cards made from it, behind the cards.
+function drawLines() {
+  const svg = $('#lines');
+  svg.innerHTML = '';
+  for (const l of links) {
+    const a = cards.get(l.parent), b = cards.get(l.child);
+    if (!a || !b || a.data.place.x === null || b.data.place.x === null) continue;
+    const pa = a.data.place, pb = b.data.place;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', pa.x + pa.w / 2); line.setAttribute('y1', pa.y + pa.h / 2);
+    line.setAttribute('x2', pb.x + pb.w / 2); line.setAttribute('y2', pb.y + pb.h / 2);
+    line.dataset.child = l.child; line.dataset.parent = l.parent;
+    svg.append(line);
+  }
+}
+
+// A card typed on the phone is on the desk but not yet placed: here it
+// takes the next free spot, which is saved.
+async function placeUnplaced() {
+  for (const entry of cards.values()) {
+    if (entry.data.place.x !== null) continue;
+    try {
+      const got = await api('PATCH', `/desks/${desk.id}/cards/${entry.data.key}`, { free: true });
+      entry.data.place = got.place;
+      if (entry.el) position(entry);
+    } catch (e) { notSaved(e); }
+  }
+  sizePlane();
+  drawLines();
+}
+
+// --- moving, resizing, the stack ------------------------------------------------------
+
+async function patch(key, body) {
+  const entry = cards.get(key);
+  try {
+    const got = await api('PATCH', `/desks/${desk.id}/cards/${key}`, body);
+    if (entry) { entry.data.place = got.place; topZ = Math.max(topZ, got.place.z); }
+  } catch (e) { notSaved(e); }
+}
+
+// Clicked or picked up: the card comes to the front, and that is saved.
+function toFront(key) {
+  const entry = cards.get(key);
+  if (!entry || entry.data.place.z >= topZ && [...cards.values()].filter((x) => x.data.place.z === topZ).length === 1) return;
+  topZ += 1;
+  entry.data.place.z = topZ;
+  position(entry);
+  patch(key, { front: true });
+}
+
+function wireDrag(card, key) {
+  card.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || e.target.closest('button, textarea, input, a, .grip')) return;
+    const entry = cards.get(key);
+    toFront(key);
+    const start = { x: e.clientX, y: e.clientY, px: entry.data.place.x, py: entry.data.place.y };
+    let moved = false;
+    card.setPointerCapture(e.pointerId);
+    card.classList.add('lifted');
+    const onMove = (ev) => {
+      const dx = ev.clientX - start.x, dy = ev.clientY - start.y;
+      if (!moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+      moved = true;
+      entry.data.place.x = Math.max(0, Math.round(start.px + dx));
+      entry.data.place.y = Math.max(0, Math.round(start.py + dy));
+      position(entry);
+      drawLines();
+    };
+    const onUp = () => {
+      card.removeEventListener('pointermove', onMove);
+      card.removeEventListener('pointerup', onUp);
+      card.removeEventListener('pointercancel', onUp);
+      card.classList.remove('lifted');
+      if (moved) { sizePlane(); patch(key, { x: entry.data.place.x, y: entry.data.place.y }); }
+    };
+    card.addEventListener('pointermove', onMove);
+    card.addEventListener('pointerup', onUp);
+    card.addEventListener('pointercancel', onUp);
+  });
+}
+
+function wireResize(grip, key) {
+  grip.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    const entry = cards.get(key);
+    toFront(key);
+    const start = { x: e.clientX, y: e.clientY, w: entry.data.place.w, h: entry.data.place.h };
+    let moved = false;
+    grip.setPointerCapture(e.pointerId);
+    const onMove = (ev) => {
+      moved = true;
+      entry.data.place.w = Math.max(MIN_W, Math.round(start.w + ev.clientX - start.x));
+      entry.data.place.h = Math.max(MIN_H, Math.round(start.h + ev.clientY - start.y));
+      position(entry);
+      drawLines();
+    };
+    const onUp = () => {
+      grip.removeEventListener('pointermove', onMove);
+      grip.removeEventListener('pointerup', onUp);
+      grip.removeEventListener('pointercancel', onUp);
+      if (moved) { sizePlane(); patch(key, { w: entry.data.place.w, h: entry.data.place.h }); }
+    };
+    grip.addEventListener('pointermove', onMove);
+    grip.addEventListener('pointerup', onUp);
+    grip.addEventListener('pointercancel', onUp);
+  });
+}
+
+// --- note cards -----------------------------------------------------------------
+
+const noteTimers = new Map();
+function saveNoteSoon(c, text) {
+  c.text = text;
+  clearTimeout(noteTimers.get(c.key));
+  noteTimers.set(c.key, setTimeout(() => flushNote(c), 500));
+}
+async function flushNote(c) {
+  if (!noteTimers.has(c.key)) return;
+  clearTimeout(noteTimers.get(c.key));
+  noteTimers.delete(c.key);
+  try { await api('PATCH', `/notes/${c.key.split(':')[1]}`, { text: c.text }); } catch (e) { notSaved(e); }
+}
+
+function focusNote(key) {
+  const entry = cards.get(key);
+  if (!entry) return;
+  if (LIST.matches) return openFull(key);
+  const ta = entry.el && entry.el.querySelector('textarea');
+  if (ta) { entry.el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); ta.focus(); }
+}
+
+function added(out) {
+  const c = { ...out.card, place: out.place };
+  cards.set(c.key, { data: c, el: null });
+  topZ = Math.max(topZ, c.place.z || 0);
+  if (out.born_from) links.push({ child: c.key, parent: out.born_from, kind: 'born-from' });
+  return c;
+}
+
+async function newCard() {
+  try {
+    const out = await api('POST', '/notes', { text: '', desk_id: desk.id, unplaced: LIST.matches });
+    const c = added(out);
+    draw();
+    focusNote(c.key);
+  } catch (e) { notSaved(e); }
+}
+
+// "note on a new card": a note born from this card, beside it, a line between.
+async function noteFrom(key) {
+  try {
+    const out = await api('POST', '/notes', { text: '', desk_id: desk.id, born_from: key, unplaced: LIST.matches && !cards.get(key).data.place.x });
+    const c = added(out);
+    closeFull();
+    draw();
+    focusNote(c.key);
+  } catch (e) { notSaved(e); }
+}
+
+async function removeCard(key) {
+  try {
+    await api('DELETE', `/desks/${desk.id}/cards/${key}`);
+    cards.delete(key);
+    closeFull();
+    draw();
+    say('Removed from the desk. The card itself is kept: Find finds it.');
+  } catch (e) { notSaved(e); }
+}
+
+// --- nikud for a word card cached before cards carried it --------------------------
+
+async function fillPoints() {
+  for (const entry of cards.values()) {
+    const c = entry.data;
+    if (c.kind !== 'word' || !(c.points_missing || c.refresh_due)) continue;
+    try {
+      if (c.refresh_due) c.card = (await api('POST', '/lookup/refresh', { card_id: c.card_id })).card;
+      else c.card.pointed = (await api('POST', '/lookup/points', { card_id: c.card_id })).pointed;
+      delete c.points_missing; delete c.refresh_due;
+      const box = entry.el && entry.el.querySelector('.dface');
+      if (box) wordFace(box, c);
+      else if (LIST.matches) draw();
+    } catch (e) { /* the card stays unpointed; its full view says why */ }
+  }
+}
+
+// --- the phone: a list, grouped by which card grew from which --------------------------
+
+function order(a, b) {
+  const pa = a.data.place, pb = b.data.place;
+  const ua = pa.x === null, ub = pb.x === null;
+  if (ua !== ub) return ua ? -1 : 1;           // not yet placed (typed here) first
+  if (ua) return (pb.z || 0) - (pa.z || 0);    // the newest of those first
+  return pa.y - pb.y || pa.x - pb.x;           // then as they lie, top to bottom
+}
+
+function drawList() {
+  const list = $('#list');
+  const parentOf = new Map(links.filter((l) => cards.has(l.parent) && cards.has(l.child)).map((l) => [l.child, l.parent]));
+  const kids = (key) => [...cards.values()].filter((x) => parentOf.get(x.data.key) === key).sort(order);
+  const item = (entry, depth, seen) => {
+    const li = el('li', `ditem ${entry.data.kind}`);
+    li.dataset.key = entry.data.key;
+    li.style.setProperty('--depth', depth);
+    const btn = el('button', 'ditem-open');
+    btn.type = 'button';
+    face(btn, entry.data);
+    btn.addEventListener('click', () => openFull(entry.data.key));
+    li.append(btn);
+    list.append(li);
+    for (const k of kids(entry.data.key)) if (!seen.has(k.data.key)) { seen.add(k.data.key); item(k, depth + 1, seen); }
+  };
+  const seen = new Set();
+  for (const entry of [...cards.values()].filter((x) => !parentOf.has(x.data.key)).sort(order)) {
+    seen.add(entry.data.key);
+    item(entry, 0, seen);
+  }
+  for (const entry of cards.values()) if (!seen.has(entry.data.key)) item(entry, 0, seen);
+}
+
+// --- a card's full view ----------------------------------------------------------------
+
+let fullKey = null;
+let fullCurrent = null; // { card, spot } for CardUI
+function openFull(key) {
+  const entry = cards.get(key);
+  if (!entry) return;
+  fullKey = key;
+  const c = entry.data;
+  $('#full').classList.remove('hidden');
+  $('#full-card').classList.toggle('hidden', c.kind !== 'word');
+  $('#full-note').classList.toggle('hidden', c.kind !== 'note');
+  if (c.kind === 'word') {
+    fullCurrent = { card: c.card, spot: c.spot ? { ...c.spot } : null };
+    UI.fill($('#full-card'), { card: c.card, spot: fullCurrent.spot, cached: true });
+    $('#full-card .foot').textContent = '';
+    wireFullActions(c);
+  } else {
+    const ta = $('#full-note-text');
+    ta.value = c.text || '';
+    $('#full-note-foot').textContent = '';
+    ta.focus();
+  }
+}
+
+function wireFullActions(c) {
+  const acts = $('#full-card .actions');
+  for (const b of acts.querySelectorAll('.desk-act')) b.remove();
+  const mk = (text, fn) => { const b = el('button', 'btn desk-act', text); b.type = 'button'; b.addEventListener('click', fn); acts.append(b); };
+  mk('Note on a new card', () => noteFrom(c.key));
+  mk('Remove from the desk', () => removeCard(c.key));
+}
+
+function closeFull() {
+  const entry = fullKey && cards.get(fullKey);
+  if (entry && entry.data.kind === 'note') flushNote(entry.data);
+  fullKey = null;
+  $('#full').classList.add('hidden');
+}
+
+UI.wire($('#full-card'), {
+  getCurrent: () => fullCurrent,
+  onClose: closeFull,
+  onStatus: async (status) => {
+    const got = await UI.saveStatus($('#full-card'), api, fullCurrent, status);
+    const entry = fullKey && cards.get(fullKey);
+    if (got && entry) {
+      entry.data.spot = { id: got.spot.id, status: got.spot.status, touches: got.spot.touches };
+      // every other card of the same word shows the same status
+      for (const other of cards.values()) if (other.data.spot && other.data.spot.id === got.spot.id) other.data.spot = { ...entry.data.spot };
+      if (!LIST.matches) for (const other of cards.values()) { const box = other.el && other.data.kind === 'word' && other.el.querySelector('.dface'); if (box) wordFace(box, other.data); }
+      else draw();
+    }
+  },
+});
+$('#full-note .close').addEventListener('click', closeFull);
+$('#full-note-text').addEventListener('input', (e) => {
+  const entry = cards.get(fullKey);
+  if (!entry) return;
+  saveNoteSoon(entry.data, e.target.value);
+  const ta = entry.el && entry.el.querySelector('textarea');
+  if (ta) ta.value = e.target.value;
+});
+$('#full-note-branch').addEventListener('click', () => noteFrom(fullKey));
+$('#full-note-remove').addEventListener('click', () => removeCard(fullKey));
+$('#full').addEventListener('click', (e) => { if (e.target.id === 'full') { closeFull(); if (LIST.matches) draw(); } });
+for (const b of document.querySelectorAll('#full .close')) b.addEventListener('click', () => { if (LIST.matches) draw(); });
+
+// --- the desk's name, new desks, all desks -------------------------------------------------
+
+$('#desk-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') e.target.blur(); if (e.key === 'Escape') { e.target.value = desk.name; e.target.blur(); } });
+$('#desk-name').addEventListener('change', async (e) => {
+  try {
+    desk = await api('PATCH', `/desks/${desk.id}`, { name: e.target.value });
+    drawStrip();
+  } catch (err) { e.target.value = desk.name; notSaved(err); }
+});
+
+$('#new-card').addEventListener('click', newCard);
+$('#new-desk').addEventListener('click', async () => {
+  try { load(await api('POST', '/desks')); hidePanels(); say('A new desk. The others are under "Desks".'); } catch (e) { notSaved(e); }
+});
+
+// A small drawing of a desk: its cards as rectangles where they lie, notes
+// yellow; `shapes` as the server gives them ({ x, y, w, h, kind }).
+function thumb(shapes, W = 176, H = 108) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'thumb');
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('width', W); svg.setAttribute('height', H);
+  const frame = document.createElementNS(NS, 'rect');
+  frame.setAttribute('class', 'th-frame');
+  frame.setAttribute('x', 0.5); frame.setAttribute('y', 0.5); frame.setAttribute('width', W - 1); frame.setAttribute('height', H - 1); frame.setAttribute('rx', 6);
+  svg.append(frame);
+  if (!shapes.length) return svg;
+  const minX = Math.min(...shapes.map((s) => s.x)), minY = Math.min(...shapes.map((s) => s.y));
+  const maxX = Math.max(...shapes.map((s) => s.x + s.w)), maxY = Math.max(...shapes.map((s) => s.y + s.h));
+  const pad = 8;
+  const k = Math.min((W - pad * 2) / (maxX - minX), (H - pad * 2) / (maxY - minY), 0.25);
+  for (const s of shapes) {
+    const r = document.createElementNS(NS, 'rect');
+    r.setAttribute('class', `th-${s.kind}`);
+    r.setAttribute('x', (pad + (s.x - minX) * k).toFixed(2)); r.setAttribute('y', (pad + (s.y - minY) * k).toFixed(2));
+    r.setAttribute('width', (s.w * k).toFixed(2)); r.setAttribute('height', (s.h * k).toFixed(2));
+    r.setAttribute('rx', 2);
+    svg.append(r);
+  }
+  return svg;
+}
+
+function hidePanels() {
+  $('#desks-panel').classList.add('hidden');
+  $('#results').classList.add('hidden');
+  $('#show-desks').setAttribute('aria-expanded', 'false');
+}
+
+async function openDesk(id) {
+  try { load(await api('POST', `/desks/${id}/open`)); hidePanels(); window.scrollTo(0, 0); } catch (e) { notSaved(e); }
+}
+
+async function showDesks() {
+  const grid = $('#desks-grid');
+  let got;
+  try { got = await api('GET', '/desks'); } catch (e) { return say(`The desks could not be listed: ${e.message}`, true); }
+  $('#results').classList.add('hidden');
+  $('#desks-panel').classList.remove('hidden');
+  $('#show-desks').setAttribute('aria-expanded', 'true');
+  grid.innerHTML = '';
+  for (const d of got.items) {
+    const tile = el('div', 'desk-tile');
+    tile.dataset.id = d.id;
+    const pic = el('button', 'thumb-open');
+    pic.type = 'button';
+    pic.setAttribute('aria-label', `Open ${d.name}`);
+    pic.append(thumb(d.shapes));
+    pic.addEventListener('click', () => openDesk(d.id));
+    const name = el('input', 'tile-name');
+    name.type = 'text'; name.value = d.name; name.maxLength = 80;
+    name.setAttribute('aria-label', 'Desk name');
+    name.addEventListener('keydown', (e) => { if (e.key === 'Enter') name.blur(); });
+    name.addEventListener('change', async () => {
+      try {
+        const r = await api('PATCH', `/desks/${d.id}`, { name: name.value });
+        name.value = r.name;
+        if (desk.id === d.id) { desk = r; drawStrip(); }
+      } catch (e) { name.value = d.name; notSaved(e); }
+    });
+    const meta = el('div', 'tile-meta', count(d.count));
+    if (d.id === desk.id) meta.append(el('span', 'tile-here', ' · this desk'));
+    tile.append(pic, name, meta);
+    grid.append(tile);
+  }
+  if (!got.items.length) grid.append(el('p', 'empty', 'No desks yet.'));
+}
+$('#show-desks').addEventListener('click', () => ($('#desks-panel').classList.contains('hidden') ? showDesks() : hidePanels()));
+$('#desks-close').addEventListener('click', hidePanels);
+
+// --- Find --------------------------------------------------------------------------------
+
+let findSeq = 0, findTimer = null;
+async function find(q) {
+  const my = ++findSeq;
+  if (!q.trim()) { $('#results').classList.add('hidden'); return; }
+  let got;
+  try { got = await api('GET', `/desks/find?q=${encodeURIComponent(q)}`); } catch (e) { if (my === findSeq) say(`Find did not run: ${e.message}`, true); return; }
+  if (my !== findSeq) return;
+  $('#desks-panel').classList.add('hidden');
+  $('#results').classList.remove('hidden');
+  $('#results-line').textContent = got.state === 'no data'
+    ? `Nothing found for "${q}".`
+    : `${count(got.cards.length).replace('no cards', 'No cards')} and ${got.desks.length === 1 ? '1 desk' : `${got.desks.length} desks`} for "${q}"${got.more ? ` (and ${got.more} more cards)` : ''}.`;
+  const cl = $('#results-cards'), dl = $('#results-desks');
+  cl.innerHTML = ''; dl.innerHTML = '';
+  for (const c of got.cards) {
+    const r = el('div', `result-card ${c.kind}`);
+    r.dataset.key = c.key;
+    r.draggable = true;
+    r.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/x-desk-card', c.key); e.dataTransfer.effectAllowed = 'copy'; });
+    const f = el('div', 'dface'); face(f, c); r.append(f);
+    const here = cards.has(c.key) || (c.spot && [...cards.values()].some((x) => x.data.spot && x.data.spot.id === c.spot.id));
+    const meta = el('div', 'result-meta', here ? 'on this desk' : c.desks.length ? `on ${c.desks.map((d) => d.name).join(', ')}` : 'on no desk');
+    r.append(meta);
+    if (!here) {
+      const b = el('button', 'btn small', 'Put on this desk');
+      b.type = 'button';
+      b.addEventListener('click', () => putHere(c.key));
+      r.append(b);
+    }
+    cl.append(r);
+  }
+  if (!got.cards.length) cl.append(el('p', 'empty', 'No cards.'));
+  for (const d of got.desks) {
+    const r = el('div', 'result-desk');
+    r.dataset.id = d.id;
+    const pic = el('button', 'thumb-open');
+    pic.type = 'button';
+    pic.setAttribute('aria-label', `Open ${d.name}`);
+    pic.append(thumb(d.shapes));
+    pic.addEventListener('click', () => openDesk(d.id));
+    const txt = el('div', 'result-desk-text');
+    txt.append(el('div', 'tile-name-text', d.name));
+    const why = el('div', 'result-meta', '');
+    why.append(document.createTextNode(d.reason === 'its name' ? 'matched by its name' : 'holds '));
+    if (d.reason !== 'its name') why.append(he(d.reason));
+    why.append(document.createTextNode(` · ${count(d.count)}${d.id === desk.id ? ' · this desk' : ''}`));
+    txt.append(why);
+    const open = el('button', 'btn small', d.id === desk.id ? 'This desk' : 'Open');
+    open.type = 'button';
+    open.disabled = d.id === desk.id;
+    open.addEventListener('click', () => openDesk(d.id));
+    txt.append(open);
+    r.append(pic, txt);
+    dl.append(r);
+  }
+  if (!got.desks.length) dl.append(el('p', 'empty', 'No desks.'));
+}
+$('#find').addEventListener('input', (e) => { clearTimeout(findTimer); findTimer = setTimeout(() => find(e.target.value), 250); });
+$('#find').addEventListener('keydown', (e) => { if (e.key === 'Enter') { clearTimeout(findTimer); find(e.target.value); } if (e.key === 'Escape') { e.target.value = ''; hidePanels(); } });
+$('#results-close').addEventListener('click', hidePanels);
+
+// A card from Find onto this desk: a placement, never a copy.
+async function putHere(key, at) {
+  try {
+    const got = await api('POST', `/desks/${desk.id}/cards`, { card: key, ...(at || {}), unplaced: LIST.matches && !at });
+    if (got.already) return say('Already on this desk.');
+    const view = await api('GET', `/desks/${desk.id}`);
+    load(view);
+    find($('#find').value);
+    say(`Put on this desk: ${label(got.card)}.`);
+  } catch (e) { notSaved(e); }
+}
+$('#surface').addEventListener('dragover', (e) => { if ([...e.dataTransfer.types].includes('text/x-desk-card')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
+$('#surface').addEventListener('drop', (e) => {
+  const key = e.dataTransfer.getData('text/x-desk-card');
+  if (!key) return;
+  e.preventDefault();
+  const r = $('#plane').getBoundingClientRect();
+  putHere(key, { x: Math.max(0, Math.round(e.clientX - r.left)), y: Math.max(0, Math.round(e.clientY - r.top)) });
+});
+
+// --- start ---------------------------------------------------------------------------------
+
+LIST.addEventListener('change', () => { if (desk) draw(); });
+window.addEventListener('resize', () => { if (desk && !LIST.matches) sizePlane(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && fullKey) { closeFull(); if (LIST.matches) draw(); } });
+
+(async function start() {
+  try {
+    load(await api('GET', '/desks/current'));
+  } catch (e) {
+    say(`The desk could not be opened: ${e.message}`, true);
+    return;
+  }
+  const q = new URLSearchParams(location.search).get('find');
+  if (q) { $('#find').value = q; find(q); }
+})();
+
+window.Desk = { get desk() { return desk; }, cards: () => cards, thumb };
