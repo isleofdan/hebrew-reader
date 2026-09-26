@@ -1429,6 +1429,76 @@ try {
     rmSync(rDir, { recursive: true, force: true });
   }
 
+  // 7. the desk (session twelve, step 1): desks, placements, note cards,
+  // born-from links; every write through the server, saved as it happens
+  {
+    let d = await api('GET', '/desks/current');
+    check('no desk yet: opening the desk makes one named for now in Tokyo, and says it holds nothing',
+      d.status === 200 && d.body.state === 'no data' && d.body.cards.length === 0
+      && /^(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday) \d{1,2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) · (morning|afternoon|evening|night)$/.test(d.body.desk.name),
+      JSON.stringify(d.body.desk));
+    const again = await api('GET', '/desks/current');
+    check('opening it again gives the same desk, not a second one', again.body.desk.id === d.body.desk.id && (await api('GET', '/desks')).body.items.length === 1);
+    const dk = createRequire(import.meta.url)(join(root, 'lib', 'desk.js'));
+    const names = [['2026-09-25T11:30:00Z', 'Friday 25 Sep · evening'], ['2026-09-25T00:10:00Z', 'Friday 25 Sep · morning'],
+      ['2026-09-25T04:00:00Z', 'Friday 25 Sep · afternoon'], ['2026-09-25T14:00:00Z', 'Friday 25 Sep · night'], ['2026-09-24T11:00:00Z', 'Thursday 24 Sep · evening'], ['2026-09-25T17:00:00Z', 'Saturday 26 Sep · night']]
+      .map(([at, want]) => [dk.deskName(new Date(at)), want]);
+    check('a desk is named by the Tokyo date and part of the day: "Friday 25 Sep · evening" (25 Sep 2026 is a Friday)', names.every(([got, want]) => got === want), JSON.stringify(names));
+    const deskId = d.body.desk.id;
+    // two word cards the reader has: looked up first, as on screen
+    await api('POST', '/lookup', { surface: 'להמר', sentence: 'להמר' });
+    await api('POST', '/lookup', { surface: 'הסלמה', sentence: 'הסלמה' });
+    const put = await api('POST', '/desks/put', { surface: 'להמר', sentence: 'להמר' });
+    check('a word card is placed on the current desk at the next free spot', put.status === 201 && put.body.already === false && /^word:\d+$/.test(put.body.key)
+      && put.body.place.x === 24 && put.body.place.y === 24 && put.body.desk.id === deskId, JSON.stringify(put.body));
+    const wordKey = put.body.key;
+    const second = await api('POST', `/desks/${deskId}/cards`, { card: (await api('POST', '/desks/put', { surface: 'הסלמה', sentence: 'הסלמה' })).body.key });
+    d = await api('GET', `/desks/${deskId}`);
+    const p1 = d.body.cards.find((c) => c.key === wordKey).place, p2 = d.body.cards.find((c) => c.key !== wordKey).place;
+    check('the second card lands at a free spot beside the first, not on it', second.body.already === true && d.body.cards.length === 2 && p2.x >= p1.x + p1.w, JSON.stringify([p1, p2]));
+    const shown = d.body.cards.find((c) => c.key === wordKey);
+    check('a word card on the desk is the reader\'s own card, read from its record: pointed headword, root, binyan, gloss, status and times seen',
+      shown.card.pointed.lemma === 'הִימֵּר' && shown.card.root === 'ה.מ.ר' && shown.card.binyan === 'piel' && shown.card.meaning_en === 'to gamble, to bet'
+      && shown.spot && shown.spot.status === 'new' && shown.spot.touches >= 1 && shown.sentence === 'להמר', JSON.stringify(shown));
+    let mv = await api('PATCH', `/desks/${deskId}/cards/${wordKey}`, { x: 400, y: 300 });
+    check('move: the new place is saved', mv.status === 200 && mv.body.place.x === 400 && mv.body.place.y === 300);
+    mv = await api('PATCH', `/desks/${deskId}/cards/${wordKey}`, { w: 320, h: 220 });
+    check('resize: the new size is saved, the place kept', mv.body.place.w === 320 && mv.body.place.h === 220 && mv.body.place.x === 400);
+    mv = await api('PATCH', `/desks/${deskId}/cards/${wordKey}`, { w: 5, h: 99999 });
+    check('a size past the limits is held to them (140×90 to 900×900)', mv.body.place.w === 140 && mv.body.place.h === 900, JSON.stringify(mv.body.place));
+    mv = await api('PATCH', `/desks/${deskId}/cards/${wordKey}`, { x: 'left' });
+    check('a place that is not a number is refused and says why', mv.status === 400 && /x must be a number/.test(mv.body.error), mv.body.error);
+    await api('PATCH', `/desks/${deskId}/cards/${wordKey}`, { w: 260, h: 176 });
+    const note = await api('POST', '/notes', { text: 'על מה מהמרים? bet on', desk_id: deskId, born_from: wordKey });
+    d = await api('GET', `/desks/${deskId}`);
+    const nk = note.body.card && note.body.card.key;
+    const np = d.body.cards.find((c) => c.key === nk);
+    check('a note card born from a word card carries the link and is placed beside it',
+      note.status === 201 && /^note:\d+$/.test(nk) && d.body.links.some((l) => l.child === nk && l.parent === wordKey && l.kind === 'born-from')
+      && np.text === 'על מה מהמרים? bet on' && np.place.x === 400 + 260 + 32 && np.place.y === 300, JSON.stringify({ note: note.body, links: d.body.links, np }));
+    const zs = d.body.cards.map((c) => c.place.z);
+    const front = await api('PATCH', `/desks/${deskId}/cards/${wordKey}`, { front: true });
+    check('brought to the front: its place in the stack is above every other card', front.body.place.z > Math.max(...zs.filter((z, i) => d.body.cards[i].key !== wordKey)), JSON.stringify({ zs, now: front.body.place.z }));
+    const ed = await api('PATCH', `/notes/${nk.split(':')[1]}`, { text: 'על מה מהמרים?' });
+    check('a note\'s text is saved as typed', ed.status === 200 && ed.body.text === 'על מה מהמרים?');
+    const rn = await api('PATCH', `/desks/${deskId}`, { name: '  להמר evening  ' });
+    check('rename: the name is saved, spaces trimmed', rn.status === 200 && rn.body.name === 'להמר evening' && rn.body.named === true);
+    const rnBad = await api('PATCH', `/desks/${deskId}`, { name: '   ' });
+    check('an empty name is refused and says why', rnBad.status === 400 && /needs a name/.test(rnBad.body.error));
+    const hk = d.body.cards.find((c) => c.kind === 'word' && c.key !== wordKey).key;
+    const rm = await api('DELETE', `/desks/${deskId}/cards/${hk}`);
+    d = await api('GET', `/desks/${deskId}`);
+    const found = await api('GET', `/desks/find?q=${encodeURIComponent('הסלמה')}`);
+    check('remove from the desk: the placement goes, the card stays (Find still finds it)',
+      rm.status === 200 && !d.body.cards.some((c) => c.key === hk) && found.body.cards.some((c) => c.key === hk), JSON.stringify(found.body.cards.map((c) => c.key)));
+    const bad = await api('POST', `/desks/${deskId}/cards`, { card: 'word:99999' });
+    const badKey = await api('POST', `/desks/${deskId}/cards`, { card: 'card 7' });
+    check('a card that does not exist, or a name that is not a card, is refused and says why', bad.status === 404 && badKey.status === 400 && /word:<id>/.test(badKey.body.error), `${bad.body.error} | ${badKey.body.error}`);
+    const noCard = await api('POST', '/desks/put', { surface: 'מילה', sentence: 'מילה שלא נפתחה' });
+    check('putting a word whose card was never opened is refused and says to open it first', noCard.status === 404 && /open the word's card first/.test(noCard.body.error), noCard.body.error);
+    globalThis.__desk = { deskId, wordKey, noteKey: nk };
+  }
+
   // 6. fail closed
   const closed = start('node', ['server.js'], { PORT: '8794', DATA_DIR: dataDir, COOKIE_INSECURE: '1' });
   await up('http://127.0.0.1:8794/health');
