@@ -74,7 +74,7 @@ let lastGuideModel = null;
 // JSON at all). review_format_again: the same for the answer to the one
 // follow-up ask. schema_refused: structured output answered 404, as OpenRouter
 // does when no provider of the model takes the parameters asked for.
-const control = { unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false, verb_fixes: {}, verb_extra: [], verb_decline: false, guide_silent: [], refresh_fail: false, review_verdicts: {}, review_verdict_extra: [] };
+const control = { unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false, verb_fixes: {}, verb_extra: [], verb_decline: false, guide_silent: [], refresh_fail: false, review_verdicts: {}, review_verdict_extra: [], examples: null };
 // verb_fixes: word -> { root?, binyan?, why }, the verb-card check's fix for
 // that card (every other card answered "correct"); verb_extra: answers added
 // after the cards'; verb_decline: the check answers {"error"}.
@@ -136,8 +136,57 @@ function mockGuide(items, date, n, fault) {
   if (fault === 'objects') drill.takes_object = true;
   return g;
 }
+// --- the web search server tool (session thirteen) --------------------------------------
+// A call carrying tools gets an answer shaped as OpenRouter's: the text in
+// message.content, the pages the search leaned on as url_citation
+// annotations, and usage.server_tool_use.web_search_requests.
+// "Ask here" ("The card:" … "Question: …"): a question containing
+//   "without a link" -> an answer with no annotation at all
+//   "link in the text" -> the link written in the answer, no annotation
+//   "decline"          -> {"error"}
+//   anything else      -> an answer whose links are only in the annotations
+// "Find more examples" ("The word: …"): control.examples, when set, is the
+// list answered; else five examples for להמר, one without a url, and from
+// the second search on one more with a new url each time.
+let searchCalls = 0, exampleCalls = 0;
+const searchAsks = [];
+function webSearch(res, body, user) {
+  searchCalls++;
+  const tool = body.tools[0];
+  searchAsks.push({ tool: tool.type, parameters: tool.parameters || {}, response_format: body.response_format || null, max_tokens: body.max_tokens, kind: user.startsWith('The card:') ? 'ask' : 'examples', has_entry: /Root: /.test(user), has_layers: /What the reader has added/.test(user) });
+  let content, cites = [];
+  const cite = (url, title) => ({ type: 'url_citation', url_citation: { url, title, content: `from ${title}`, start_index: 0, end_index: 10 } });
+  if (user.startsWith('The card:')) {
+    const q = user.split('\n\nQuestion: ')[1] || '';
+    if (/decline/i.test(q)) content = JSON.stringify({ error: 'that is not a question about Hebrew' });
+    else if (/link in the text/i.test(q)) content = JSON.stringify({ answer: 'להמר is Pi\'el; see https://www.pealim.com/dict/479-lehamer/ for its forms.' });
+    else {
+      content = JSON.stringify({ answer: 'להמר (Pi\'el of ה.מ.ר) is to bet or gamble, and takes על; לסכן is to put at risk, and takes an object (not sure about formal usage).' });
+      if (!/without a link/i.test(q)) cites = [cite('https://www.pealim.com/dict/479-lehamer/', 'להמר – Pealim'), cite('https://milog.co.il/%D7%9C%D7%94%D7%9E%D7%A8', 'מה זה להמר – מילוג'), cite('https://www.pealim.com/dict/479-lehamer/', 'להמר – Pealim')];
+    }
+  } else {
+    exampleCalls++;
+    let list = control.examples;
+    if (!list) {
+      list = [
+        { sentence: 'המשקיעים החליטו להמר על מניות הטכנולוגיה.', source_name: 'ynet', source_kind: 'news', date: '2026-09-18', url: 'https://www.ynet.co.il/economy/article/abc1' },
+        { sentence: 'והימר על כל הקופה בערב אחד.', source_name: 'כאן 11', source_kind: 'tv', date: null, url: 'https://www.kan.org.il/content/kan/kan-11/p-1/clip-3' },
+        { sentence: 'הוא אמר שלהמר על זה עכשיו זו טעות.', source_name: 'בלוג כלכלה', source_kind: 'blog', date: '2026-08', url: 'https://blog.example.co.il/post/7' },
+        { sentence: 'לא כדאי להמר ביום שישי בערב.', source_name: 'פורום', source_kind: 'forum', date: 'last week', url: 'https://forum.example.co.il/t/9' },
+        { sentence: 'מי שמהמר צריך לדעת להפסיד.', source_name: 'אתר בלי כתובת', source_kind: 'other', date: null, url: '' },
+      ];
+      if (exampleCalls > 1) list = [...list, { sentence: `הם בחרו להמר שוב (${exampleCalls}).`, source_name: 'גלובס', source_kind: 'news', date: '2026-09-20', url: `https://www.globes.co.il/news/article-${exampleCalls}` }];
+    }
+    content = JSON.stringify({ examples: list });
+    cites = list.filter((x) => x.url).map((x) => cite(x.url, x.source_name));
+  }
+  res.writeHead(200, { 'content-type': 'application/json' });
+  res.end(JSON.stringify({ id: 'mock', model: body.model, choices: [{ message: { role: 'assistant', content, annotations: cites }, finish_reason: 'stop' }],
+    usage: { prompt_tokens: 900, completion_tokens: 300, server_tool_use: { web_search_requests: 2 } } }));
+}
+
 http.createServer((req, res) => {
-  if (req.url === '/calls') { res.end(JSON.stringify({ calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
+  if (req.url === '/calls') { res.end(JSON.stringify({ search_calls: searchCalls, search_asks: searchAsks, calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
   let raw = '';
   req.on('data', (c) => raw += c);
   req.on('end', () => {
@@ -152,6 +201,7 @@ http.createServer((req, res) => {
       return;
     }
     const user = body.messages.find((m) => m.role === 'user').content;
+    if (Array.isArray(body.tools) && body.tools.length) return webSearch(res, body, user);
     const followUp = body.messages.length > 2;
     let answer, format = 'clean';
     if (user.startsWith('Sentence: ')) {

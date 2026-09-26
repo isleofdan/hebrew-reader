@@ -19,6 +19,7 @@ const askRefs = require('./lib/ask');
 const lesson = require('./lib/lesson');
 const guyLesson = require('./lib/guy-lesson');
 const desk = require('./lib/desk');
+const grow = require('./lib/grow');
 const { CATEGORIES } = require('./lib/categories');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, readFile, serveStatic } = require('./lib/http');
@@ -255,7 +256,12 @@ route('GET', /^\/desks\/current$/, (req, res) => sendJson(res, 200, desk.current
 route('GET', /^\/desks$/, (req, res) => sendJson(res, 200, desk.list()));
 route('POST', /^\/desks$/, (req, res) => sendJson(res, 201, desk.newDesk()));
 // ?q= : cards and desks that match, Hebrew compared without nikud.
-route('GET', /^\/desks\/find$/, (req, res, g, url) => sendJson(res, 200, desk.find(url.searchParams.get('q') || '')));
+// &source= everything | guy | articles | online | notes | asked; &time= month | year | any
+route('GET', /^\/desks\/find$/, (req, res, g, url) => sendJson(res, 200, desk.find(url.searchParams.get('q') || '', {
+  source: url.searchParams.get('source') || 'everything', time: url.searchParams.get('time') || 'any',
+})));
+// The one past desk shown small in a corner: { desk } or { desk: null, state: "no data" }.
+route('GET', /^\/desks\/past$/, (req, res) => sendJson(res, 200, desk.pastDesk()));
 // { surface, sentence } of a card on screen (or { card_id }) -> onto the current desk, once.
 route('POST', /^\/desks\/put$/, async (req, res) => {
   const out = desk.put(await readJson(req));
@@ -280,8 +286,34 @@ route('POST', /^\/notes$/, async (req, res) => sendJson(res, 201, desk.addNote(a
 // { text }
 route('PATCH', /^\/notes\/(?<id>\d+)$/, async (req, res, { id }) => sendJson(res, 200, desk.editNote(Number(id), (await readJson(req)).text)));
 
+// --- a card, opened (session thirteen) ---------------------------------------
+// A card's full view with its layers; each action saves as it happens. The
+// model calls (ask, examples) run only when Dan presses them.
+const CARD = '(?<key>[a-z]+:\\d+)';
+route('GET', new RegExp(`^/card/${CARD}$`), (req, res, { key }) => sendJson(res, 200, desk.full(key)));
+// { text } -> a note that is a layer of this card
+route('POST', new RegExp(`^/card/${CARD}/notes$`), async (req, res, { key }) => sendJson(res, 201, { layer: desk.noteLayer(key, (await readJson(req)).text) }));
+// { question } -> { layer, searches }; an answer with no link answers 422 and why
+route('POST', new RegExp(`^/card/${CARD}/ask$`), async (req, res, { key }) => sendJson(res, 201, await grow.ask(key, await readJson(req))));
+// -> { added, refused, already, found, searches }
+route('POST', new RegExp(`^/card/${CARD}/examples$`), async (req, res, { key }) => sendJson(res, 200, await grow.findExamples(key)));
+// on an example: { kept: true | false }
+route('POST', new RegExp(`^/card/${CARD}/keep$`), async (req, res, { key }) => sendJson(res, 200, { layer: desk.keepExample(key, (await readJson(req)).kept) }));
+// { reference } -> { layer, url }: the page to open, and the lookup recorded
+route('POST', new RegExp(`^/card/${CARD}/lookup$`), async (req, res, { key }) => {
+  const layer = desk.lookupLayer(key, (await readJson(req)).reference);
+  return sendJson(res, 201, { layer, url: layer.url });
+});
+// on a card or a layer: { desk_id?, unplaced? } -> a new note card beside the card
+route('POST', new RegExp(`^/card/${CARD}/branch$`), async (req, res, { key }) => sendJson(res, 201, desk.branch(key, await readJson(req))));
+// { at: <a layer of this card>, desk_id?, unplaced? }
+route('POST', new RegExp(`^/card/${CARD}/cut$`), async (req, res, { key }) => {
+  const body = await readJson(req);
+  return sendJson(res, 201, desk.cut(key, body.at, body));
+});
+
 function isApiPath(p) {
-  return /^\/(articles|lookup|spots|marks-for-article|marks-for-lesson|categories|demand|ask|make|lessons|desks|notes)(\/|$)/.test(p);
+  return /^\/(articles|lookup|spots|marks-for-article|marks-for-lesson|categories|demand|ask|make|lessons|desks|notes|card)(\/|$)/.test(p);
 }
 
 async function handle(req, res) {

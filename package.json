@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "COOKIE_INSECURE=1 node server.js",
-    "smoke": "node scripts/smoke.mjs",
+    "smoke": "node scripts/smoke.mjs && node scripts/grow-smoke.mjs",
     "screenshots": "node scripts/screenshots.mjs && node scripts/desk-pages.mjs"
   },
   "dependencies": {
