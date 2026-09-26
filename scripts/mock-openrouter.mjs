@@ -35,6 +35,10 @@ const known = {
   // the prefixed-tinting check (session five): a saved word met again with ו/ה/ב/ל/מ/ש in front
   'הממסד': { surface: 'הממסד', lemma: 'ממסד', pos: 'noun', root: 'מ.ס.ד', binyan: null, tense: null, person_gender_number: 'ms', meaning_en: 'the establishment', governs: null, categories: ['homophonous-spelling'], note: 'ה- is the article; the word is ממסד.' },
   'דם': { surface: 'דם', lemma: 'דם', pos: 'noun', root: 'ד.מ.מ', binyan: null, tense: null, person_gender_number: 'ms', meaning_en: 'blood', governs: null, categories: [], note: null },
+  // the desk (session twelve): a verb from the 9 Feb lesson, and the 26 Jan
+  // verbal noun as the card maker now labels it
+  'להמר': { surface: 'להמר', lemma: 'הימר', pos: 'verb', root: 'ה.מ.ר', binyan: 'piel', tense: 'infinitive', person_gender_number: null, meaning_en: 'to gamble, to bet', governs: 'על', categories: ['preposition-government'], note: "Pi'el infinitive; bets על something." },
+  'שוטטות': { surface: 'שוטטות', lemma: 'שוטטות', pos: 'noun', root: 'ש.ו.ט', binyan: null, tense: null, person_gender_number: 'fs', meaning_en: 'wandering, roaming', governs: null, categories: [], note: 'A verbal noun of the Polel שוטט.' },
   'נלחם': { surface: 'נלחם', lemma: 'נלחם', pos: 'verb', root: 'ל.ח.מ', binyan: 'nifal', tense: 'past', person_gender_number: '3ms', meaning_en: 'fought', governs: 'ב-', categories: ['conjugation', 'preposition-government'], note: "Nif'al; fights ב- (in), not 'against'." },
 };
 // Nikud for the words above (session seven): the card answers carry it, and
@@ -44,6 +48,7 @@ const POINTED = {
   'נאלצה': ['נֶאֱלַץ', 'נֶאֶלְצָה'], 'שנאלצה': ['נֶאֱלַץ', 'שֶׁנֶּאֶלְצָה'], 'באמינות': ['אֲמִינוּת', 'בָּאֲמִינוּת'],
   'להתמודד': ['הִתְמוֹדֵד', 'לְהִתְמוֹדֵד'], 'מקדם': ['קִדֵּם', 'מְקַדֵּם'], 'רפורמה': ['רֵפוֹרְמָה', 'רֵפוֹרְמָה'],
   'ייקבעו': ['נִקְבַּע', 'יִיקָּבְעוּ'], 'נחתם': ['נֶחְתַּם', 'נֶחְתַּם'], 'הסלמה': ['הַסְלָמָה', 'הַסְלָמָה'], 'דם': ['דָּם', 'דָּם'],
+  'להמר': ['הִימֵּר', 'לְהַמֵּר'], 'שוטטות': ['שׁוֹטְטוּת', 'שׁוֹטְטוּת'],
 };
 for (const [w, [lemma, surface]] of Object.entries(POINTED)) if (known[w]) Object.assign(known[w], { lemma_pointed: lemma, surface_pointed: surface });
 // The corrected cards' nikud, as the refresh answers it: לזנק in Pi'el.

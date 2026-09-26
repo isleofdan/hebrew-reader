@@ -18,6 +18,7 @@ const demand = require('./lib/demand');
 const askRefs = require('./lib/ask');
 const lesson = require('./lib/lesson');
 const guyLesson = require('./lib/guy-lesson');
+const desk = require('./lib/desk');
 const { CATEGORIES } = require('./lib/categories');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, readFile, serveStatic } = require('./lib/http');
@@ -244,8 +245,43 @@ route('GET', /^\/marks-for-lesson\/(?<id>\d+)$/, (req, res, { id }) => {
   return sendJson(res, 200, { lesson_id: Number(id), surfaces, lemmas: db.marksForLemmas(), state: Object.keys(surfaces).length ? 'ok' : 'no data' });
 });
 
+// --- the desk ---------------------------------------------------------------
+// Every write is saved as it happens; the page holds no copy of its own.
+
+// The desk Dan last worked on (a new one, named for now, when there is none),
+// with its cards read fresh from their own records.
+route('GET', /^\/desks\/current$/, (req, res) => sendJson(res, 200, desk.current()));
+// Every desk, newest touched first, with the shapes for its small drawing.
+route('GET', /^\/desks$/, (req, res) => sendJson(res, 200, desk.list()));
+route('POST', /^\/desks$/, (req, res) => sendJson(res, 201, desk.newDesk()));
+// ?q= : cards and desks that match, Hebrew compared without nikud.
+route('GET', /^\/desks\/find$/, (req, res, g, url) => sendJson(res, 200, desk.find(url.searchParams.get('q') || '')));
+// { surface, sentence } of a card on screen (or { card_id }) -> onto the current desk, once.
+route('POST', /^\/desks\/put$/, async (req, res) => {
+  const out = desk.put(await readJson(req));
+  return sendJson(res, out.already ? 200 : 201, out);
+});
+route('GET', /^\/desks\/(?<id>\d+)$/, (req, res, { id }) => sendJson(res, 200, desk.view(Number(id))));
+// Opened: it is the current desk again.
+route('POST', /^\/desks\/(?<id>\d+)\/open$/, (req, res, { id }) => sendJson(res, 200, desk.open(Number(id))));
+// { name }
+route('PATCH', /^\/desks\/(?<id>\d+)$/, async (req, res, { id }) => sendJson(res, 200, desk.rename(Number(id), (await readJson(req)).name)));
+// { card: "word:<id>" | "note:<id>", x?, y?, w?, h?, near?, unplaced? }
+route('POST', /^\/desks\/(?<id>\d+)\/cards$/, async (req, res, { id }) => {
+  const body = await readJson(req);
+  const out = desk.place(Number(id), body.card, body);
+  return sendJson(res, out.already ? 200 : 201, out);
+});
+// { x?, y?, w?, h?, front? }
+route('PATCH', /^\/desks\/(?<id>\d+)\/cards\/(?<key>[a-z]+:\d+)$/, async (req, res, { id, key }) => sendJson(res, 200, { place: desk.move(Number(id), key, await readJson(req)) }));
+route('DELETE', /^\/desks\/(?<id>\d+)\/cards\/(?<key>[a-z]+:\d+)$/, (req, res, { id, key }) => sendJson(res, 200, desk.unplace(Number(id), key)));
+// { text, desk_id?, born_from?, unplaced? } -> a new note card on a desk
+route('POST', /^\/notes$/, async (req, res) => sendJson(res, 201, desk.addNote(await readJson(req))));
+// { text }
+route('PATCH', /^\/notes\/(?<id>\d+)$/, async (req, res, { id }) => sendJson(res, 200, desk.editNote(Number(id), (await readJson(req)).text)));
+
 function isApiPath(p) {
-  return /^\/(articles|lookup|spots|marks-for-article|marks-for-lesson|categories|demand|ask|make|lessons)(\/|$)/.test(p);
+  return /^\/(articles|lookup|spots|marks-for-article|marks-for-lesson|categories|demand|ask|make|lessons|desks|notes)(\/|$)/.test(p);
 }
 
 async function handle(req, res) {
@@ -279,6 +315,7 @@ async function handle(req, res) {
   if (p === '/') return serveStatic(res, PUBLIC, '/index.html') || sendJson(res, 404, { error: 'index.html is missing.' });
   if (p === '/login.html') return redirect(res, '/login');
   if (p === '/phone') return serveStatic(res, PUBLIC, '/phone.html') || sendJson(res, 404, { error: 'phone.html is missing.' });
+  if (p === '/desk') return serveStatic(res, PUBLIC, '/desk.html') || sendJson(res, 404, { error: 'desk.html is missing.' });
   if (serveStatic(res, PUBLIC, p)) return;
   return sendJson(res, 404, { error: `Nothing at ${p}.` });
 }
@@ -289,7 +326,8 @@ console.log(`database: ${path.join(DATA_DIR, 'reader.db')}`);
 // one after the other: the second undoes one card of the first
 guyLesson.restoreContradicted().catch((e) => console.error(`one-time step failed, to be tried at the next start: ${e.message}`))
   .then(() => guyLesson.confirmZinek()).catch((e) => console.error(`one-time step failed, to be tried at the next start: ${e.message}`))
-  .then(() => guyLesson.redateLessons()).catch((e) => console.error(`one-time step failed, to be tried at the next start: ${e.message}`));
+  .then(() => guyLesson.redateLessons()).catch((e) => console.error(`one-time step failed, to be tried at the next start: ${e.message}`))
+  .then(() => guyLesson.remakeShotetut()).catch((e) => console.error(`one-time step failed, to be tried at the next start: ${e.message}`));
 
 const server = http.createServer((req, res) => {
   handle(req, res).catch((e) => {

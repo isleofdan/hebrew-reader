@@ -716,3 +716,86 @@ it never reached a file or this session.
 - **Live (Dan, 24 Sep 2026):** lesson 45 (9 Feb 2026) shows a full guide,
   "about right". Lesson 27 (27 Dec 2023) showed "being built", then a guide
   (512 s, saved with the drill check unmet — a "Checks not passed" line).
+
+## Session eleven — hebrew-reader-eleven (24–25 Sep 2026, cloud)
+
+**Dan sets a verb's root or binyan.** `POST /lookup/confirm { surface,
+sentence, root, binyan }` → `guyLesson.confirmCard`: verb cards only; binyan
+from `lookup.BINYANIM_ALL` (the seven plus polel, polal, hitpolel; the card
+call itself still answers the seven); root through `readRoot` (3 or 4 Hebrew
+letters, dots/spaces/dashes and nikud ignored, final letters kept as written,
+so לחם is ל.ח.ם, not ל.ח.מ). Writes the values, a `by: 'Dan'` line per
+changed field, and `card.confirmed = { on (Tokyo date), root, binyan }`
+through `saveCard`; refreshes once when a field changed, never when saved as
+it stands. The control is built by `CardUI` (`drawSetVerb`) on any page that
+wires `onSetVerb` (reader, lesson, phone); a redraw of the same card keeps it
+as typed.
+
+**What was proposed.** `review.cards.kept` is now `[{ word, review, check }]`
+("Pa'al", "root ה.מ.ר", "Pa'al, root ה.מ.ר", or null); the page also reads the
+older list of plain words.
+
+**No verdict.** `review.verdicts_missing` already reached `GET /lessons/:id`
+(an empty list meant none missing); the page now shows "The review gave no
+verdict on: <words>" under the review.
+
+**Doubled patterns.** `sameHere` in `agree()` only: polel = piel, polal =
+pual, hitpolel = hitpael. A review fix naming only the doubled pattern of the
+card's own binyan changes nothing.
+
+**Verbs only.** Selection was already `pos === 'verb'`; שוטטות got there
+because the card call made its card a verb. The card instruction now says a
+verbal noun (שם פעולה) is a noun. The live שוטטות card still says verb until
+it is made again.
+
+**Re-date.** `NAME_PATTERN` takes one word before the date. One-time step
+`redateLessons()` at start, after `confirmZinek()`, recorded in `steps`: a
+lesson whose file name the pattern reads but whose title is still the file
+name gets the pattern's date and title; guide kept.
+
+**Live (Dan, 25 Sep 2026, deploy run 24):** the lesson list shows
+"שיעור עם גיא — 8.7.2025" between 26.1.2026 and 10.2.2025. להמר (9 Feb
+2026), saved as it stands: "Confirmed by you, 25 Sep 2026", "Set root or
+binyan again", "recorded on the spine". Checks: 224 server, 229 page (the
+web-font check flaked once on clean main and twice later; passed on rerun).
+
+## Session twelve — hebrew-reader-twelve (26 Sep 2026, cloud): the desk
+
+**Data.** `desks(id, name, named, opened_at, touched_at)`; `placements(desk_id,
+card, x, y, w, h, z, placed_at)`, x and y null for a card on the desk but not
+yet placed (typed on the phone); `notes(id, text, made_at, edited_at)`;
+`card_links(child, parent, kind 'born-from', at)`. A card is named by a key:
+`word:<cards.id>` (the reader's own cached card, never a copy) or
+`note:<notes.id>`. `cards.sentence` added (migration), so a card reached by its
+id can be pointed and refreshed (`POST /lookup/points` and `/lookup/refresh`
+now also take `{ card_id }`). Every write goes through `lib/desk.js`.
+
+**Rules.** A desk is named for when it was opened, Tokyo time: "Friday 25 Sep ·
+evening" (morning 5–12, afternoon 12–17, evening 17–22, night). The desk page
+opens the desk last worked on; a new one only when there is none. A word is on
+a desk once: a second card of the same word (same spot, another sentence)
+counts as already there. A new card goes to the next free spot, row by row
+from the top left within 1180 px; a note born from a card goes beside it.
+Sizes held to 140×90 – 900×900. Find matches word cards by headword, surface or
+root (Hebrew letters only, nikud and dots ignored) or by meaning (English),
+note cards by text, desks by name or by a card they hold — the newest card of
+each word is the one listed, and a desk holding any card of that word counts.
+A matched card grown from another matched card is told as part of it
+("להמר and 1 card from it").
+
+**Routes.** `GET /desks/current`, `GET /desks`, `POST /desks`, `GET /desks/find?q=`,
+`POST /desks/put`, `GET /desks/:id`, `POST /desks/:id/open`, `PATCH /desks/:id`,
+`POST /desks/:id/cards`, `PATCH|DELETE /desks/:id/cards/:key`, `POST /notes`,
+`PATCH /notes/:id`; the page `/desk`.
+
+**One-time step.** `remakeShotetut()` at start, after the re-date, recorded in
+`steps`: the 26 Jan 2026 lesson's card שוטטות, when still a verb and not
+confirmed by Dan, is made again by the card maker as it is now; same card id,
+its spot follows. Logs the count (expected 1 live).
+
+**Font check.** The flake was the sandbox failing to download the font from
+Google Fonts, not timing: the check now asks for the face, waits up to 15 s,
+and on a failed download reloads and tries again, at most three times.
+
+**Checks.** 254 server (from 224), 276 page (229 + 47 desk checks in
+`scripts/desk-pages.mjs`, run by `npm run screenshots`).

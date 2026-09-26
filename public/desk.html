@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Desk — Hebrew reader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@400;500;700&family=Noto+Serif+Hebrew:wght@400;500;600&display=swap">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="/app.css">
+<script src="/theme.js"></script>
+</head>
+<body class="desk-page">
+<header class="topbar">
+  <a class="brand" href="/">Hebrew reader</a>
+  <nav><a href="/">Articles</a><a class="phone" href="/phone">phone</a><a class="active" href="/desk">Desk</a></nav>
+  <span class="spacer"></span>
+  <div class="theme" role="group" aria-label="Theme">
+    <button type="button" data-theme-choice="light">Light</button>
+    <button type="button" data-theme-choice="dark">Dark</button>
+    <button type="button" data-theme-choice="device">Device</button>
+  </div>
+</header>
+<div class="desk-strip">
+  <input class="desk-name" id="desk-name" type="text" aria-label="The desk's name" autocomplete="off" spellcheck="false" maxlength="80">
+  <span class="desk-count" id="desk-count"></span>
+  <span class="spacer"></span>
+  <input class="desk-find" id="find" type="search" placeholder="Find — מילה, root, meaning, desk" aria-label="Find" autocomplete="off" spellcheck="false" dir="auto">
+  <button class="btn primary" id="new-card" type="button">New card</button>
+  <button class="btn" id="show-desks" type="button" aria-expanded="false">Desks</button>
+  <button class="btn" id="new-desk" type="button">New desk</button>
+</div>
+<p class="desk-msg" id="desk-msg" role="status"></p>
+
+<section class="desk-results hidden" id="results" aria-label="Find">
+  <div class="results-head"><span id="results-line"></span><button class="close" id="results-close" type="button" aria-label="Close">×</button></div>
+  <div class="results-cols">
+    <div><h2 class="list-title">Cards</h2><div class="results-list" id="results-cards"></div></div>
+    <div><h2 class="list-title">Desks</h2><div class="results-list" id="results-desks"></div></div>
+  </div>
+</section>
+
+<section class="desks-panel hidden" id="desks-panel" aria-label="Desks">
+  <div class="results-head"><h2 class="list-title">Desks</h2><button class="close" id="desks-close" type="button" aria-label="Close">×</button></div>
+  <div class="desks-grid" id="desks-grid"></div>
+</section>
+
+<main class="desk-surface" id="surface">
+  <div class="desk-plane" id="plane">
+    <svg class="desk-lines" id="lines" aria-hidden="true"></svg>
+  </div>
+  <div class="desk-empty hidden" id="empty">
+    <p><strong>This desk holds nothing yet.</strong></p>
+    <p>Open a word's card in an article or a lesson and choose "Put on the desk", or type a note with "New card".</p>
+  </div>
+  <ul class="desk-list" id="list"></ul>
+</main>
+
+<div class="full-holder hidden" id="full">
+  <section class="card" id="full-card">
+    <div class="head"><div class="surface"></div><div class="status"></div><button class="close" aria-label="Close">×</button></div>
+    <div class="line meaning"></div>
+    <div class="line grammar"></div>
+    <div class="chips"></div>
+    <div class="note"></div>
+    <div class="corrected"></div>
+    <div class="error"></div>
+    <div class="actions">
+      <button class="btn primary" data-act="shaky">Save to vocab</button>
+      <button class="btn" data-act="solid">Mark solid</button>
+      <button class="btn" data-act="ask">Ask about this root</button>
+    </div>
+    <div class="foot"></div>
+  </section>
+  <section class="card note-full hidden" id="full-note">
+    <div class="head"><div class="status">Note card</div><button class="close" aria-label="Close">×</button></div>
+    <textarea id="full-note-text" dir="auto" aria-label="The note's text"></textarea>
+    <div class="actions"><button class="btn" id="full-note-branch" type="button">Note on a new card</button><button class="btn" id="full-note-remove" type="button">Remove from the desk</button></div>
+    <div class="foot" id="full-note-foot"></div>
+  </section>
+</div>
+<script src="/card-ui.js"></script>
+<script src="/desk.js"></script>
+</body>
+</html>

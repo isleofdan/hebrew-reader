@@ -112,9 +112,10 @@
       data.card.pointed = got.pointed;
       delete data.points_missing;
       if (isCurrent()) {
-        const foot = el(card, 'foot').textContent;
+        // the foot kept as it was, a link in it included ("Open the desk")
+        const foot = [...el(card, 'foot').childNodes];
         fill(card, data);
-        el(card, 'foot').textContent = foot;
+        el(card, 'foot').replaceChildren(...foot);
       }
     } catch (e) {
       // the card stays unpointed, and says why, so a failure is never silent
@@ -133,9 +134,10 @@
       data.card = got.card;
       delete data.refresh_due;
       if (isCurrent()) {
-        const foot = el(card, 'foot').textContent;
+        // the foot kept as it was, a link in it included ("Open the desk")
+        const foot = [...el(card, 'foot').childNodes];
         fill(card, data);
-        el(card, 'foot').textContent = foot;
+        el(card, 'foot').replaceChildren(...foot);
       }
     } catch (e) {
       if (isCurrent()) el(card, 'foot').textContent = `Nikud and note not refreshed after the correction: ${e.message}`;
@@ -234,11 +236,36 @@
     window.open(`https://he.wiktionary.org/w/index.php?search=${encodeURIComponent(c.lemma || q)}`, '_blank', 'noopener');
   }
 
+  // "Put on the desk" (session twelve): the card on screen goes onto the desk
+  // Dan last worked on, once. `onPut()` answers the server's { desk, already };
+  // the card's foot says where it went, quietly, with a way to the desk.
+  function wirePut(card, onPut) {
+    const b = document.createElement('button');
+    b.className = 'btn'; b.type = 'button'; b.dataset.act = 'desk'; b.textContent = 'Put on the desk';
+    el(card, 'actions').append(b);
+    b.addEventListener('click', async () => {
+      const foot = el(card, 'foot');
+      b.disabled = true;
+      foot.textContent = 'putting it on the desk…';
+      try {
+        const got = await onPut();
+        foot.textContent = got.already ? `Already on the desk “${got.desk.name}”. ` : `On the desk “${got.desk.name}”. `;
+        const a = document.createElement('a'); a.href = '/desk'; a.textContent = 'Open the desk';
+        foot.append(a);
+      } catch (e) {
+        foot.textContent = `Not put on the desk: ${e.message}`;
+      } finally {
+        b.disabled = false;
+      }
+    });
+  }
+
   // Wires one card element: `getCurrent()` answers { card, spot } for the
   // word on the card; `onStatus(status)` saves; `onClose()` for the sheet.
-  function wire(card, { onStatus, getCurrent, onClose, onSetVerb }) {
+  function wire(card, { onStatus, getCurrent, onClose, onSetVerb, onPut }) {
     // the root and binyan control shows on verb cards of a page that saves it
     if (onSetVerb) card._onSetVerb = onSetVerb;
+    if (onPut) wirePut(card, onPut);
     card.querySelector('[data-act=shaky]').addEventListener('click', () => onStatus('shaky'));
     card.querySelector('[data-act=solid]').addEventListener('click', () => onStatus('solid'));
     card.querySelector('[data-act=ask]').addEventListener('click', () => askAbout((getCurrent() || {}).card));

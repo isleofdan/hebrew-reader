@@ -766,18 +766,42 @@ try {
         return { tall: getComputedStyle(el).display === 'inline' ? lh >= fs * 1.45 : r.height >= fs * 1.45, fits: el.scrollHeight <= el.clientHeight + 1, hidden, family: getComputedStyle(el).fontFamily };
       });
       for (const theme of ['light', 'dark']) {
-        await page.goto(`${base}/read.html?id=${stored.id}`);
-        await page.waitForSelector('.body .w');
-        await page.click(`.theme button[data-theme-choice=${theme}]`);
+        // The card is opened and its Hebrew face waited for before anything is
+        // measured (session twelve). The check used to flake here: in the cloud
+        // sandbox the download of the font from Google Fonts sometimes fails
+        // outright (the face ends in "error", or the stylesheet never arrives),
+        // which no wait can mend. So the face is asked for with the headword's
+        // own letters and waited for, up to 15 seconds; a failed download
+        // reloads the page and tries again, at most three times.
+        const card = page.locator(isMobile ? '#card-phone' : '#card-desktop');
+        let fontTries = 0;
+        for (;;) {
+          fontTries++;
+          await page.goto(`${base}/read.html?id=${stored.id}`);
+          await page.waitForSelector('.body .w');
+          await page.click(`.theme button[data-theme-choice=${theme}]`);
+          const w = page.locator('.body .w', { hasText: 'להתמודד' }).first();
+          await w.scrollIntoViewIfNeeded();
+          if (isMobile) await w.tap(); else { await w.hover(); await page.waitForTimeout(500); }
+          await card.locator('.surface .pointed').filter({ hasText: POINTS }).waitFor({ timeout: 10000 });
+          const fontIn = await page.evaluate(async (text) => {
+            const until = Date.now() + 15000;
+            const noto = () => [...document.fonts].filter((f) => f.family.replace(/"/g, '') === 'Noto Serif Hebrew');
+            const loaded = () => noto().some((f) => f.status === 'loaded');
+            while (!loaded() && Date.now() < until) {
+              if (!noto().length || noto().some((f) => f.status === 'error')) return false; // the download itself failed
+              try { await document.fonts.load('600 30px "Noto Serif Hebrew"', text); } catch { /* asked again below */ }
+              if (!loaded()) await new Promise((r) => setTimeout(r, 250));
+            }
+            await document.fonts.ready;
+            return loaded();
+          }, await card.locator('.surface .pointed').innerText());
+          if (fontIn || fontTries >= 3) break;
+          console.log(`${name} ${theme}: the Hebrew web font did not download (try ${fontTries}); the page is loaded again`);
+        }
         const legend = (await page.locator('.legend').innerText()).replace(/\s+/g, ' ').trim();
         check(`${name} ${theme}: the color key reads "Shaky · Looked up · Solid and new words have no color."`, legend === 'Shaky Looked up Solid and new words have no color.', legend);
         await page.locator('.legend').screenshot({ path: join(out, `legend-${theme}-${name}.png`) });
-        const w = page.locator('.body .w', { hasText: 'להתמודד' }).first();
-        await w.scrollIntoViewIfNeeded();
-        if (isMobile) await w.tap(); else { await w.hover(); await page.waitForTimeout(500); }
-        const card = page.locator(isMobile ? '#card-phone' : '#card-desktop');
-        await card.locator('.surface .pointed').filter({ hasText: POINTS }).waitFor({ timeout: 10000 });
-        await page.evaluate(() => document.fonts.ready);
         const big = card.locator('.surface .pointed'), small = card.locator('.surface .plain'), inText = card.locator('.grammar .pointed');
         const [bigText, smallText, inTextText] = [await big.innerText(), await small.innerText(), await inText.innerText()];
         const m = await clipped(big), mi = await clipped(inText);
