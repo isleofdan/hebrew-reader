@@ -1,0 +1,19 @@
+{
+  "name": "Hebrew reader",
+  "short_name": "Hebrew desk",
+  "description": "Dan's Hebrew reader: the desk, the phone page, and catching a line from another app.",
+  "start_url": "/desk",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f6f4ee",
+  "theme_color": "#2f6f6a",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "GET",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  }
+}
