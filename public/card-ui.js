@@ -112,9 +112,10 @@
       data.card.pointed = got.pointed;
       delete data.points_missing;
       if (isCurrent()) {
-        const foot = el(card, 'foot').textContent;
+        // the foot kept as it was, a link in it included ("Open the desk")
+        const foot = [...el(card, 'foot').childNodes];
         fill(card, data);
-        el(card, 'foot').textContent = foot;
+        el(card, 'foot').replaceChildren(...foot);
       }
     } catch (e) {
       // the card stays unpointed, and says why, so a failure is never silent
@@ -133,9 +134,10 @@
       data.card = got.card;
       delete data.refresh_due;
       if (isCurrent()) {
-        const foot = el(card, 'foot').textContent;
+        // the foot kept as it was, a link in it included ("Open the desk")
+        const foot = [...el(card, 'foot').childNodes];
         fill(card, data);
-        el(card, 'foot').textContent = foot;
+        el(card, 'foot').replaceChildren(...foot);
       }
     } catch (e) {
       if (isCurrent()) el(card, 'foot').textContent = `Nikud and note not refreshed after the correction: ${e.message}`;
