@@ -148,7 +148,8 @@ function mockGuide(items, date, n, fault) {
 // "Find more examples" ("The word: …"): control.examples, when set, is the
 // list answered; else five examples for להמר, one without a url, and from
 // the second search on one more with a new url each time.
-let searchCalls = 0, exampleCalls = 0;
+let searchCalls = 0, exampleCalls = 0, sheetCalls = 0;
+const sheetAsks = [];
 const searchAsks = [];
 function webSearch(res, body, user) {
   searchCalls++;
@@ -186,7 +187,7 @@ function webSearch(res, body, user) {
 }
 
 http.createServer((req, res) => {
-  if (req.url === '/calls') { res.end(JSON.stringify({ search_calls: searchCalls, search_asks: searchAsks, calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
+  if (req.url === '/calls') { res.end(JSON.stringify({ sheet_calls: sheetCalls, sheet_asks: sheetAsks, search_calls: searchCalls, search_asks: searchAsks, calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
   let raw = '';
   req.on('data', (c) => raw += c);
   req.on('end', () => {
@@ -204,7 +205,25 @@ http.createServer((req, res) => {
     if (Array.isArray(body.tools) && body.tools.length) return webSearch(res, body, user);
     const followUp = body.messages.length > 2;
     let answer, format = 'clean';
-    if (user.startsWith('Sentence: ')) {
+    if (user.startsWith('The group:\n')) {
+      // the sheet's writing prompts (session fourteen): control.sheet_prompts
+      // when set; control.sheet_fail declines; else five prompts from the
+      // group's own words, one of which names לנדוד (not on the sheet: the
+      // server must refuse it) and one an inflected form of the first verb
+      // (הימרתי for להמר: the server must accept it)
+      sheetCalls++;
+      sheetAsks.push({ user, response_format: body.response_format || null, max_tokens: body.max_tokens });
+      const words = [...user.matchAll(/^- (?!a note)(\S+)/gm)].map((m) => m[1]);
+      const roots = [...user.matchAll(/root (\S+)/g)].map((m) => m[1]);
+      const a1 = words[0] || 'the first note', b1 = words[1] || (/- a note/.test(user) ? 'the note beside it' : a1);
+      answer = control.sheet_fail ? { error: 'the prompt writer declines in this mock' } : control.sheet_prompts ? { prompts: control.sheet_prompts } : { prompts: [
+        ...(/The reader linked/.test(user) ? [{ text: 'Write the sentence that says why you put these together.', kind: 'link-sentence' }] : []),
+        { text: `Use ${a1} and ${b1} in one paragraph about the last two weeks of news.`, kind: 'use-together' },
+        ...(roots.length ? [{ text: `Forms of ${roots[0]} in at least two tenses${words.includes('הימר') ? ', starting from הימרתי' : ''}.`, kind: 'forms' }] : []),
+        { text: `In Hebrew: what do ${a1} and ${b1} have to do with each other?`, kind: 'hebrew-question' },
+        { text: `Use לנדוד with ${a1} in one sentence.`, kind: 'use-together' },
+      ] };
+    } else if (user.startsWith('Sentence: ')) {
       // a translation for the demand page: only the sample article's sentence is known
       const sentence = user.slice('Sentence: '.length);
       answer = sentence.includes('בשנים האחרונות')

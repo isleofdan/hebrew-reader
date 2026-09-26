@@ -13,8 +13,10 @@ const MIN_W = 140, MIN_H = 90;
 
 let desk = null;              // { id, name, ... }
 let cards = new Map();        // key -> { data (as the server gave it), el }
-let links = [];               // [{ child, parent }]
+let links = [];               // [{ child, parent, kind, sentence? }]
 let topZ = 0;
+let sheets = null;            // { count, last, line }: how often this desk went to the reMarkable
+const Ink = window.InkUI;
 
 async function api(method, path, body) {
   const res = await fetch(path, {
@@ -38,12 +40,12 @@ function he(text, cls) { const s = el('span', cls ? `he ${cls}` : 'he', text); s
 
 // A quiet line under the strip: what did not save, or a put that did nothing.
 let msgTimer = null;
-function say(text, bad = false) {
+function say(text, bad = false, stay = false) {
   const m = $('#desk-msg');
   m.textContent = text || '';
   m.classList.toggle('bad', bad);
   clearTimeout(msgTimer);
-  if (text && !bad) msgTimer = setTimeout(() => { m.textContent = ''; }, 5000);
+  if (text && !bad && !stay) msgTimer = setTimeout(() => { m.textContent = ''; }, 5000);
 }
 const notSaved = (e) => say(`Not saved: ${e.message}`, true);
 
@@ -90,6 +92,18 @@ function noteFace(box, c) {
   t.dir = 'auto';
   if (!c.text) t.classList.add('empty-note');
   box.append(t);
+  if (c.link && c.link.title) box.append(linkLine(c));
+}
+
+// A caught link's page title, under the note that holds the link.
+function linkLine(c) {
+  const d = el('div', 'note-link', '');
+  const a = el('a', '', c.link.title);
+  a.href = c.link.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+  a.dir = 'auto';
+  a.addEventListener('click', (e) => e.stopPropagation());
+  d.append(a);
+  return d;
 }
 
 function face(box, c) { return c.kind === 'word' ? wordFace(box, c) : noteFace(box, c); }
@@ -105,13 +119,80 @@ function label(c) {
 
 function count(n) { return n === 0 ? 'no cards' : n === 1 ? '1 card' : `${n} cards`; }
 
+// The cards that hang together: joined by a grey line or a link Dan drew.
+// A group is two cards or more.
+function groupCount() {
+  const up = new Map([...cards.keys()].map((k) => [k, k]));
+  const find = (k) => { while (up.get(k) !== k) k = up.get(k); return k; };
+  for (const l of links) if (up.has(l.child) && up.has(l.parent)) up.set(find(l.child), find(l.parent));
+  const size = new Map();
+  for (const k of up.keys()) size.set(find(k), (size.get(find(k)) || 0) + 1);
+  return [...size.values()].filter((n) => n > 1).length;
+}
+
+// The cards lying outside the part of the desk on screen now (computer).
+function outOfView() {
+  if (LIST.matches) return [];
+  const top = Math.max(0, $('#surface').getBoundingClientRect().top);
+  const out = [];
+  for (const entry of cards.values()) {
+    if (!entry.el || entry.data.place.x === null) continue;
+    const r = entry.el.getBoundingClientRect();
+    if (r.bottom <= top || r.top >= window.innerHeight || r.right <= 0 || r.left >= window.innerWidth) out.push(entry.data.key);
+  }
+  return out;
+}
+
 function drawStrip() {
   const name = $('#desk-name');
   if (document.activeElement !== name) name.value = desk.name;
-  $('#desk-count').textContent = count(cards.size);
+  const away = outOfView().length;
+  $('#desk-count').textContent = `${LIST.matches ? '' : '· '}${count(cards.size)}${away ? ` (${away} out of view)` : ''}`;
+  $('#bring-in').classList.toggle('hidden', !away);
+  const g = groupCount();
+  $('#desk-groups').textContent = g ? `· ${g === 1 ? '1 group' : `${g} groups`}` : '';
+  $('#desk-sheets').textContent = sheets ? `· ${sheets.line}` : '';
   document.title = `${desk.name} — Desk`;
   $('#empty').classList.toggle('hidden', cards.size > 0);
 }
+
+// "bring every card into view": each card outside the part of the desk on
+// screen moves to the next free spot inside it, saved as any move.
+async function bringIn() {
+  const away = new Set(outOfView());
+  if (!away.size) return drawStrip();
+  const plane = $('#plane').getBoundingClientRect();
+  const top = Math.max(0, $('#surface').getBoundingClientRect().top);
+  const findOpen = !$('#results').classList.contains('hidden') && !LIST.matches;
+  const right = findOpen ? $('#results').getBoundingClientRect().left : window.innerWidth;
+  const vis = { x0: Math.max(0, -plane.left), y0: Math.max(0, top - plane.top), x1: right - plane.left, y1: window.innerHeight - plane.top };
+  const GAP = 16, STEP = 20;
+  const taken = [...cards.values()].filter((e) => !away.has(e.data.key) && e.data.place.x !== null).map((e) => e.data.place);
+  const hits = (r) => taken.some((t) => r.x < t.x + t.w + GAP && t.x < r.x + r.w + GAP && r.y < t.y + t.h + GAP && t.y < r.y + r.h + GAP);
+  let n = 0;
+  for (const key of away) {
+    const entry = cards.get(key), p = entry.data.place;
+    let spot = null;
+    for (let y = vis.y0 + 24; !spot && y + p.h <= vis.y1; y += STEP) {
+      for (let x = vis.x0 + 24; x + p.w <= vis.x1; x += STEP) { if (!hits({ x, y, w: p.w, h: p.h })) { spot = { x, y }; break; } }
+    }
+    // no free room on screen: laid a little apart, top left of the view
+    if (!spot) { spot = { x: Math.round(vis.x0 + 24 + n * 24), y: Math.round(vis.y0 + 24 + n * 24) }; n++; }
+    p.x = Math.round(spot.x); p.y = Math.round(spot.y);
+    taken.push(p);
+    position(entry);
+    await patch(key, { x: p.x, y: p.y });
+  }
+  sizePlane();
+  drawLines();
+  drawStrip();
+  say(away.size === 1 ? 'The card out of view is back in view.' : `The ${away.size} cards out of view are back in view.`);
+}
+$('#bring-in').addEventListener('click', bringIn);
+let viewTimer = null;
+const viewChanged = () => { clearTimeout(viewTimer); viewTimer = setTimeout(() => { if (desk) drawStrip(); }, 120); };
+window.addEventListener('scroll', viewChanged, { passive: true });
+$('#surface').addEventListener('scroll', viewChanged, { passive: true });
 
 // --- the past desk in a corner ---------------------------------------------------------
 // One past desk drawn small, with its name: the desk not opened for the
@@ -148,6 +229,7 @@ async function drawPast() {
 function load(view) {
   desk = view.desk;
   links = view.links || [];
+  sheets = view.sheets || null;
   cards = new Map();
   topZ = 0;
   for (const c of view.cards) {
@@ -172,6 +254,7 @@ function draw() {
   placeUnplaced();
   sizePlane();
   drawLines();
+  drawStrip();
 }
 
 function position(entry) {
@@ -196,14 +279,17 @@ function deskCard(c) {
     ta.addEventListener('input', () => saveNoteSoon(c, ta.value));
     ta.addEventListener('blur', () => flushNote(c));
     body.append(ta);
+    if (c.link && c.link.title) body.append(linkLine(c));
   } else {
     wordFace(body, c);
   }
   card.append(body);
+  if (c.ink && c.ink.strokes.length) { const pic = Ink.picture(c.ink.strokes); pic.classList.add('dink'); card.append(pic); }
   const acts = el('div', 'dacts');
   const act = (text, fn) => { const b = el('button', 'linklike', text); b.type = 'button'; b.addEventListener('click', (e) => { e.stopPropagation(); fn(); }); acts.append(b); return b; };
   act('open', () => openFull(c.key));
   act('note on a new card', () => noteFrom(c.key));
+  if (!LIST.matches) act('draw here', () => inkOn(c.key));
   act('remove from the desk', () => removeCard(c.key));
   card.append(acts);
   const grip = el('span', 'grip');
@@ -231,20 +317,45 @@ function sizePlane() {
   svg.setAttribute('width', w); svg.setAttribute('height', h);
 }
 
-// Thin grey lines join a card to the cards made from it, behind the cards.
+// Thin grey lines join a card to the cards made from it, behind the cards;
+// a blue line joins two cards Dan linked himself, his sentence beside it.
 function drawLines() {
   const svg = $('#lines');
   svg.innerHTML = '';
+  for (const c of [...$('#plane').querySelectorAll('.link-caption')]) c.remove();
   for (const l of links) {
     const a = cards.get(l.parent), b = cards.get(l.child);
     if (!a || !b || a.data.place.x === null || b.data.place.x === null) continue;
     const pa = a.data.place, pb = b.data.place;
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('x1', pa.x + pa.w / 2); line.setAttribute('y1', pa.y + pa.h / 2);
-    line.setAttribute('x2', pb.x + pb.w / 2); line.setAttribute('y2', pb.y + pb.h / 2);
+    const ha = a.el && a.el.classList.contains('inking') ? a.el.offsetHeight : pa.h, hb = b.el && b.el.classList.contains('inking') ? b.el.offsetHeight : pb.h;
+    const x1 = pa.x + pa.w / 2, y1 = pa.y + ha / 2, x2 = pb.x + pb.w / 2, y2 = pb.y + hb / 2;
+    line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2); line.setAttribute('y2', y2);
     line.dataset.child = l.child; line.dataset.parent = l.parent;
+    if (l.kind === 'linked') {
+      line.classList.add('dan-link');
+      const cap = el('div', 'link-caption', `you linked these: ${l.sentence}`);
+      cap.dataset.child = l.child; cap.dataset.parent = l.parent;
+      // beside the part of the line that runs between the two cards
+      const ra = { x: pa.x, y: pa.y, w: pa.w, h: ha }, rb = { x: pb.x, y: pb.y, w: pb.w, h: hb };
+      const t0 = exitAt(x1, y1, x2, y2, ra), t1 = 1 - exitAt(x2, y2, x1, y1, rb);
+      const tm = t1 > t0 ? (t0 + t1) / 2 : 0.5;
+      cap.style.left = `${Math.round(x1 + (x2 - x1) * tm)}px`; cap.style.top = `${Math.round(y1 + (y2 - y1) * tm)}px`;
+      $('#plane').append(cap);
+    }
     svg.append(line);
   }
+}
+
+// Where a line from (x1, y1) inside rectangle r toward (x2, y2) leaves it,
+// as a fraction of the line (0 at its start, 1 at its end).
+function exitAt(x1, y1, x2, y2, r) {
+  const dx = x2 - x1, dy = y2 - y1;
+  let t = 1;
+  if (dx > 0) t = Math.min(t, (r.x + r.w - x1) / dx); else if (dx < 0) t = Math.min(t, (r.x - x1) / dx);
+  if (dy > 0) t = Math.min(t, (r.y + r.h - y1) / dy); else if (dy < 0) t = Math.min(t, (r.y - y1) / dy);
+  return Math.max(0, t);
 }
 
 // A card typed on the phone is on the desk but not yet placed: here it
@@ -284,7 +395,8 @@ function toFront(key) {
 
 function wireDrag(card, key) {
   card.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0 || e.target.closest('button, textarea, input, a, .grip')) return;
+    if (linking) { e.preventDefault(); if (!e.target.closest('button, a')) pickForLink(key); return; }
+    if (e.button !== 0 || e.target.closest('button, textarea, input, a, .grip, .ink-area')) return;
     const entry = cards.get(key);
     toFront(key);
     const start = { x: e.clientX, y: e.clientY, px: entry.data.place.x, py: entry.data.place.y };
@@ -431,7 +543,7 @@ function order(a, b) {
 
 function drawList() {
   const list = $('#list');
-  const parentOf = new Map(links.filter((l) => cards.has(l.parent) && cards.has(l.child)).map((l) => [l.child, l.parent]));
+  const parentOf = new Map(links.filter((l) => l.kind !== 'linked' && cards.has(l.parent) && cards.has(l.child)).map((l) => [l.child, l.parent]));
   const kids = (key) => [...cards.values()].filter((x) => parentOf.get(x.data.key) === key).sort(order);
   const item = (entry, depth, seen) => {
     const li = el('li', `ditem ${entry.data.kind}`);
@@ -467,6 +579,7 @@ function openFull(key, data) {
   if (!c) return;
   fullKey = key;
   fullData = c;
+  document.body.classList.add('full-open');
   $('#full').classList.remove('hidden');
   $('#full-card').classList.toggle('hidden', c.kind !== 'word');
   $('#full-note').classList.toggle('hidden', c.kind !== 'note');
@@ -480,6 +593,7 @@ function openFull(key, data) {
     const ta = $('#full-note-text');
     ta.value = c.text || '';
     $('#full-note-foot').textContent = '';
+    if (c.link && c.link.title) $('#full-note-foot').append(linkLine(c));
     $('#full-note-remove').classList.toggle('hidden', !entry);
     ta.focus();
   }
@@ -488,8 +602,10 @@ function openFull(key, data) {
   Grow.show(grow, key, {
     api, deskId: desk.id, phone: LIST.matches,
     onNewCard: grown,
+    onChange: () => { fullChanged = true; },
   });
 }
+let fullChanged = false;
 
 // A branch or a cut made a new card: the desk is read again and the new card
 // shown beside the one it came from (on the phone, first in the list).
@@ -517,6 +633,9 @@ function closeFull() {
   fullKey = null;
   fullData = null;
   $('#full').classList.add('hidden');
+  document.body.classList.remove('full-open');
+  // ink drawn on the opened card shows on its desk card too
+  if (fullChanged) { fullChanged = false; api('GET', `/desks/${desk.id}`).then((v) => { if (v.desk.id === desk.id && !fullKey) load(v); }).catch(() => {}); }
 }
 
 UI.wire($('#full-card'), {
@@ -546,6 +665,109 @@ $('#full-note-text').addEventListener('input', (e) => {
 $('#full-note-remove').addEventListener('click', () => removeCard(fullKey));
 $('#full').addEventListener('click', (e) => { if (e.target.id === 'full') { closeFull(); if (LIST.matches) draw(); } });
 for (const b of document.querySelectorAll('#full .close')) b.addEventListener('click', () => { if (LIST.matches) draw(); });
+
+// --- ink on a desk card ------------------------------------------------------------------------
+// "draw here": the card opens an ink area under what it shows, the width of
+// the card, growing as needed; each stroke is saved as it ends. "done" puts
+// the card back to its size, the drawing shown small on it.
+function inkOn(key) {
+  const entry = cards.get(key);
+  if (!entry || !entry.el) return;
+  const card = entry.el;
+  if (card.classList.contains('inking')) return;
+  for (const other of document.querySelectorAll('.dcard.inking')) inkOff(other.dataset.key);
+  card.classList.add('inking');
+  const old = card.querySelector('.dink');
+  if (old) old.remove();
+  const c = entry.data;
+  const holder = el('div', 'dink-edit');
+  holder.append(Ink.area({
+    strokes: c.ink ? c.ink.strokes : [],
+    editable: true,
+    onStroke: async (points) => { const got = await api('POST', `/card/${key}/ink`, { points }); c.ink = got.layer; drawLines(); },
+    onUndo: async () => { const got = await api('DELETE', `/card/${key}/ink/last`); c.ink = got.layer; },
+  }));
+  const done = el('button', 'btn small', 'done');
+  done.type = 'button';
+  done.addEventListener('click', (e) => { e.stopPropagation(); inkOff(key); });
+  holder.querySelector('.ink-acts').append(done);
+  card.insertBefore(holder, card.querySelector('.dacts'));
+  toFront(key);
+  drawLines();
+}
+
+function inkOff(key) {
+  const entry = cards.get(key);
+  if (!entry || !entry.el) return;
+  const card = entry.el;
+  card.classList.remove('inking');
+  const edit = card.querySelector('.dink-edit');
+  if (edit) edit.remove();
+  if (entry.data.ink && entry.data.ink.strokes.length) { const pic = Ink.picture(entry.data.ink.strokes); pic.classList.add('dink'); card.insertBefore(pic, card.querySelector('.dacts')); }
+  drawLines();
+}
+
+// --- Dan's own link: "Link these" ------------------------------------------------------------
+// The first card, then the second, then one sentence saying why: a blue line
+// between them with the sentence beside it.
+let linking = null;           // null, or { first, second }
+function linkStep() {
+  const bar = $('#link-bar');
+  bar.classList.toggle('hidden', !linking);
+  document.body.classList.toggle('linking', Boolean(linking));
+  $('#link-these').classList.toggle('on', Boolean(linking));
+  $('#link-these').setAttribute('aria-pressed', String(Boolean(linking)));
+  for (const n of document.querySelectorAll('.dcard.picked')) n.classList.remove('picked');
+  if (!linking) return;
+  for (const k of [linking.first, linking.second]) { const e = k && cards.get(k); if (e && e.el) e.el.classList.add('picked'); }
+  const name = (k) => label(cards.get(k).data);
+  const ready = Boolean(linking.first && linking.second);
+  $('#link-step').textContent = !linking.first ? 'Link these: choose the first card.'
+    : !ready ? `Link these: ${name(linking.first)}, then choose the second card.`
+    : `${name(linking.first)} and ${name(linking.second)}:`;
+  $('#link-sentence').classList.toggle('hidden', !ready);
+  $('#link-save').classList.toggle('hidden', !ready);
+  if (ready) $('#link-sentence').focus();
+}
+function pickForLink(key) {
+  if (!linking) return;
+  if (!linking.first) linking.first = key;
+  else if (key !== linking.first) linking.second = key;
+  linkStep();
+}
+function stopLinking() { linking = null; $('#link-sentence').value = ''; linkStep(); }
+$('#link-these').addEventListener('click', () => { if (linking) return stopLinking(); closeFull(); linking = { first: null, second: null }; linkStep(); });
+$('#link-cancel').addEventListener('click', stopLinking);
+$('#link-bar').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!linking || !linking.first || !linking.second) return;
+  const sentence = $('#link-sentence').value.trim();
+  if (!sentence) return say('Type one sentence saying why these go together.', true);
+  try {
+    await api('POST', `/card/${linking.first}/link`, { to: linking.second, sentence });
+    stopLinking();
+    load(await api('GET', `/desks/${desk.id}`));
+    say('Linked. The blue line and your sentence stay while both cards are on this desk.');
+  } catch (err) { notSaved(err); }
+});
+
+// --- the sheet for the reMarkable ---------------------------------------------------------------
+$('#make-sheet').addEventListener('click', async () => {
+  const b = $('#make-sheet');
+  if (b.disabled) return;
+  b.disabled = true;
+  const was = b.textContent;
+  b.textContent = 'Making the sheet…';
+  say('Making the sheet from this desk, with writing prompts for each group… this can take half a minute.');
+  try {
+    const out = await api('POST', `/desks/${desk.id}/sheets`);
+    sheets = out.sheets;
+    drawStrip();
+    location.href = `/desk/sheet/${out.sheet.id}`;
+  } catch (e) { say(`The sheet was not made: ${e.message}`, true); }
+  b.disabled = false;
+  b.textContent = was;
+});
 
 // --- the desk's name, new desks, all desks -------------------------------------------------
 
@@ -790,17 +1012,63 @@ $('#surface').addEventListener('drop', (e) => {
 
 LIST.addEventListener('change', () => { if (desk) { draw(); drawPast(); } });
 window.addEventListener('resize', () => { if (desk && !LIST.matches) sizePlane(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && fullKey) { closeFull(); if (LIST.matches) draw(); } });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && linking) return stopLinking();
+  if (e.key === 'Escape' && fullKey) { closeFull(); if (LIST.matches) draw(); }
+});
+
+// Catching a card on the phone: what another app shared into the installed
+// app arrives at /share; it is saved as a note on the desk worked on last,
+// not yet placed, and the address goes back to /desk so a reload saves nothing twice.
+const CAUGHT = "Saved to tonight's desk, unplaced. Put it somewhere when you're at the computer.";
+async function catchShared() {
+  if (location.pathname !== '/share' && location.pathname !== '/share/confirm') return null;
+  const q = new URLSearchParams(location.search);
+  const shared = { title: q.get('title') || '', text: q.get('text') || '', url: q.get('url') || '' };
+  const confirm = location.pathname === '/share/confirm';
+  history.replaceState(null, '', '/desk');
+  // from a link on another website, not the phone's share sheet: saved only on a tap
+  if (confirm) return null;
+  try { return await api('POST', '/desks/catch', shared); } catch (e) { say(`Not saved: ${e.message}`, true); return null; }
+}
+
+function askToCatch(shared) {
+  const bar = el('div', 'link-bar share-bar');
+  const what = [shared.title, shared.text, shared.url].filter(Boolean).join(' · ').slice(0, 200);
+  bar.append(el('span', '', 'A link on another website sent this to your desk: '));
+  const t = el('strong', '', what || '(nothing)'); t.dir = 'auto'; bar.append(t);
+  const yes = el('button', 'btn primary small', "Save to tonight's desk"); yes.type = 'button';
+  const no = el('button', 'btn small', 'Leave it'); no.type = 'button';
+  bar.append(yes, no);
+  $('#desk-msg').after(bar);
+  no.addEventListener('click', () => bar.remove());
+  yes.addEventListener('click', async () => {
+    try {
+      const out = await api('POST', '/desks/catch', shared);
+      bar.remove();
+      load(await api('GET', `/desks/${out.desk.id}`));
+      say(CAUGHT, false, true);
+    } catch (e) { say(`Not saved: ${e.message}`, true); }
+  });
+}
 
 (async function start() {
+  const confirmShare = location.pathname === '/share/confirm' ? Object.fromEntries(['title', 'text', 'url'].map((k) => [k, new URLSearchParams(location.search).get(k) || ''])) : null;
+  const caught = await catchShared();
+  if (confirmShare) askToCatch(confirmShare);
   try {
     load(await api('GET', '/desks/current'));
   } catch (e) {
     say(`The desk could not be opened: ${e.message}`, true);
     return;
   }
+  if (caught) {
+    say(CAUGHT, false, true); // it stays until the next thing is said
+    const li = document.querySelector(`#list [data-key="${caught.card.key}"]`);
+    if (li) li.classList.add('fresh');
+  }
   const q = new URLSearchParams(location.search).get('find');
   if (q) { $('#find').value = q; find(q); }
 })();
 
-window.Desk = { get desk() { return desk; }, cards: () => cards, thumb };
+window.Desk = { get desk() { return desk; }, cards: () => cards, links: () => links, thumb, outOfView };

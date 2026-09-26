@@ -22,6 +22,7 @@
 </head>
 <body>
 <form method="post" action="/login">
+  <input type="hidden" name="next" value="{{NEXT}}">
   <h1>Hebrew reader</h1>
   <p id="lead">One passphrase, one reader. The cookie lasts 30 days.</p>
   <div class="msg" id="msg">{{MESSAGE}}</div>

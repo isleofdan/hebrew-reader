@@ -249,8 +249,8 @@ try {
   check('a match found only in a layer\'s text returns the root card under Threads, once',
     found.status === 200 && found.body.threads.length === 1 && found.body.threads[0].key === W, JSON.stringify(found.body.threads).slice(0, 300));
   const t = found.body.threads[0];
-  check('a thread carries its counts line and "last touched <date> · on N desks"',
-    /^word → 1 example kept → 2 questions → 1 note → looked up 8 times · \d+ branches$/.test(t.line) && /^last touched \d{1,2} [A-Z][a-z]{2} \d{4} · on 2 desks$/.test(t.where), JSON.stringify(t));
+  check('a thread carries its counts line and "last worked on <date> · on N desks"',
+    /^word → 1 example kept → 2 questions → 1 note → looked up 8 times · \d+ branches$/.test(t.line) && /^last worked on \d{1,2} [A-Z][a-z]{2} \d{4} · on 2 desks$/.test(t.where), JSON.stringify(t));
   const pointed = await api('GET', `/desks/find?q=${encodeURIComponent('הִמֵּר')}`), plain = await api('GET', `/desks/find?q=${encodeURIComponent('המר')}`);
   check('unpointed and pointed queries match alike (threads and cards)',
     pointed.body.threads.map((x) => x.key).join() === plain.body.threads.map((x) => x.key).join() && plain.body.threads.some((x) => x.key === W) && pointed.body.cards.length === plain.body.cards.length, JSON.stringify({ p: pointed.body.threads.length, u: plain.body.threads.length }));

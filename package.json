@@ -10,8 +10,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "COOKIE_INSECURE=1 node server.js",
-    "smoke": "node scripts/smoke.mjs && node scripts/grow-smoke.mjs",
-    "screenshots": "node scripts/screenshots.mjs && node scripts/desk-pages.mjs && node scripts/grow-pages.mjs"
+    "smoke": "node scripts/smoke.mjs && node scripts/grow-smoke.mjs && node scripts/paper-smoke.mjs",
+    "screenshots": "node scripts/screenshots.mjs && node scripts/desk-pages.mjs && node scripts/grow-pages.mjs && node scripts/paper-pages.mjs"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",

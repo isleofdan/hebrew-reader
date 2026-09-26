@@ -20,6 +20,8 @@ const lesson = require('./lib/lesson');
 const guyLesson = require('./lib/guy-lesson');
 const desk = require('./lib/desk');
 const grow = require('./lib/grow');
+const sheet = require('./lib/sheet');
+const caught = require('./lib/catch');
 const { CATEGORIES } = require('./lib/categories');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, readFile, serveStatic } = require('./lib/http');
@@ -42,8 +44,22 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function loginPage(res, status, message = '') {
-  sendHtml(res, status, LOGIN_TEMPLATE.replace('{{MESSAGE}}', escapeHtml(message)));
+function loginPage(res, status, message = '', next = '') {
+  sendHtml(res, status, LOGIN_TEMPLATE.replace('{{MESSAGE}}', escapeHtml(message)).replace('{{NEXT}}', escapeHtml(safeNext(next))));
+}
+
+// Where sign-in may send Dan back to: only a share on its way to the desk
+// (session fourteen), so a share made while signed out is not lost.
+function safeNext(next) {
+  const n = String(next || '');
+  return /^\/share(\/confirm)?(\?[^#]*)?$/.test(n) ? n : '';
+}
+
+// A share that did not come from the phone's own share sheet or this site
+// (a link on another website): it is shown and saved only on a tap.
+function fromAnotherSite(req) {
+  const s = req.headers['sec-fetch-site'];
+  return s === 'cross-site' || s === 'same-site';
 }
 
 const NOT_CONFIGURED = 'This server is not configured: APP_PASSWORD or COOKIE_SECRET is unset. Set both and restart.';
@@ -72,7 +88,7 @@ async function handleLogin(req, res) {
   }
   ratelimit.clear(req);
   const headers = { 'set-cookie': auth.issueCookie(COOKIE_SECRET, { secure: SECURE_COOKIE }) };
-  return wantsJson(req) ? sendJson(res, 200, { ok: true }, headers) : redirect(res, '/', headers);
+  return wantsJson(req) ? sendJson(res, 200, { ok: true }, headers) : redirect(res, safeNext(body.next) || '/', headers);
 }
 
 // Routes that need the cookie.
@@ -282,9 +298,28 @@ route('POST', /^\/desks\/(?<id>\d+)\/cards$/, async (req, res, { id }) => {
 route('PATCH', /^\/desks\/(?<id>\d+)\/cards\/(?<key>[a-z]+:\d+)$/, async (req, res, { id, key }) => sendJson(res, 200, { place: desk.move(Number(id), key, await readJson(req)) }));
 route('DELETE', /^\/desks\/(?<id>\d+)\/cards\/(?<key>[a-z]+:\d+)$/, (req, res, { id, key }) => sendJson(res, 200, desk.unplace(Number(id), key)));
 // { text, desk_id?, born_from?, unplaced? } -> a new note card on a desk
-route('POST', /^\/notes$/, async (req, res) => sendJson(res, 201, desk.addNote(await readJson(req))));
-// { text }
-route('PATCH', /^\/notes\/(?<id>\d+)$/, async (req, res, { id }) => sendJson(res, 200, desk.editNote(Number(id), (await readJson(req)).text)));
+route('POST', /^\/notes$/, async (req, res) => {
+  const out = desk.addNote(await readJson(req));
+  caught.later(out.card.key, out.fetch);
+  return sendJson(res, 201, out);
+});
+// { text }; a text that is only a web address gets its page's title, fetched afterwards
+route('PATCH', /^\/notes\/(?<id>\d+)$/, async (req, res, { id }) => {
+  const out = desk.editNote(Number(id), (await readJson(req)).text);
+  caught.later(out.key, out.fetch);
+  return sendJson(res, 200, out);
+});
+// Catching a card on the phone: { text?, url?, title? } shared from another
+// app -> a note card on the desk worked on last, not yet placed.
+route('POST', /^\/desks\/catch$/, async (req, res) => {
+  const out = desk.catchCard(await readJson(req));
+  caught.later(out.card.key, out.fetch);
+  return sendJson(res, 201, out);
+});
+// "Sheet for the reMarkable": one sheet made from this desk, its prompts
+// asked of the model now; the desk records that it was made.
+route('POST', /^\/desks\/(?<id>\d+)\/sheets$/, async (req, res, { id }) => sendJson(res, 201, await sheet.make(Number(id))));
+route('GET', /^\/sheets\/(?<id>\d+)$/, (req, res, { id }) => sendJson(res, 200, sheet.view(Number(id))));
 
 // --- a card, opened (session thirteen) ---------------------------------------
 // A card's full view with its layers; each action saves as it happens. The
@@ -306,6 +341,15 @@ route('POST', new RegExp(`^/card/${CARD}/lookup$`), async (req, res, { key }) =>
 });
 // on a card or a layer: { desk_id?, unplaced? } -> a new note card beside the card
 route('POST', new RegExp(`^/card/${CARD}/branch$`), async (req, res, { key }) => sendJson(res, 201, desk.branch(key, await readJson(req))));
+// Ink: { points: [[x, y, pressure?], ...] } -> { layer, stroke }, one stroke saved as it ends
+route('POST', new RegExp(`^/card/${CARD}/ink$`), async (req, res, { key }) => sendJson(res, 201, desk.addStroke(key, (await readJson(req)).points)));
+// "undo last stroke" -> { layer (null when no stroke is left), removed }
+route('DELETE', new RegExp(`^/card/${CARD}/ink/last$`), (req, res, { key }) => sendJson(res, 200, desk.undoStroke(key)));
+// "link these": { to: <another card>, sentence } -> { link }
+route('POST', new RegExp(`^/card/${CARD}/link$`), async (req, res, { key }) => {
+  const body = await readJson(req);
+  return sendJson(res, 201, desk.link(key, body.to, body.sentence));
+});
 // { at: <a layer of this card>, desk_id?, unplaced? }
 route('POST', new RegExp(`^/card/${CARD}/cut$`), async (req, res, { key }) => {
   const body = await readJson(req);
@@ -313,7 +357,7 @@ route('POST', new RegExp(`^/card/${CARD}/cut$`), async (req, res, { key }) => {
 });
 
 function isApiPath(p) {
-  return /^\/(articles|lookup|spots|marks-for-article|marks-for-lesson|categories|demand|ask|make|lessons|desks|notes|card)(\/|$)/.test(p);
+  return /^\/(articles|lookup|spots|marks-for-article|marks-for-lesson|categories|demand|ask|make|lessons|desks|notes|card|sheets)(\/|$)/.test(p);
 }
 
 async function handle(req, res) {
@@ -321,12 +365,21 @@ async function handle(req, res) {
   const p = url.pathname;
 
   if (p === '/health') return sendJson(res, 200, { ok: true, configured: CONFIGURED });
-  if (p === '/login' && req.method === 'GET') return loginPage(res, CONFIGURED ? 200 : 503, CONFIGURED ? '' : NOT_CONFIGURED);
+  if (p === '/login' && req.method === 'GET') return loginPage(res, CONFIGURED ? 200 : 503, CONFIGURED ? '' : NOT_CONFIGURED, url.searchParams.get('next'));
   if (p === '/login' && req.method === 'POST') return handleLogin(req, res);
   if (p === '/logout') return redirect(res, '/login', { 'set-cookie': auth.clearCookie({ secure: SECURE_COOKIE }) });
+  // what makes the phone page installable: fetched by the browser without the
+  // cookie, and holding nothing of Dan's
+  if (['/manifest.webmanifest', '/sw.js', '/icon-192.png', '/icon-512.png'].includes(p)) {
+    return serveStatic(res, PUBLIC, p) || sendJson(res, 404, { error: `${p} is missing.` });
+  }
 
   if (!CONFIGURED) return isApiPath(p) ? sendJson(res, 503, { error: NOT_CONFIGURED }) : loginPage(res, 503, NOT_CONFIGURED);
   if (!auth.cookieOk(req, COOKIE_SECRET)) {
+    if (p === '/share' || p === '/share/confirm') {
+      const back = `${p === '/share' && !fromAnotherSite(req) ? '/share' : '/share/confirm'}${url.search}`;
+      return redirect(res, `/login?next=${encodeURIComponent(back)}`);
+    }
     return isApiPath(p) ? sendJson(res, 401, { error: 'Sign in first: POST /login with the passphrase.' }) : redirect(res, '/login');
   }
 
@@ -347,7 +400,11 @@ async function handle(req, res) {
   if (p === '/') return serveStatic(res, PUBLIC, '/index.html') || sendJson(res, 404, { error: 'index.html is missing.' });
   if (p === '/login.html') return redirect(res, '/login');
   if (p === '/phone') return serveStatic(res, PUBLIC, '/phone.html') || sendJson(res, 404, { error: 'phone.html is missing.' });
-  if (p === '/desk') return serveStatic(res, PUBLIC, '/desk.html') || sendJson(res, 404, { error: 'desk.html is missing.' });
+  // /share is where the installed app receives what another app shares; the
+  // desk page saves it (a GET here writes nothing)
+  if (p === '/share' && fromAnotherSite(req)) return redirect(res, `/share/confirm${url.search}`);
+  if (p === '/desk' || p === '/share' || p === '/share/confirm') return serveStatic(res, PUBLIC, '/desk.html') || sendJson(res, 404, { error: 'desk.html is missing.' });
+  if (/^\/desk\/sheet\/\d+$/.test(p)) return serveStatic(res, PUBLIC, '/desk-sheet.html') || sendJson(res, 404, { error: 'desk-sheet.html is missing.' });
   if (serveStatic(res, PUBLIC, p)) return;
   return sendJson(res, 404, { error: `Nothing at ${p}.` });
 }
