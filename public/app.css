@@ -14,14 +14,14 @@
   --light-amber: #f3dfa4; --light-amber-ink: #5a3b00; --light-amber-line: #b8860b; --light-blue: #d6e5f4; --light-blue-line: #5b7fa6;
   --light-ok: #d9efd8; --light-ok-ink: #1d5a24; --light-ok-line: #3f8a4a;
   --light-field: #ffffff; --light-on-accent: #ffffff; --light-danger: #8a3b2a; --light-shadow: rgba(0,0,0,0.12);
-  --light-note: #fbf3cf; --light-note-line: #e3d08a; --light-link: #b5ae9c;
+  --light-note: #fbf3cf; --light-note-line: #e3d08a; --light-link: #b5ae9c; --light-link-blue: #2f6bd1; --light-link-blue-ink: #1d4a96;
 
   --dark-bg: #14130e; --dark-panel: #1d1c16; --dark-line: #302e26; --dark-line-strong: #4a4639;
   --dark-text: #ece7da; --dark-muted: #a9a496; --dark-accent: #7ac6bc; --dark-accent-dark: #cfeeea; --dark-accent-soft: #1e3a37;
   --dark-amber: #6b4f12; --dark-amber-ink: #f7e7bb; --dark-amber-line: #dcae33; --dark-blue: #22405e; --dark-blue-line: #85b4e6;
   --dark-ok: #1d4526; --dark-ok-ink: #d3ecd3; --dark-ok-line: #59aa63;
   --dark-field: #1a1913; --dark-on-accent: #0d211e; --dark-danger: #ff9d87; --dark-shadow: rgba(0,0,0,0.5);
-  --dark-note: #36311a; --dark-note-line: #6d6130; --dark-link: #5d584a;
+  --dark-note: #36311a; --dark-note-line: #6d6130; --dark-link: #5d584a; --dark-link-blue: #6aa6ff; --dark-link-blue-ink: #a9cbff;
 
   --serif: 'Frank Ruhl Libre', 'David', 'Narkisim', 'Times New Roman', serif;
   --sans: 'Assistant', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -37,7 +37,7 @@
   --amber: var(--light-amber); --amber-ink: var(--light-amber-ink); --amber-line: var(--light-amber-line); --blue: var(--light-blue); --blue-line: var(--light-blue-line);
   --ok: var(--light-ok); --ok-ink: var(--light-ok-ink); --ok-line: var(--light-ok-line);
   --field: var(--light-field); --on-accent: var(--light-on-accent); --danger: var(--light-danger); --shadow: var(--light-shadow);
-  --note: var(--light-note); --note-line: var(--light-note-line); --link-line: var(--light-link);
+  --note: var(--light-note); --note-line: var(--light-note-line); --link-line: var(--light-link); --link-blue: var(--light-link-blue); --link-blue-ink: var(--light-link-blue-ink);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -47,7 +47,7 @@
     --amber: var(--dark-amber); --amber-ink: var(--dark-amber-ink); --amber-line: var(--dark-amber-line); --blue: var(--dark-blue); --blue-line: var(--dark-blue-line);
     --ok: var(--dark-ok); --ok-ink: var(--dark-ok-ink); --ok-line: var(--dark-ok-line);
     --field: var(--dark-field); --on-accent: var(--dark-on-accent); --danger: var(--dark-danger); --shadow: var(--dark-shadow);
-    --note: var(--dark-note); --note-line: var(--dark-note-line); --link-line: var(--dark-link);
+    --note: var(--dark-note); --note-line: var(--dark-note-line); --link-line: var(--dark-link); --link-blue: var(--dark-link-blue); --link-blue-ink: var(--dark-link-blue-ink);
   }
 }
 :root[data-theme="dark"] {
@@ -57,7 +57,7 @@
   --amber: var(--dark-amber); --amber-ink: var(--dark-amber-ink); --amber-line: var(--dark-amber-line); --blue: var(--dark-blue); --blue-line: var(--dark-blue-line);
   --ok: var(--dark-ok); --ok-ink: var(--dark-ok-ink); --ok-line: var(--dark-ok-line);
   --field: var(--dark-field); --on-accent: var(--dark-on-accent); --danger: var(--dark-danger); --shadow: var(--dark-shadow);
-  --note: var(--dark-note); --note-line: var(--dark-note-line); --link-line: var(--dark-link);
+  --note: var(--dark-note); --note-line: var(--dark-note-line); --link-line: var(--dark-link); --link-blue: var(--dark-link-blue); --link-blue-ink: var(--dark-link-blue-ink);
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 16px; }
@@ -517,3 +517,48 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 @media (min-width: 700px) {
   .desk-results { width: min(880px, 68vw); }
 }
+
+/* --- the desk with a pen and with paper (session fourteen) ---------------------------- */
+/* the fragments behind an opened card: while it is open, the panels behind
+   it are not drawn at all, and scrolling it never reaches what lies behind */
+.full-holder { overscroll-behavior: contain; }
+body.full-open .desk-results, body.full-open .desks-panel { visibility: hidden; }
+.desk-strip .strip-line { font-size: 13px; color: var(--muted); display: inline-flex; flex-wrap: wrap; gap: 4px 6px; align-items: baseline; }
+.desk-strip .strip-line .linklike { font-size: 13px; }
+.desk-strip .btn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-dark); }
+.desk-strip .phone-only { display: none; }
+@media (max-width: 699px) {
+  .desk-strip .computer-only { display: none; }
+  .desk-strip .phone-only { display: inline; }
+}
+/* Dan's own link: a blue line, the sentence beside it */
+.desk-lines line.dan-link { stroke: var(--link-blue); stroke-width: 2.5; }
+.link-caption { position: absolute; z-index: 3500; max-width: 230px; transform: translate(-50%, -50%); background: var(--panel); color: var(--link-blue-ink); border: 1px solid var(--link-blue); border-radius: 8px; padding: 3px 8px; font-size: 12px; line-height: 1.35; text-align: center; pointer-events: none; unicode-bidi: plaintext; }
+.link-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 16px; background: var(--accent-soft); color: var(--accent-dark); border-bottom: 1px solid var(--line); font-size: 14px; }
+.link-bar input { flex: 1 1 18em; min-width: 0; height: 34px; font: inherit; font-size: 15px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--field); color: var(--text); }
+.dcard.picked { outline: 3px solid var(--link-blue); outline-offset: 2px; }
+body.linking .dcard { cursor: pointer; }
+/* ink */
+.ink-area { display: flex; flex-direction: column; gap: 4px; }
+.ink-pad { position: relative; width: 100%; color: var(--text); background: var(--field); border: 1px dashed var(--line-strong); border-radius: 8px; line-height: 0; }
+.ink-area.editable .ink-pad { cursor: crosshair; touch-action: pan-y; }
+.ink-area:not(.editable) .ink-pad { background: transparent; border-color: transparent; }
+.ink-svg { width: 100%; height: auto; display: block; overflow: visible; }
+.ink-hint { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 13px; color: var(--muted); line-height: 1.2; pointer-events: none; }
+.ink-acts { display: flex; gap: 12px; align-items: center; font-size: 12px; }
+.ink-acts .linklike:disabled { color: var(--muted); opacity: 0.6; cursor: default; }
+.ink-msg { color: var(--danger); }
+.ink-picture { color: var(--text); line-height: 0; }
+.grow .layer.ink { border-left-color: var(--text); }
+/* a desk card's own lines come first; its ink takes what room is left */
+.dcard:not(.inking) .dface { flex: 0 0 auto; }
+.dcard .dink { flex: 1 1 0; min-height: 0; max-height: 64px; overflow: hidden; }
+.dcard .dink .ink-svg { max-height: 64px; width: auto; max-width: 100%; }
+.dcard.inking { height: auto !important; min-height: 0; overflow: visible; z-index: 3000 !important; box-shadow: 0 8px 22px var(--shadow); }
+.dcard.inking .dface { flex-grow: 0; }
+/* a caught link on a note card */
+.note-link { font-size: 13px; color: var(--muted); line-height: 1.4; unicode-bidi: plaintext; }
+.note-link a { color: var(--accent); }
+.ditem.fresh .ditem-open { outline: 3px solid var(--accent); outline-offset: 2px; }
+.grow .layer.ink.pending .ink-pad { min-height: 90px; }
+.grow .linked-line { border-top: 0; padding-top: 0; color: var(--link-blue-ink); }

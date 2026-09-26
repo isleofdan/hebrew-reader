@@ -74,10 +74,10 @@ try {
     page.on('pageerror', (e) => { console.log('page error:', e.message); failed++; });
     page.jargon = [];
     const shoot = page.screenshot.bind(page);
-    // "last touched" is the brief's own wording for a thread (Dan's mockup)
+    // no exclusions: the Threads line reads "last worked on" (session fourteen)
     page.screenshot = async (opts) => {
       const visible = await page.evaluate(() => document.body.innerText).catch(() => '');
-      const hits = visible.replace(/last touched/gi, '').match(/\b(maps?|mapped|met|touch(es|ed)?|spots?)\b/gi);
+      const hits = visible.match(/\b(maps?|mapped|met|touch(es|ed)?|spots?)\b/gi);
       if (hits) page.jargon.push(`${opts.path.split('/').pop()}: ${[...new Set(hits)].join(', ')}`);
       return shoot(opts);
     };
@@ -148,7 +148,8 @@ try {
     check(`${name}: a note layer shows its text and date; a lookup layer is one line`,
       (await g.locator('.layer.note textarea').first().inputValue()) === 'bet ON something: להמר על' && /^note · \d/.test(await g.locator('.layer.note .layer-kind').first().innerText())
       && /^looked up in Milog, \d{1,2} [A-Z][a-z]{2} \d{4}$/.test(await g.locator('.layer.lookup .lookup-line').first().innerText()));
-    const actions = await g.locator('.grow-acts').evaluateAll((rows) => rows.map((r) => [...r.querySelectorAll('button, a, .refs-label')].map((b) => b.textContent.trim())).flat());
+    // "Draw here" (session fourteen, computer only) is left out of thirteen's order
+    const actions = (await g.locator('.grow-acts').evaluateAll((rows) => rows.map((r) => [...r.querySelectorAll('button, a, .refs-label')].map((b) => b.textContent.trim())).flat())).filter((t) => t !== 'Draw here');
     check(`${name}: the action row, in the brief's order: Ask here · Note here · Find more examples · Look up in the seven · Branch · Cut`,
       actions.join('|') === 'Ask here|Note here|Find more examples|Look up in|Morfix|Pealim|Wiktionary|Milog|the Academy|Kizur|Sefaria|Branch a new card from here|Cut this card in two', actions.join('|'));
     const foot = await g.locator('.grow-foot').innerText();
@@ -292,7 +293,7 @@ try {
     const tl = await thread.innerText();
     check(`${name}: Find shows Cards, Threads, Desks; להמר under Threads with its counts line and where it is`,
       (await page.locator('#results .list-title').allTextContents()).join('|') === 'Cards|Threads|Desks'
-      && /^להמר: word → \d examples? kept → \d questions? → \d notes? → looked up \d+ times? · \d+ branch(es)?\nlast touched \d{1,2} [A-Z][a-z]{2} \d{4} · on 1 desk$/.test(tl), tl);
+      && /^להמר: word → \d examples? kept → \d questions? → \d notes? → looked up \d+ times? · \d+ branch(es)?\nlast worked on \d{1,2} [A-Z][a-z]{2} \d{4} · on 1 desk$/.test(tl), tl);
     check(`${name}: each card result says what it is and where it came from`, /^word · from Guy's lesson of 24 Feb 2026$/.test(await page.locator(`#results-cards .result-card.word .origin`).first().innerText())
       && /^example · found online \d{1,2} [A-Z][a-z]{2} \d{4} · on להמר$/.test(await page.locator('#results-cards .result-card.example .origin').first().innerText()));
     await both(page, `find-${name}`);

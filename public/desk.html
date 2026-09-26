@@ -8,7 +8,10 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@400;500;700&family=Noto+Serif+Hebrew:wght@400;500;600&display=swap">
 <meta name="color-scheme" content="light dark">
 <link rel="stylesheet" href="/app.css">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon-192.png">
 <script src="/theme.js"></script>
+<script src="/install.js"></script>
 </head>
 <body class="desk-page">
 <header class="topbar">
@@ -23,14 +26,28 @@
 </header>
 <div class="desk-strip">
   <input class="desk-name" id="desk-name" type="text" aria-label="The desk's name" autocomplete="off" spellcheck="false" maxlength="80">
-  <span class="desk-count" id="desk-count"></span>
+  <span class="strip-line">
+    <span class="desk-count" id="desk-count"></span>
+    <button class="linklike hidden" id="bring-in" type="button">bring every card into view</button>
+    <span class="desk-count" id="desk-groups"></span>
+    <span class="desk-count computer-only" id="desk-sheets"></span>
+    <span class="desk-count phone-only">· you can't move them here, only open them</span>
+  </span>
   <span class="spacer"></span>
   <input class="desk-find" id="find" type="search" placeholder="Find — מילה, root, meaning, desk" aria-label="Find" autocomplete="off" spellcheck="false" dir="auto">
   <button class="btn primary" id="new-card" type="button">New card</button>
+  <button class="btn computer-only" id="link-these" type="button" aria-pressed="false">Link these</button>
+  <button class="btn computer-only" id="make-sheet" type="button">Sheet for the reMarkable</button>
   <button class="btn" id="show-desks" type="button" aria-expanded="false">Desks</button>
   <button class="btn" id="new-desk" type="button">New desk</button>
 </div>
 <p class="desk-msg" id="desk-msg" role="status"></p>
+<form class="link-bar hidden" id="link-bar" autocomplete="off">
+  <span id="link-step"></span>
+  <input id="link-sentence" class="hidden" type="text" dir="auto" maxlength="300" placeholder="Why do these go together? One sentence." aria-label="Why these go together">
+  <button class="btn primary small hidden" id="link-save" type="submit">Link them</button>
+  <button class="btn small" id="link-cancel" type="button">Cancel</button>
+</form>
 
 <section class="desk-results hidden" id="results" aria-label="Find">
   <div class="results-head"><span id="results-line"></span><button class="close" id="results-close" type="button" aria-label="Close">×</button></div>
@@ -84,6 +101,7 @@
   <div class="grow" id="grow"></div>
 </div>
 <script src="/card-ui.js"></script>
+<script src="/ink-ui.js"></script>
 <script src="/grow-ui.js"></script>
 <script src="/desk.js"></script>
 </body>

@@ -215,7 +215,7 @@ http.createServer((req, res) => {
       sheetAsks.push({ user, response_format: body.response_format || null, max_tokens: body.max_tokens });
       const words = [...user.matchAll(/^- (?!a note)(\S+)/gm)].map((m) => m[1]);
       const roots = [...user.matchAll(/root (\S+)/g)].map((m) => m[1]);
-      const [a1, b1] = [words[0] || 'הערה', words[1] || words[0] || 'הערה'];
+      const a1 = words[0] || 'the first note', b1 = words[1] || (/- a note/.test(user) ? 'the note beside it' : a1);
       answer = control.sheet_fail ? { error: 'the prompt writer declines in this mock' } : control.sheet_prompts ? { prompts: control.sheet_prompts } : { prompts: [
         ...(/The reader linked/.test(user) ? [{ text: 'Write the sentence that says why you put these together.', kind: 'link-sentence' }] : []),
         { text: `Use ${a1} and ${b1} in one paragraph about the last two weeks of news.`, kind: 'use-together' },

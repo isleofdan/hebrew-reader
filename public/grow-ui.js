@@ -115,12 +115,47 @@
         if (state.noting === l.key) setTimeout(() => ta.focus(), 0);
       }
       if (l.kind === 'lookup') li.append(el('div', 'lookup-line', `looked up in ${l.label}, ${day(l.made_at)}`));
+      if (l.kind === 'ink') {
+        li.append(el('div', 'layer-kind', `note · ink · ${day(l.drawn_at || l.made_at)}`));
+        li.append(inkArea(l));
+      }
       if (l.kind !== 'example' || l.kept) {
         const row = el('div', 'layer-acts');
         row.append(btn('Branch a new card from here', 'linklike', () => branchFrom(l.key)));
         if (state.cutting) row.append(btn(state.view.layers[0].key === l.key ? 'Cut here (every layer)' : 'Cut here', 'btn small cut-here', () => cutAt(l.key)));
         li.append(row);
       }
+      return li;
+    }
+
+    // The card's newest ink layer takes more strokes on a computer; any
+    // other ink, and all ink on the phone, is shown, not drawn on.
+    function inkArea(l) {
+      const newest = state.view.ink && state.view.ink.key === l.key;
+      if (opts.phone || !newest || !window.InkUI) return window.InkUI ? window.InkUI.picture(l.strokes) : el('span');
+      return window.InkUI.area({
+        strokes: l.strokes,
+        editable: true,
+        onStroke: async (points) => { const got = await api('POST', `/card/${key}/ink`, { points }); l.strokes = got.layer.strokes; opts.onChange && opts.onChange(); },
+        onUndo: async () => {
+          const got = await api('DELETE', `/card/${key}/ink/last`);
+          opts.onChange && opts.onChange();
+          if (!got.layer) await reload(); else l.strokes = got.layer.strokes;
+        },
+      });
+    }
+
+    // "Draw here" on a card with no ink yet: an empty ink area under the
+    // layers; the first stroke makes the ink layer.
+    function newInk() {
+      const li = el('li', 'layer ink pending');
+      li.append(el('div', 'layer-kind', 'note · ink'));
+      li.append(window.InkUI.area({
+        strokes: [],
+        editable: true,
+        onStroke: async (points) => { await api('POST', `/card/${key}/ink`, { points }); state.drawing = false; opts.onChange && opts.onChange(); await reload(); },
+        onUndo: async () => {},
+      }));
       return li;
     }
 
@@ -178,8 +213,9 @@
         }
         list.append(layerBox(l, shown.indexOf(l), shown));
       });
-      if (v.layers.length) box.append(list);
-      else box.append(el('p', 'no-layers', 'Nothing has grown on this card yet: ask about it, find examples of it, or add a note.'));
+      if (state.drawing && !v.ink && window.InkUI) list.append(newInk());
+      if (v.layers.length || list.children.length) box.append(list);
+      if (!v.layers.length) box.append(el('p', 'no-layers', 'Nothing has grown on this card yet: ask about it, find examples of it, or add a note.'));
 
       if (state.cutting) {
         const c = el('div', 'cut-bar');
@@ -239,6 +275,7 @@
         find.disabled = Boolean(state.busy);
         acts.append(find);
       }
+      if (!opts.phone && window.InkUI && !v.ink) acts.append(btn(state.drawing ? 'Drawing: use the area above' : 'Draw here', 'btn small draw-here', () => { state.drawing = !state.drawing; state.asking = false; state.cutting = false; draw(); }));
       box.append(acts);
       if (isWord) {
         const refs = el('div', 'grow-acts refs');
@@ -265,7 +302,15 @@
       if (f.origin) bits.push(f.origin.from === 'card' ? `${f.origin.via} ${f.origin.text}` : `Born from ${f.origin.text}`);
       bits.push(f.desks.length ? `on ${f.desks.length === 1 ? '1 desk' : `${f.desks.length} desks`}: ${f.desks.map((d) => d.name).join(', ')}` : 'on no desk');
       bits.push(`${f.branched === 1 ? '1 card' : `${f.branched} cards`} branched from it`);
+      if (f.sheets) bits.push(`on ${f.sheets === 1 ? '1 sheet' : `${f.sheets} sheets`}`);
       box.append(el('div', 'grow-foot', bits.join(' · ')));
+      for (const l of v.linked || []) {
+        const ln = el('div', 'grow-foot linked-line');
+        ln.append(document.createTextNode('you linked this to '));
+        const w = el('span', '', l.label); w.dir = 'auto'; ln.append(w);
+        ln.append(document.createTextNode(`: ${l.sentence}`));
+        box.append(ln);
+      }
     }
 
     draw();

@@ -90,7 +90,7 @@ try {
     const emptyText = await page.locator('#empty').innerText();
     const name = await page.locator('#desk-name').inputValue();
     check('desktop: a first visit opens an empty desk named for now, saying plainly it holds nothing yet',
-      /This desk holds nothing yet\./.test(emptyText) && NAME.test(name) && (await page.locator('#desk-count').innerText()) === 'no cards', `${name} | ${emptyText}`);
+      /This desk holds nothing yet\./.test(emptyText) && NAME.test(name) && (await page.locator('#desk-count').innerText()).replace(/^· /, '') === 'no cards', `${name} | ${emptyText}`);
     for (const theme of ['light', 'dark']) {
       await page.emulateMedia({ colorScheme: theme });
       await page.screenshot({ path: join(out, `desk-empty-${theme}-desktop.png`) });
@@ -188,7 +188,7 @@ try {
     await page.reload();
     await page.locator('.dcard.note').nth(1).waitFor();
     const texts = await page.locator('.dcard.note .dnote-edit').evaluateAll((els) => els.map((e) => e.value));
-    check('desktop: "New card" makes a note card with its text box focused; what is typed is still there after a reload', nf && texts.includes('הסלמה — escalation, not הצלמה') && (await page.locator('#desk-count').innerText()) === '4 cards', JSON.stringify(texts));
+    check('desktop: "New card" makes a note card with its text box focused; what is typed is still there after a reload', nf && texts.includes('הסלמה — escalation, not הצלמה') && (await page.locator('#desk-count').innerText()).replace(/^· /, '') === '4 cards', JSON.stringify(texts));
 
     // laid out tidily for the pictures: two word cards, a note born from one
     {
