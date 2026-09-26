@@ -388,6 +388,11 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 
 /* Find and the desks list: panels under the strip */
 .desk-results, .desks-panel { background: var(--panel); border-bottom: 1px solid var(--line-strong); padding: 10px 16px 16px; max-height: 60vh; overflow: auto; box-shadow: 0 6px 16px var(--shadow); position: relative; z-index: 5000; }
+/* on a computer, Find's results sit on the right of the desk, so a card can
+   be dragged from them onto the desk beside them */
+@media (min-width: 700px) {
+  .desk-results { position: fixed; right: 0; top: 111px; bottom: 0; width: min(720px, 58vw); max-height: none; border-left: 1px solid var(--line-strong); border-bottom: 0; box-shadow: -6px 0 16px var(--shadow); }
+}
 .results-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 14px; color: var(--muted); padding-bottom: 8px; }
 .results-head .close, .full-holder .close { border: 0; background: transparent; font-size: 22px; line-height: 1; color: var(--muted); padding: 0 4px; display: inline-block; }
 .results-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }

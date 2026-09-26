@@ -1497,6 +1497,46 @@ try {
     const noCard = await api('POST', '/desks/put', { surface: 'מילה', sentence: 'מילה שלא נפתחה' });
     check('putting a word whose card was never opened is refused and says to open it first', noCard.status === 404 && /open the word's card first/.test(noCard.body.error), noCard.body.error);
     globalThis.__desk = { deskId, wordKey, noteKey: nk };
+
+    // steps 4 and 5: all desks with their layout's shapes; Find
+    {
+      const { deskId: dId, wordKey: wk, noteKey: nk2 } = globalThis.__desk;
+      const second = await api('POST', '/desks');
+      const listed = await api('GET', '/desks');
+      const first = listed.body.items.find((x) => x.id === dId);
+      const placed = (await api('GET', `/desks/${dId}`)).body.cards.map((c) => ({ x: c.place.x, y: c.place.y, w: c.place.w, h: c.place.h, kind: c.kind }));
+      check('all desks: newest worked on first, each with its name, its card count and the shapes of its layout (notes marked)',
+        second.status === 201 && listed.body.items[0].id === second.body.desk.id && listed.body.items[0].count === 0 && first.count === placed.length
+        && JSON.stringify(first.shapes) === JSON.stringify(placed) && first.shapes.some((x) => x.kind === 'note'), JSON.stringify(first));
+      const opened = await api('POST', `/desks/${dId}/open`);
+      check('opening an older desk makes it the current desk again, exactly as left',
+        opened.status === 200 && (await api('GET', '/desks/current')).body.desk.id === dId
+        && JSON.stringify(opened.body.cards.map((c) => ({ x: c.place.x, y: c.place.y, w: c.place.w, h: c.place.h, kind: c.kind }))) === JSON.stringify(placed));
+      const f1 = await api('GET', `/desks/find?q=${encodeURIComponent('לְהַמֵּר')}`);
+      const f2 = await api('GET', `/desks/find?q=${encodeURIComponent('להמר')}`);
+      const ids = (f) => f.body.cards.filter((c) => c.kind === 'word').map((c) => c.key).join();
+      check('Find: Hebrew typed with nikud finds the same card as without', f1.status === 200 && ids(f1) === ids(f2) && ids(f1).includes(wk), `${ids(f1)} | ${ids(f2)}`);
+      const f3 = await api('GET', `/desks/find?q=${encodeURIComponent('המר')}`);
+      const byCard = f3.body.desks.find((x) => x.id === dId);
+      check('Find: a desk is found through a card it holds, and says which card and how many cards grew from it',
+        byCard && byCard.reason === 'להמר and 1 card from it' && !f3.body.desks.some((x) => x.id === second.body.desk.id)
+        && f3.body.cards.some((c) => c.key === wk) && f3.body.cards.find((c) => c.key === wk).desks.some((x) => x.id === dId), JSON.stringify(f3.body.desks.map((x) => [x.name, x.reason])));
+      const f4 = await api('GET', `/desks/find?q=${encodeURIComponent('ה.מ.ר')}`);
+      const f5 = await api('GET', `/desks/find?q=gamble`);
+      const f6 = await api('GET', `/desks/find?q=${encodeURIComponent('מהמרים')}`);
+      check('Find: a word card by its root, dotted or not, and by its meaning; a note card by its text',
+        f4.body.cards.some((c) => c.key === wk) && f5.body.cards.some((c) => c.key === wk) && f6.body.cards.some((c) => c.key === nk2), `${f4.body.cards.length} ${f5.body.cards.length} ${f6.body.cards.length}`);
+      const f7 = await api('GET', '/desks/find?q=EVENING');
+      check('Find: a desk by its name', f7.body.desks.some((x) => x.id === dId && x.by_name === true && x.reason === '') && !f7.body.cards.length, JSON.stringify(f7.body.desks));
+      const f8 = await api('GET', `/desks/find?q=${encodeURIComponent('זזזז')}`);
+      const f9 = await api('GET', '/desks/find?q=');
+      check('Find: nothing found says "no data"; an empty box asks for a word', f8.body.state === 'no data' && !f8.body.cards.length && f9.body.state === 'no data' && /Type a word/.test(f9.body.reason));
+      const put2 = await api('POST', `/desks/${second.body.desk.id}/cards`, { card: wk, x: 300, y: 200 });
+      const onBoth = (await api('GET', `/desks/find?q=${encodeURIComponent('להמר')}`)).body.cards.find((c) => c.key === wk).desks.map((x) => x.id).sort();
+      check('a card found is placed on another desk: a placement, not a copy (the same card, on both desks)',
+        put2.status === 201 && put2.body.placement.x === 300 && put2.body.placement.card === wk && JSON.stringify(onBoth) === JSON.stringify([dId, second.body.desk.id].sort()), JSON.stringify(onBoth));
+      await api('POST', `/desks/${dId}/open`);
+    }
   }
 
   // 6. fail closed

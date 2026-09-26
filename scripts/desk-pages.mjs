@@ -260,7 +260,7 @@ try {
     const n1 = await onDesk();
     const deskName = (await api('GET', '/desks/current')).body.desk.name;
     check(`${name}: "Put on the desk" on the reader's card puts it on the current desk and says so quietly, with a way to the desk`,
-      n1 === n0 + 1 && (await cardEl.locator('.foot').innerText()).startsWith(`On the desk “${deskName}”.`) && (await cardEl.locator('.foot a[href="/desk"]').count()) === 1, await cardEl.locator('.foot').innerText());
+      n1 === n0 + 1 && (await cardEl.locator('.foot').innerText()).startsWith(`On the desk “${deskName}”.`) && (await cardEl.locator('.foot a[href="/desk"]').count()) === 1, `${JSON.stringify(await cardEl.locator('.foot').innerText())} vs ${JSON.stringify(deskName)} (${n0} -> ${n1})`);
     for (const theme of ['light', 'dark']) {
       await page.emulateMedia({ colorScheme: theme });
       await page.waitForTimeout(150);
@@ -308,6 +308,123 @@ try {
       await page.screenshot({ path: join(out, `desk-put-lesson-${theme}-${name}.png`) });
     }
     check(`${name}: no screen here shows "map", "met", "touch" or "spot"`, page.jargon.length === 0, page.jargon.join('; '));
+    await ctx.close();
+  }
+
+  // --- step 4: all desks, and coming back -----------------------------------------------
+  {
+    const { ctx, page } = await context({ width: 1280, height: 800 }, false, 'light');
+    const first = (await api('GET', '/desks/current')).body;
+    await page.goto(`${base}/desk`);
+    await page.locator('.dcard').first().waitFor();
+    await page.click('#show-desks');
+    await page.locator('.desk-tile').nth(1).waitFor();
+    const listed = (await api('GET', '/desks')).body.items;
+    const tile = page.locator(`.desk-tile[data-id="${first.desk.id}"]`);
+    // the thumbnail's rectangles, against the placements, scaled as drawn
+    const rects = await tile.locator('svg.thumb rect:not(.th-frame)').evaluateAll((rs) => rs.map((r) => ({ kind: r.getAttribute('class').slice(3), x: +r.getAttribute('x'), y: +r.getAttribute('y'), w: +r.getAttribute('width'), h: +r.getAttribute('height') })));
+    const ps = first.cards.map((c) => ({ ...c.place, kind: c.kind })).filter((p) => p.x !== null);
+    const minX = Math.min(...ps.map((p) => p.x)), minY = Math.min(...ps.map((p) => p.y));
+    const k = Math.min(160 / (Math.max(...ps.map((p) => p.x + p.w)) - minX), 92 / (Math.max(...ps.map((p) => p.y + p.h)) - minY), 0.25);
+    const want = ps.map((p) => ({ kind: p.kind, x: 8 + (p.x - minX) * k, y: 8 + (p.y - minY) * k, w: p.w * k, h: p.h * k }));
+    const near = (a, b) => Math.abs(a - b) < 0.02;
+    check('desktop: the Desks list shows every desk newest first, each drawn small as its layout — rectangles where its cards lie, notes yellow — with its name and card count',
+      (await page.locator('.desk-tile').count()) === listed.length && (await page.locator('.desk-tile').first().getAttribute('data-id')) === String(listed[0].id)
+      && rects.length === want.length && want.every((w, i) => w.kind === rects[i].kind && near(w.x, rects[i].x) && near(w.y, rects[i].y) && near(w.w, rects[i].w) && near(w.h, rects[i].h))
+      && (await tile.locator('.tile-meta').innerText()).startsWith(`${ps.length} cards`)
+      && (await paint(tile.locator('.th-note').first(), 'fill')) !== (await paint(tile.locator('.th-word').first(), 'fill')), JSON.stringify({ rects: rects.slice(0, 2), want: want.slice(0, 2) }));
+    for (const theme of ['light', 'dark']) {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.waitForTimeout(150);
+      await page.screenshot({ path: join(out, `desk-list-${theme}-desktop.png`) });
+    }
+    await page.emulateMedia({ colorScheme: 'light' });
+    // rename inline
+    const nameBox = tile.locator('.tile-name');
+    await nameBox.fill('Evening with להמר');
+    const renamed = saved(page);
+    await nameBox.press('Enter');
+    await renamed;
+    check('desktop: a desk renamed in the list keeps its new name (and the strip shows it)', (await api('GET', `/desks/${first.desk.id}`)).body.desk.name === 'Evening with להמר'
+      && (await page.locator('#desk-name').inputValue()) === 'Evening with להמר');
+    // open another desk, then come back: exactly as left
+    const other = listed.find((d) => d.id !== first.desk.id);
+    await page.locator(`.desk-tile[data-id="${other.id}"] .thumb-open`).click();
+    await page.locator('#empty:not(.hidden)').waitFor();
+    const switched = (await api('GET', '/desks/current')).body.desk.id === other.id;
+    await page.reload();
+    await page.locator('#empty:not(.hidden)').waitFor();
+    await page.click('#show-desks');
+    await page.locator(`.desk-tile[data-id="${first.desk.id}"] .thumb-open`).click();
+    await page.locator('.dcard').first().waitFor();
+    const drawn = await page.locator('.dcard').evaluateAll((els) => els.map((e) => ({ key: e.dataset.key, x: parseFloat(e.style.left), y: parseFloat(e.style.top), w: parseFloat(e.style.width), h: parseFloat(e.style.height) })));
+    check('desktop: opening a desk from the list makes it the current desk, and opening the first again brings every card back exactly where it was left',
+      switched && drawn.length === first.cards.length && first.cards.every((c) => drawn.some((d) => d.key === c.key && d.x === c.place.x && d.y === c.place.y && d.w === c.place.w && d.h === c.place.h))
+      && (await api('GET', '/desks/current')).body.desk.id === first.desk.id, JSON.stringify(drawn.slice(0, 2)));
+    await ctx.close();
+  }
+
+  // --- step 5: Find --------------------------------------------------------------------
+  for (const [name, viewport, isMobile] of [['desktop', { width: 1280, height: 800 }, false], ['phone', { width: 412, height: 915 }, true]]) {
+    const { ctx, page } = await context(viewport, isMobile, 'light');
+    const cur = (await api('GET', '/desks/current')).body;
+    const lehamer = cur.cards.find((c) => c.kind === 'word' && c.card.surface === 'להמר');
+    await page.goto(`${base}/desk`);
+    await page.locator(isMobile ? '.ditem' : '.dcard').first().waitFor();
+    const results = async (q) => {
+      await page.fill('#find', q);
+      await page.locator('#results-line', { hasText: `"${q}"` }).waitFor({ timeout: 5000 });
+      return page.locator('#results-cards .result-card').evaluateAll((els) => els.map((e) => e.dataset.key));
+    };
+    const withPoints = await results('לְהַמֵּר');
+    const without = await results('להמר');
+    check(`${name}: Find — Hebrew typed with nikud finds the same cards as without`, withPoints.includes(lehamer.key) && JSON.stringify(withPoints) === JSON.stringify(without), `${withPoints} | ${without}`);
+    await results('המר');
+    const deskHit = page.locator(`#results-desks .result-desk[data-id="${cur.desk.id}"]`);
+    const whyText = await deskHit.locator('.result-meta').innerText();
+    check(`${name}: Find — the desk is found through the card it holds, naming it ("להמר and 1 card from it"), drawn small as its layout`,
+      /holds להמר and 1 card from it/.test(whyText) && (await deskHit.locator('svg.thumb rect.th-word').count()) > 0
+      && (await page.locator('#results-cards .result-card', { hasText: 'על מה מהמרים' }).count()) === 1, `${whyText} | thumb words ${await deskHit.locator('svg.thumb rect.th-word').count()} | notes ${await page.locator('#results-cards .result-card', { hasText: 'על מה מהמרים' }).count()} | ${JSON.stringify(await page.locator('#results-cards').innerText())}`);
+    for (const theme of ['light', 'dark']) {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.waitForTimeout(150);
+      const rc = page.locator('#results-cards .result-card').first();
+      check(`${name} ${theme}: Find results are legible`, contrast(await paint(rc.locator('.dline'), 'color'), await paint(rc, 'backgroundColor')) >= 4.5
+        && contrast(await paint(deskHit.locator('.result-meta'), 'color'), await paint(page.locator('#results'), 'backgroundColor')) >= 4.5);
+      await page.screenshot({ path: join(out, `desk-find-${theme}-${name}.png`), fullPage: isMobile });
+    }
+    await page.emulateMedia({ colorScheme: 'light' });
+
+    // a card result onto a desk that lacks it: a placement, not a copy
+    const fresh = (await api('POST', '/desks')).body.desk;
+    await page.reload();
+    await page.locator('#empty:not(.hidden)').waitFor();
+    await results('המר');
+    const src = page.locator(`#results-cards .result-card[data-key="${lehamer.key}"]`);
+    if (isMobile) {
+      await src.locator('button', { hasText: 'Put on this desk' }).tap();
+    } else {
+      await src.dragTo(page.locator('#surface'), { targetPosition: { x: 200, y: 300 } });
+    }
+    await page.locator('#desk-msg', { hasText: 'Put on this desk' }).waitFor({ timeout: 5000 });
+    const got = (await api('GET', `/desks/${fresh.id}`)).body.cards;
+    const onBoth = (await api('GET', `/desks/find?q=${encodeURIComponent('להמר')}`)).body.cards.find((c) => c.key === lehamer.key).desks.map((d) => d.id);
+    check(`${name}: a card result ${isMobile ? 'put' : 'dragged'} onto the desk is placed there — the same card, now on both desks${isMobile ? '' : ', where it was dropped'}`,
+      got.length === 1 && got[0].key === lehamer.key && onBoth.includes(fresh.id) && onBoth.includes(cur.desk.id) && (isMobile || (Math.abs(got[0].place.x - 200) < 3 && Math.abs(got[0].place.y - 300) < 3)), JSON.stringify(got.map((c) => c.place)));
+    // back to the first desk
+    await api('POST', `/desks/${cur.desk.id}/open`);
+
+    // the entry from the reader's top strip
+    if (!isMobile) {
+      await page.goto(`${base}/read.html?id=${article.id}`);
+      await page.fill('.topfind input', 'המר');
+      await page.press('.topfind input', 'Enter');
+      await page.waitForURL(/\/desk\?find=/);
+      await page.locator('#results-cards .result-card').first().waitFor({ timeout: 5000 });
+      check('desktop: Find from the reader\'s top strip opens the desk with the word found', (await page.locator('#find').inputValue()) === 'המר'
+        && (await page.locator(`#results-cards .result-card[data-key="${lehamer.key}"]`).count()) === 1);
+    }
+    check(`${name}: no Find screen shows "map", "met", "touch" or "spot"`, page.jargon.length === 0, page.jargon.join('; '));
     await ctx.close();
   }
 

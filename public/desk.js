@@ -621,9 +621,16 @@ async function find(q) {
     pic.addEventListener('click', () => openDesk(d.id));
     const txt = el('div', 'result-desk-text');
     txt.append(el('div', 'tile-name-text', d.name));
+    // "holds להמר and 1 card from it": the word in its own direction, the rest in English
     const why = el('div', 'result-meta', '');
-    why.append(document.createTextNode(d.reason === 'its name' ? 'matched by its name' : 'holds '));
-    if (d.reason !== 'its name') why.append(he(d.reason));
+    why.append(document.createTextNode(d.by_name ? (d.reasons.length ? 'its name matches; holds ' : 'its name matches') : 'holds '));
+    d.reasons.forEach((w, i) => {
+      if (i) why.append(document.createTextNode('; '));
+      const lab = w.card.startsWith('word:') ? he(w.label) : el('span', '', `“${w.label}”`);
+      if (!w.card.startsWith('word:')) lab.dir = 'auto';
+      why.append(lab);
+      if (w.grown) why.append(document.createTextNode(` and ${w.grown === 1 ? '1 card' : `${w.grown} cards`} from it`));
+    });
     why.append(document.createTextNode(` · ${count(d.count)}${d.id === desk.id ? ' · this desk' : ''}`));
     txt.append(why);
     const open = el('button', 'btn small', d.id === desk.id ? 'This desk' : 'Open');
