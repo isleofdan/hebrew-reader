@@ -799,3 +799,10 @@ and on a failed download reloads and tries again, at most three times.
 
 **Checks.** 254 server (from 224), 276 page (229 + 47 desk checks in
 `scripts/desk-pages.mjs`, run by `npm run screenshots`).
+
+**Live (Dan, 26 Sep 2026, deploy run 25, Android):** empty desk named for
+now; להמר put on the desk from the 9 Feb lesson, pointed, ה.מ.ר · Pi'el; a
+drag survived a reload (Chrome "Desktop site"); a typed note הסלמה survived
+a reload; Find "המר" gave להמר under Cards and today's desk under Desks. The
+שוטטות re-make was not seen live (no access to the server log).
+**Merging from now on:** the session asks Dan yes/no and merges itself.
