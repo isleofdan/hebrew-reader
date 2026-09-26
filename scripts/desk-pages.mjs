@@ -428,6 +428,94 @@ try {
     await ctx.close();
   }
 
+  // --- step 7: phone width — a list, grouped by which card grew from which ------------------
+  {
+    const { ctx, page } = await context({ width: 412, height: 915 }, true, 'light');
+    const expected = (view) => {
+      const onDesk = new Set(view.cards.map((c) => c.key));
+      const parent = new Map(view.links.filter((l) => onDesk.has(l.child) && onDesk.has(l.parent)).map((l) => [l.child, l.parent]));
+      const order = (a, b) => { const ua = a.place.x === null, ub = b.place.x === null; if (ua !== ub) return ua ? -1 : 1; if (ua) return b.place.z - a.place.z; return a.place.y - b.place.y || a.place.x - b.place.x; };
+      const outList = [];
+      const walk = (c, depth) => { outList.push([c.key, depth]); for (const k of view.cards.filter((x) => parent.get(x.key) === c.key).sort(order)) walk(k, depth + 1); };
+      for (const c of view.cards.filter((x) => !parent.has(x.key)).sort(order)) walk(c, 0);
+      return outList;
+    };
+    let view = (await api('GET', '/desks/current')).body;
+    await page.goto(`${base}/desk`);
+    await page.locator('.ditem').first().waitFor();
+    const drawnOrder = async () => page.locator('.ditem').evaluateAll((els) => els.map((e) => [e.dataset.key, Number(e.style.getPropertyValue('--depth'))]));
+    const want = expected(view);
+    const got = await drawnOrder();
+    check('phone: the desk is a list — no arranging — of its cards top to bottom as they lie, each card followed by the cards grown from it, set in',
+      JSON.stringify(got) === JSON.stringify(want) && (await page.locator('.dcard').count()) === 0 && got.some(([, d]) => d === 1) && !(await page.locator('#plane').isVisible()), JSON.stringify({ got, want }));
+    for (const theme of ['light', 'dark']) {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.waitForTimeout(150);
+      await page.screenshot({ path: join(out, `desk-${theme}-phone.png`), fullPage: true });
+    }
+    await page.emulateMedia({ colorScheme: 'light' });
+    // a card opens its full view
+    await page.locator('.ditem.word', { hasText: 'ה.מ.ר' }).locator('button').tap();
+    await page.locator('#full:not(.hidden) #full-card').waitFor();
+    check('phone: a card opens its full view — the reader\'s card, with its note and buttons', (await page.locator('#full-card .surface .pointed').innerText()) === 'הִימֵּר'
+      && (await page.locator('#full-card .meaning').innerText()) === 'to gamble, to bet' && (await page.locator('#full-card .actions button', { hasText: 'Note on a new card' }).count()) === 1);
+    for (const theme of ['light', 'dark']) {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.waitForTimeout(150);
+      await page.screenshot({ path: join(out, `desk-card-${theme}-phone.png`) });
+    }
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.locator('#full-card .close').tap();
+    // "New card": typed here, on the current desk, not yet placed
+    await page.locator('#new-card').tap();
+    await page.locator('#full:not(.hidden) #full-note').waitFor();
+    const focused = await page.evaluate(() => document.activeElement && document.activeElement.id === 'full-note-text');
+    await page.keyboard.type('לשאול את גיא על הסלמה');
+    await saved(page);
+    await page.locator('#full-note .close').tap();
+    view = (await api('GET', '/desks/current')).body;
+    const typed = view.cards.find((c) => c.kind === 'note' && c.text === 'לשאול את גיא על הסלמה');
+    const first = (await drawnOrder())[0];
+    check('phone: "New card" opens a note to type in; it lands on the current desk not yet placed, at the top of the list',
+      focused && typed && typed.place.x === null && typed.place.y === null && first[0] === typed.key && JSON.stringify(await drawnOrder()) === JSON.stringify(expected(view)), JSON.stringify({ focused, typed: typed && typed.place, first }));
+    await page.reload();
+    await page.locator('.ditem').first().waitFor();
+    check('phone: after a reload the typed card is still there, first', (await drawnOrder())[0][0] === typed.key && (await page.locator('.ditem').first().innerText()).includes('לשאול את גיא'));
+    // the Desks list on the phone
+    await page.locator('#show-desks').tap();
+    await page.locator('.desk-tile').first().waitFor();
+    for (const theme of ['light', 'dark']) {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.waitForTimeout(150);
+      await page.screenshot({ path: join(out, `desk-list-${theme}-phone.png`) });
+    }
+    await page.emulateMedia({ colorScheme: 'light' });
+    // an empty desk on the phone
+    const back = view.desk.id;
+    await api('POST', '/desks');
+    await page.goto(`${base}/desk`);
+    await page.locator('#empty:not(.hidden)').waitFor();
+    check('phone: an empty desk says plainly that it holds nothing yet', /This desk holds nothing yet\./.test(await page.locator('#empty').innerText()));
+    for (const theme of ['light', 'dark']) {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.waitForTimeout(150);
+      await page.screenshot({ path: join(out, `desk-empty-${theme}-phone.png`) });
+    }
+    await api('POST', `/desks/${back}/open`);
+    check('phone: no desk screen shows "map", "met", "touch" or "spot"', page.jargon.length === 0, page.jargon.join('; '));
+    await ctx.close();
+
+    // the computer gives the card typed on the phone the next free spot
+    const { ctx: c2, page: p2 } = await context({ width: 1280, height: 800 }, false, 'light');
+    await p2.goto(`${base}/desk`);
+    await p2.locator(`.dcard[data-key="${typed.key}"]`).waitFor();
+    await saved(p2).catch(() => null);
+    await p2.waitForTimeout(300);
+    const placed = (await api('GET', '/desks/current')).body.cards.find((c) => c.key === typed.key).place;
+    check('desktop: a card typed on the phone takes the next free spot when the desk opens on the computer, and that is saved', placed.x !== null && placed.y !== null, JSON.stringify(placed));
+    await c2.close();
+  }
+
   await browser.close();
 } catch (e) {
   failed++;
