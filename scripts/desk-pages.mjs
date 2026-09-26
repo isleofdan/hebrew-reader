@@ -458,7 +458,7 @@ try {
     await page.locator('.ditem.word', { hasText: 'ה.מ.ר' }).locator('button').tap();
     await page.locator('#full:not(.hidden) #full-card').waitFor();
     check('phone: a card opens its full view — the reader\'s card, with its note and buttons', (await page.locator('#full-card .surface .pointed').innerText()) === 'הִימֵּר'
-      && (await page.locator('#full-card .meaning').innerText()) === 'to gamble, to bet' && (await page.locator('#full-card .actions button', { hasText: 'Note on a new card' }).count()) === 1);
+      && (await page.locator('#full-card .meaning').innerText()) === 'to gamble, to bet' && (await page.locator('#full-card #grow .grow-acts button', { hasText: 'Branch a new card from here' }).count()) === 1);
     for (const theme of ['light', 'dark']) {
       await page.emulateMedia({ colorScheme: theme });
       await page.waitForTimeout(150);

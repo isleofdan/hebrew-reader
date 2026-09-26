@@ -7,6 +7,7 @@
 
 const $ = (s) => document.querySelector(s);
 const UI = window.CardUI;
+const Grow = window.GrowUI;
 const LIST = window.matchMedia('(max-width: 699px)');
 const MIN_W = 140, MIN_H = 90;
 
@@ -112,6 +113,38 @@ function drawStrip() {
   $('#empty').classList.toggle('hidden', cards.size > 0);
 }
 
+// --- the past desk in a corner ---------------------------------------------------------
+// One past desk drawn small, with its name: the desk not opened for the
+// longest time that holds a card, never the one open now. Nothing dismisses
+// it; it changes as desks get opened. Not at phone width.
+let pastSeq = 0;
+async function drawPast() {
+  const box = $('#past');
+  const my = ++pastSeq;
+  if (LIST.matches) { box.classList.add('hidden'); return; }
+  let got;
+  try { got = await api('GET', '/desks/past'); } catch { return; }
+  if (my !== pastSeq) return;
+  box.innerHTML = '';
+  if (!got.desk) { box.classList.add('hidden'); return; }
+  const d = got.desk;
+  box.dataset.id = d.id;
+  const pic = el('button', 'thumb-open');
+  pic.type = 'button';
+  pic.setAttribute('aria-label', `Open ${d.name}`);
+  pic.append(thumb(d.shapes, 150, 92));
+  pic.addEventListener('click', () => openDesk(d.id));
+  const name = el('div', 'past-name', d.name);
+  const row = el('div', 'past-row');
+  row.append(el('span', 'result-meta', count(d.count)));
+  const open = el('button', 'linklike', 'open');
+  open.type = 'button';
+  open.addEventListener('click', () => openDesk(d.id));
+  row.append(open);
+  box.append(pic, name, row);
+  box.classList.remove('hidden');
+}
+
 function load(view) {
   desk = view.desk;
   links = view.links || [];
@@ -123,6 +156,7 @@ function load(view) {
   }
   draw();
   fillPoints();
+  drawPast();
 }
 
 function draw() {
@@ -168,7 +202,7 @@ function deskCard(c) {
   card.append(body);
   const acts = el('div', 'dacts');
   const act = (text, fn) => { const b = el('button', 'linklike', text); b.type = 'button'; b.addEventListener('click', (e) => { e.stopPropagation(); fn(); }); acts.append(b); return b; };
-  if (c.kind === 'word') act('open', () => openFull(c.key));
+  act('open', () => openFull(c.key));
   act('note on a new card', () => noteFrom(c.key));
   act('remove from the desk', () => removeCard(c.key));
   card.append(acts);
@@ -422,40 +456,66 @@ function drawList() {
 // --- a card's full view ----------------------------------------------------------------
 
 let fullKey = null;
+let fullData = null;    // the card shown, whether or not it is on this desk
 let fullCurrent = null; // { card, spot } for CardUI
-function openFull(key) {
+// A card's full view: its entry as the reader's card (or the note's text),
+// then its layers and actions (grow-ui.js). `data` is the card as the server
+// gave it, for a card opened from Find that is not on this desk.
+function openFull(key, data) {
   const entry = cards.get(key);
-  if (!entry) return;
+  const c = entry ? entry.data : data;
+  if (!c) return;
   fullKey = key;
-  const c = entry.data;
+  fullData = c;
   $('#full').classList.remove('hidden');
   $('#full-card').classList.toggle('hidden', c.kind !== 'word');
   $('#full-note').classList.toggle('hidden', c.kind !== 'note');
+  const host = c.kind === 'word' ? $('#full-card') : $('#full-note');
   if (c.kind === 'word') {
     fullCurrent = { card: c.card, spot: c.spot ? { ...c.spot } : null };
     UI.fill($('#full-card'), { card: c.card, spot: fullCurrent.spot, cached: true });
     $('#full-card .foot').textContent = '';
-    wireFullActions(c);
+    wireFullActions(c, Boolean(entry));
   } else {
     const ta = $('#full-note-text');
     ta.value = c.text || '';
     $('#full-note-foot').textContent = '';
+    $('#full-note-remove').classList.toggle('hidden', !entry);
     ta.focus();
   }
+  const grow = $('#grow');
+  host.append(grow);
+  Grow.show(grow, key, {
+    api, deskId: desk.id, phone: LIST.matches,
+    onNewCard: grown,
+  });
 }
 
-function wireFullActions(c) {
+// A branch or a cut made a new card: the desk is read again and the new card
+// shown beside the one it came from (on the phone, first in the list).
+async function grown(out, how) {
+  closeFull();
+  try { load(await api('GET', `/desks/${desk.id}`)); } catch (e) { return notSaved(e); }
+  const from = cards.get(out.owner);
+  const what = how === 'cut' ? 'The cut-off layers are on a new card' : 'A new card';
+  say(from ? `${what} beside ${label(from.data)}.` : LIST.matches ? `${what}, first in the list.` : `${what} on this desk.`);
+  const made = cards.get(out.card.key);
+  if (made && made.el) { made.el.classList.add('fresh'); made.el.scrollIntoView({ block: 'nearest', inline: 'nearest' }); setTimeout(() => made.el && made.el.classList.remove('fresh'), 2500); }
+}
+
+function wireFullActions(c, onDesk) {
   const acts = $('#full-card .actions');
   for (const b of acts.querySelectorAll('.desk-act')) b.remove();
   const mk = (text, fn) => { const b = el('button', 'btn desk-act', text); b.type = 'button'; b.addEventListener('click', fn); acts.append(b); };
-  mk('Note on a new card', () => noteFrom(c.key));
-  mk('Remove from the desk', () => removeCard(c.key));
+  if (onDesk) mk('Remove from the desk', () => removeCard(c.key));
 }
 
 function closeFull() {
   const entry = fullKey && cards.get(fullKey);
   if (entry && entry.data.kind === 'note') flushNote(entry.data);
+  else if (fullData && fullData.kind === 'note') flushNote(fullData);
   fullKey = null;
+  fullData = null;
   $('#full').classList.add('hidden');
 }
 
@@ -477,12 +537,12 @@ UI.wire($('#full-card'), {
 $('#full-note .close').addEventListener('click', closeFull);
 $('#full-note-text').addEventListener('input', (e) => {
   const entry = cards.get(fullKey);
-  if (!entry) return;
-  saveNoteSoon(entry.data, e.target.value);
-  const ta = entry.el && entry.el.querySelector('textarea');
+  const c = entry ? entry.data : fullData;
+  if (!c) return;
+  saveNoteSoon(c, e.target.value);
+  const ta = entry && entry.el && entry.el.querySelector('textarea');
   if (ta) ta.value = e.target.value;
 });
-$('#full-note-branch').addEventListener('click', () => noteFrom(fullKey));
 $('#full-note-remove').addEventListener('click', () => removeCard(fullKey));
 $('#full').addEventListener('click', (e) => { if (e.target.id === 'full') { closeFull(); if (LIST.matches) draw(); } });
 for (const b of document.querySelectorAll('#full .close')) b.addEventListener('click', () => { if (LIST.matches) draw(); });
@@ -580,37 +640,96 @@ $('#desks-close').addEventListener('click', hidePanels);
 // --- Find --------------------------------------------------------------------------------
 
 let findSeq = 0, findTimer = null;
+// The chips under Find: where a card came from, and when.
+const chipsState = { source: 'everything', time: 'any' };
+const SOURCE_CHIPS = [['everything', 'everything'], ['guy', 'from Guy'], ['articles', 'from articles'], ['online', 'found online'], ['notes', 'my notes'], ['asked', 'asked']];
+const TIME_CHIPS = [['month', 'this month'], ['year', String(new Date().getFullYear())], ['any', 'any time']];
+function drawChips() {
+  const box = $('#find-chips');
+  box.innerHTML = '';
+  const group = (list, name) => {
+    const g = el('span', 'chip-group');
+    for (const [id, text] of list) {
+      const b = el('button', `chip pick${chipsState[name] === id ? ' on' : ''}`, text);
+      b.type = 'button';
+      b.dataset[name] = id;
+      b.setAttribute('aria-pressed', String(chipsState[name] === id));
+      b.addEventListener('click', () => { chipsState[name] = id; drawChips(); find($('#find').value); });
+      g.append(b);
+    }
+    box.append(g);
+  };
+  group(SOURCE_CHIPS, 'source');
+  group(TIME_CHIPS, 'time');
+}
+drawChips();
+
+// A card from Find shown small: a word or note card as on the desk; an
+// example or an answer by its text.
+function resultFace(box, c) {
+  if (c.kind === 'word' || c.kind === 'note') return face(box, c);
+  box.innerHTML = '';
+  const t = el('div', 'dnote-text', c.kind === 'example' ? c.sentence : c.question);
+  t.dir = 'auto';
+  box.append(t);
+  if (c.kind === 'answer') { const a = el('div', 'result-answer', c.answer); a.dir = 'auto'; box.append(a); }
+}
+
+async function openFrom(key) {
+  try { const v = await api('GET', `/card/${key}`); openFull(key, v.card); } catch (e) { say(`The card could not be opened: ${e.message}`, true); }
+}
+
 async function find(q) {
   const my = ++findSeq;
   if (!q.trim()) { $('#results').classList.add('hidden'); return; }
   let got;
-  try { got = await api('GET', `/desks/find?q=${encodeURIComponent(q)}`); } catch (e) { if (my === findSeq) say(`Find did not run: ${e.message}`, true); return; }
+  try { got = await api('GET', `/desks/find?q=${encodeURIComponent(q)}&source=${chipsState.source}&time=${chipsState.time}`); } catch (e) { if (my === findSeq) say(`Find did not run: ${e.message}`, true); return; }
   if (my !== findSeq) return;
   $('#desks-panel').classList.add('hidden');
   $('#results').classList.remove('hidden');
   $('#results-line').textContent = got.state === 'no data'
     ? `Nothing found for "${q}".`
-    : `${count(got.cards.length).replace('no cards', 'No cards')} and ${got.desks.length === 1 ? '1 desk' : `${got.desks.length} desks`} for "${q}"${got.more ? ` (and ${got.more} more cards)` : ''}.`;
-  const cl = $('#results-cards'), dl = $('#results-desks');
-  cl.innerHTML = ''; dl.innerHTML = '';
+    : `${count(got.cards.length).replace('no cards', 'No cards')}, ${got.threads.length === 1 ? '1 thread' : `${got.threads.length} threads`} and ${got.desks.length === 1 ? '1 desk' : `${got.desks.length} desks`} for "${q}"${got.more ? ` (and ${got.more} more cards)` : ''}.`;
+  const cl = $('#results-cards'), tl = $('#results-threads'), dl = $('#results-desks');
+  cl.innerHTML = ''; tl.innerHTML = ''; dl.innerHTML = '';
   for (const c of got.cards) {
-    const r = el('div', `result-card ${c.kind}`);
+    const layer = c.owner !== c.key;
+    const r = el('div', `result-card ${c.kind}${layer ? ' layer' : ''}`);
     r.dataset.key = c.key;
-    r.draggable = true;
-    r.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/x-desk-card', c.key); e.dataTransfer.effectAllowed = 'copy'; });
-    const f = el('div', 'dface'); face(f, c); r.append(f);
-    const here = cards.has(c.key) || (c.spot && [...cards.values()].some((x) => x.data.spot && x.data.spot.id === c.spot.id));
+    if (!layer) {
+      r.draggable = true;
+      r.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/x-desk-card', c.key); e.dataTransfer.effectAllowed = 'copy'; });
+    }
+    const f = el('div', 'dface result-open'); resultFace(f, c); r.append(f);
+    f.tabIndex = 0; f.setAttribute('role', 'button'); f.setAttribute('aria-label', 'Open this card');
+    f.addEventListener('click', () => openFrom(c.owner));
+    f.addEventListener('keydown', (e) => { if (e.key === 'Enter') openFrom(c.owner); });
+    r.append(el('div', 'result-meta origin', c.origin_line));
+    const here = cards.has(c.owner) || (c.spot && [...cards.values()].some((x) => x.data.spot && x.data.spot.id === c.spot.id));
     const meta = el('div', 'result-meta', here ? 'on this desk' : c.desks.length ? `on ${c.desks.map((d) => d.name).join(', ')}` : 'on no desk');
     r.append(meta);
     if (!here) {
-      const b = el('button', 'btn small', 'Put on this desk');
+      const b = el('button', 'btn small', layer ? 'Put its card on this desk' : 'Put on this desk');
       b.type = 'button';
-      b.addEventListener('click', () => putHere(c.key));
+      b.addEventListener('click', () => putHere(c.owner));
       r.append(b);
     }
     cl.append(r);
   }
   if (!got.cards.length) cl.append(el('p', 'empty', 'No cards.'));
+  for (const t of got.threads) {
+    const r = el('button', 'result-thread');
+    r.type = 'button';
+    r.dataset.key = t.key;
+    const line = el('div', 'thread-line');
+    const [first, ...rest] = t.line.split(' → ');
+    line.append(t.card.kind === 'word' ? he(t.label, 'thread-word') : el('span', 'thread-word', `“${t.label}”`));
+    line.append(document.createTextNode(`: ${[first, ...rest].join(' → ')}`));
+    r.append(line, el('div', 'result-meta', t.where));
+    r.addEventListener('click', () => openFull(t.key, t.card));
+    tl.append(r);
+  }
+  if (!got.threads.length) tl.append(el('p', 'empty', 'No threads.'));
   for (const d of got.desks) {
     const r = el('div', 'result-desk');
     r.dataset.id = d.id;
@@ -669,7 +788,7 @@ $('#surface').addEventListener('drop', (e) => {
 
 // --- start ---------------------------------------------------------------------------------
 
-LIST.addEventListener('change', () => { if (desk) draw(); });
+LIST.addEventListener('change', () => { if (desk) { draw(); drawPast(); } });
 window.addEventListener('resize', () => { if (desk && !LIST.matches) sizePlane(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && fullKey) { closeFull(); if (LIST.matches) draw(); } });
 
