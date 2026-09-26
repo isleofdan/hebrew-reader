@@ -354,6 +354,15 @@ try {
     await page.reload();
     await page.waitForFunction(() => window.Desk && window.Desk.desk, null, { timeout: 8000 });
     check(`${name}: reloading does not save it twice`, cards.length === 1 && (await api('GET', '/desks/current')).body.cards.filter((c) => c.kind === 'note' && (c.text || '').includes('בפודקאסט')).length === 1);
+    // a share from a link on another website: shown, saved only on a tap
+    await page.goto(`${base}/share/confirm?text=${encodeURIComponent('from a web page')}`);
+    await page.locator('.share-bar').waitFor({ timeout: 8000 });
+    const unsaved = (await api('GET', '/desks/current')).body.cards.some((c) => c.kind === 'note' && c.text === 'from a web page');
+    await both(page, 'share-ask-phone');
+    await page.locator('.share-bar button', { hasText: "Save to tonight's desk" }).click();
+    await page.locator('.share-bar').waitFor({ state: 'detached', timeout: 5000 });
+    const saved = (await api('GET', '/desks/current')).body.cards.some((c) => c.kind === 'note' && c.text === 'from a web page');
+    check(`${name}: a share from another website is shown and saved only when Dan taps "Save to tonight's desk"`, !unsaved && saved && (await page.locator('#desk-msg').innerText()).startsWith("Saved to tonight's desk"));
     check(`${name}: the strip says the phone opens cards and does not move them`, (await page.locator('.strip-line').innerText()).includes("you can't move them here, only open them"));
     check(`${name}: no "Link these" or sheet button on the phone`, await page.locator('#link-these').isHidden() && await page.locator('#make-sheet').isHidden());
     // ink on the phone: shown, not drawn

@@ -42,6 +42,8 @@ function check(name, ok, detail = '') {
 // a page a shared link points at: /with-title has one, /slow never answers in time
 const site = http.createServer((req, res) => {
   if (req.url === '/with-title') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end('<html><head><title>ההימור הגדול של הבנקים &amp; השוק | כלכליסט</title></head><body><p>x</p></body></html>'); return; }
+  if (req.url.startsWith('/%D7')) { res.writeHead(200, { 'content-type': 'text/html' }); res.end('<title>שלום – ויקיפדיה</title>'); return; }
+  if (req.url === '/') { res.writeHead(200, { 'content-type': 'text/html' }); res.end('<title>The front page</title>'); return; }
   if (req.url === '/og') { res.writeHead(200, { 'content-type': 'text/html' }); res.end('<html><head><meta property="og:title" content="A podcast episode"><title>ignored</title></head></html>'); return; }
   res.writeHead(500); res.end('down');
 }).listen(SITE_PORT);
@@ -52,6 +54,7 @@ const server = start('node', ['server.js'], {
   PORT: String(PORT), DATA_DIR: dataDir, APP_PASSWORD: PASS, COOKIE_SECRET: 'p'.repeat(64), COOKIE_INSECURE: '1',
   OPENROUTER_API_KEY: 'test-key', OPENROUTER_URL: `http://127.0.0.1:${OR_PORT}/v1/chat/completions`,
   SPINE_TOKEN: 'test-spine-token', SPINE_URL: `http://127.0.0.1:${SPINE_PORT}`,
+  CATCH_ALLOW_PRIVATE: '1', // the title site of these checks is on 127.0.0.1
 });
 const base = `http://127.0.0.1:${PORT}`;
 const mock = `http://127.0.0.1:${OR_PORT}`;
@@ -136,6 +139,17 @@ try {
     check('drawing on the card after the cut starts a new ink layer', again.status === 201 && again.body.layer.key !== ink);
     const gone = await api('DELETE', `/card/${W}/ink/last`);
     check('undoing its only stroke leaves the card with no ink area again', gone.body.layer === null && (await api('GET', `/card/${W}`)).body.ink === null && peek("SELECT COUNT(*) AS n FROM card_links WHERE child = ?", again.body.layer.key)[0].n === 0);
+    // undoing the last stroke of an ink layer a card was branched from keeps the layer, and the branch's place
+    const aside = (await api('POST', '/desks')).body.desk.id;
+    const baseNote = (await api('POST', '/notes', { text: 'a card to draw on', desk_id: aside })).body.card.key;
+    const k1 = (await api('POST', `/card/${baseNote}/ink`, { points: [[0.2, 0.2], [0.4, 0.3]] })).body.layer.key;
+    const br = (await api('POST', `/card/${k1}/branch`, { desk_id: aside })).body.card.key;
+    const u1 = await api('DELETE', `/card/${baseNote}/ink/last`);
+    const brv = (await api('GET', `/card/${br}`)).body;
+    check('undoing the only stroke of ink a card grew from keeps the (now empty) ink layer and the card\'s origin', u1.body.layer && u1.body.layer.key === k1 && u1.body.layer.strokes.length === 0 && brv.footer.origin && brv.footer.origin.via === 'Branched from', JSON.stringify([u1.body, brv.footer.origin]));
+    const k2 = (await api('POST', `/card/${baseNote}/ink`, { points: [[0.5, 0.5]] })).body.layer.key;
+    check('drawing again goes on that same ink layer', k2 === k1);
+    await api('POST', `/desks/${desk.desk.id}/open`);
     // the thread line counts ink
     const th = (await api('GET', `/desks/find?q=${encodeURIComponent(moved.card.text || 'x')}`)).body;
     check('the desk view carries a card\'s ink for the desk card', (await api('GET', `/desks/${desk.desk.id}`)).body.cards.find((c) => c.key === cut.body.card.key).ink.strokes.length === 2);
@@ -291,7 +305,32 @@ try {
     const before = peek('SELECT COUNT(*) AS n FROM notes')[0].n;
     check('/share opens the desk page and writes nothing by itself', share.status === 200 && (await share.text()).includes('desk-strip') && peek('SELECT COUNT(*) AS n FROM notes')[0].n === before);
     const out = await fetch(`${base}/share?text=x`, { redirect: 'manual' });
-    check('/share without the sign-in goes to the login page', out.status === 302 || out.status === 303);
+    check('/share without the sign-in goes to the login page, remembering the share', out.status === 303 && out.headers.get('location') === `/login?next=${encodeURIComponent('/share?text=x')}`, out.headers.get('location'));
+    const lp = await (await fetch(`${base}${out.headers.get('location')}`)).text();
+    check('the login page carries the share back', lp.includes('name="next" value="/share?text=x"'));
+    const signed = await fetch(`${base}/login`, { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: `passphrase=${PASS}&next=${encodeURIComponent('/share?text=x')}` });
+    const evil = await fetch(`${base}/login`, { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: `passphrase=${PASS}&next=${encodeURIComponent('//evil.example/share')}` });
+    check('after signing in, Dan lands back on the share; any other "next" goes to the front page', signed.headers.get('location') === '/share?text=x' && evil.headers.get('location') === '/', `${signed.headers.get('location')} / ${evil.headers.get('location')}`);
+    const cross = await fetch(`${base}/share?text=spam`, { redirect: 'manual', headers: { cookie, 'sec-fetch-site': 'cross-site' } });
+    const own = await fetch(`${base}/share?text=x`, { redirect: 'manual', headers: { cookie, 'sec-fetch-site': 'none' } });
+    check('a share from a link on another website is sent to /share/confirm (saved only on a tap); the share sheet\'s own is not', cross.status === 303 && cross.headers.get('location') === '/share/confirm?text=spam' && own.status === 200, `${cross.status} ${cross.headers.get('location')} ${own.status}`);
+    const outCross = await fetch(`${base}/share?text=x`, { redirect: 'manual', headers: { 'sec-fetch-site': 'cross-site' } });
+    check('signed out, a share from another website comes back to the asking page after sign-in', outCross.headers.get('location') === `/login?next=${encodeURIComponent('/share/confirm?text=x')}`, outCross.headers.get('location'));
+    // the title fetch never reaches a private address
+    const C = createRequire(import.meta.url)(join(root, 'lib', 'catch.js'));
+    const priv = ['127.0.0.1', '10.1.2.3', '172.20.0.1', '192.168.1.1', '169.254.169.254', '100.64.0.1', '::1', 'fdaa:0:1::3', 'fe80::1', '::ffff:10.0.0.1'];
+    check('the title fetch treats loopback, private, link-local and Fly-internal addresses as private', priv.every(C.privateIp) && !C.privateIp('93.184.216.34') && !C.privateIp('2606:4700::1'), priv.filter((x) => !C.privateIp(x)).join(','));
+    const refused = await C.guard(new URL('http://169.254.169.254/latest/')).then(() => false, (e) => /private/.test(e.message));
+    check('a link to the cloud metadata address is refused before any request is made', refused);
+    // a link spelled two ways is one link
+    const heb = `${siteBase}/שלום`;
+    const hn = await api('POST', '/notes', { text: heb, desk_id: deskNow.id, unplaced: true });
+    const ht = await until(async () => { const c = (await api('GET', `/card/${hn.body.card.key}`)).body.card; return c.link && c.link.title ? c : null; });
+    await api('PATCH', `/notes/${hn.body.card.key.split(':')[1]}`, { text: `${heb}\nmy thought` });
+    const hk = (await api('GET', `/card/${hn.body.card.key}`)).body.card;
+    check('a link with Hebrew in it keeps its title when Dan types under it', ht && hk.link && hk.link.title === 'שלום – ויקיפדיה', JSON.stringify(hk.link));
+    const dup = await api('POST', '/desks/catch', { text: `look ${siteBase}`, url: siteBase });
+    check('a shared link already in the shared text is not written twice (a bare domain, spelled with or without "/")', dup.status === 201 && dup.body.card.text === `look ${siteBase}`, JSON.stringify(dup.body.card.text));
   }
 
   check('the server log names each ink stroke layer, link, sheet and catch', /ink layer ink:\d+/.test(server.log) && /linked to/.test(server.log) && /sheet \d+ made/.test(server.log) && /caught on desk/.test(server.log));

@@ -44,8 +44,22 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-function loginPage(res, status, message = '') {
-  sendHtml(res, status, LOGIN_TEMPLATE.replace('{{MESSAGE}}', escapeHtml(message)));
+function loginPage(res, status, message = '', next = '') {
+  sendHtml(res, status, LOGIN_TEMPLATE.replace('{{MESSAGE}}', escapeHtml(message)).replace('{{NEXT}}', escapeHtml(safeNext(next))));
+}
+
+// Where sign-in may send Dan back to: only a share on its way to the desk
+// (session fourteen), so a share made while signed out is not lost.
+function safeNext(next) {
+  const n = String(next || '');
+  return /^\/share(\/confirm)?(\?[^#]*)?$/.test(n) ? n : '';
+}
+
+// A share that did not come from the phone's own share sheet or this site
+// (a link on another website): it is shown and saved only on a tap.
+function fromAnotherSite(req) {
+  const s = req.headers['sec-fetch-site'];
+  return s === 'cross-site' || s === 'same-site';
 }
 
 const NOT_CONFIGURED = 'This server is not configured: APP_PASSWORD or COOKIE_SECRET is unset. Set both and restart.';
@@ -74,7 +88,7 @@ async function handleLogin(req, res) {
   }
   ratelimit.clear(req);
   const headers = { 'set-cookie': auth.issueCookie(COOKIE_SECRET, { secure: SECURE_COOKIE }) };
-  return wantsJson(req) ? sendJson(res, 200, { ok: true }, headers) : redirect(res, '/', headers);
+  return wantsJson(req) ? sendJson(res, 200, { ok: true }, headers) : redirect(res, safeNext(body.next) || '/', headers);
 }
 
 // Routes that need the cookie.
@@ -351,7 +365,7 @@ async function handle(req, res) {
   const p = url.pathname;
 
   if (p === '/health') return sendJson(res, 200, { ok: true, configured: CONFIGURED });
-  if (p === '/login' && req.method === 'GET') return loginPage(res, CONFIGURED ? 200 : 503, CONFIGURED ? '' : NOT_CONFIGURED);
+  if (p === '/login' && req.method === 'GET') return loginPage(res, CONFIGURED ? 200 : 503, CONFIGURED ? '' : NOT_CONFIGURED, url.searchParams.get('next'));
   if (p === '/login' && req.method === 'POST') return handleLogin(req, res);
   if (p === '/logout') return redirect(res, '/login', { 'set-cookie': auth.clearCookie({ secure: SECURE_COOKIE }) });
   // what makes the phone page installable: fetched by the browser without the
@@ -362,6 +376,10 @@ async function handle(req, res) {
 
   if (!CONFIGURED) return isApiPath(p) ? sendJson(res, 503, { error: NOT_CONFIGURED }) : loginPage(res, 503, NOT_CONFIGURED);
   if (!auth.cookieOk(req, COOKIE_SECRET)) {
+    if (p === '/share' || p === '/share/confirm') {
+      const back = `${p === '/share' && !fromAnotherSite(req) ? '/share' : '/share/confirm'}${url.search}`;
+      return redirect(res, `/login?next=${encodeURIComponent(back)}`);
+    }
     return isApiPath(p) ? sendJson(res, 401, { error: 'Sign in first: POST /login with the passphrase.' }) : redirect(res, '/login');
   }
 
@@ -384,7 +402,8 @@ async function handle(req, res) {
   if (p === '/phone') return serveStatic(res, PUBLIC, '/phone.html') || sendJson(res, 404, { error: 'phone.html is missing.' });
   // /share is where the installed app receives what another app shares; the
   // desk page saves it (a GET here writes nothing)
-  if (p === '/desk' || p === '/share') return serveStatic(res, PUBLIC, '/desk.html') || sendJson(res, 404, { error: 'desk.html is missing.' });
+  if (p === '/share' && fromAnotherSite(req)) return redirect(res, `/share/confirm${url.search}`);
+  if (p === '/desk' || p === '/share' || p === '/share/confirm') return serveStatic(res, PUBLIC, '/desk.html') || sendJson(res, 404, { error: 'desk.html is missing.' });
   if (/^\/desk\/sheet\/\d+$/.test(p)) return serveStatic(res, PUBLIC, '/desk-sheet.html') || sendJson(res, 404, { error: 'desk-sheet.html is missing.' });
   if (serveStatic(res, PUBLIC, p)) return;
   return sendJson(res, 404, { error: `Nothing at ${p}.` });

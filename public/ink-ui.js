@@ -105,6 +105,10 @@
       if (want > h) { h = want; svg.setAttribute('viewBox', `0 0 1 ${h.toFixed(4)}`); }
     };
     const say = (t) => { msg.textContent = t || ''; };
+    // strokes and undos reach the server one after another, in the order
+    // Dan made them: an undo never overtakes the stroke drawn just before it
+    let queue = Promise.resolve();
+    const inOrder = (fn) => { const p = queue.then(fn); queue = p.catch(() => {}); return p; };
 
     async function undoLast() {
       if (!list.length) return;
@@ -112,7 +116,7 @@
       const paths = svg.querySelectorAll('path');
       if (paths.length) paths[paths.length - 1].remove();
       undo.disabled = !list.length;
-      try { await onUndo(); say(''); } catch (e) { list.push(gone); svg.append(strokePath(gone)); undo.disabled = false; say(`Not undone: ${e.message}`); }
+      try { await inOrder(() => onUndo()); say(''); } catch (e) { list.push(gone); svg.append(strokePath(gone)); undo.disabled = false; say(`Not undone: ${e.message}`); }
     }
 
     let live = null;
@@ -154,7 +158,7 @@
       list.push(done.points);
       undo.disabled = false;
       fit();
-      try { await onStroke(done.points); say(''); } catch (err) {
+      try { await inOrder(() => onStroke(done.points)); say(''); } catch (err) {
         list.splice(list.indexOf(done.points), 1);
         done.path.remove();
         undo.disabled = !list.length;

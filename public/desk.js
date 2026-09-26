@@ -1022,15 +1022,40 @@ document.addEventListener('keydown', (e) => {
 // not yet placed, and the address goes back to /desk so a reload saves nothing twice.
 const CAUGHT = "Saved to tonight's desk, unplaced. Put it somewhere when you're at the computer.";
 async function catchShared() {
-  if (location.pathname !== '/share') return null;
+  if (location.pathname !== '/share' && location.pathname !== '/share/confirm') return null;
   const q = new URLSearchParams(location.search);
   const shared = { title: q.get('title') || '', text: q.get('text') || '', url: q.get('url') || '' };
+  const confirm = location.pathname === '/share/confirm';
   history.replaceState(null, '', '/desk');
+  // from a link on another website, not the phone's share sheet: saved only on a tap
+  if (confirm) return null;
   try { return await api('POST', '/desks/catch', shared); } catch (e) { say(`Not saved: ${e.message}`, true); return null; }
 }
 
+function askToCatch(shared) {
+  const bar = el('div', 'link-bar share-bar');
+  const what = [shared.title, shared.text, shared.url].filter(Boolean).join(' · ').slice(0, 200);
+  bar.append(el('span', '', 'A link on another website sent this to your desk: '));
+  const t = el('strong', '', what || '(nothing)'); t.dir = 'auto'; bar.append(t);
+  const yes = el('button', 'btn primary small', "Save to tonight's desk"); yes.type = 'button';
+  const no = el('button', 'btn small', 'Leave it'); no.type = 'button';
+  bar.append(yes, no);
+  $('#desk-msg').after(bar);
+  no.addEventListener('click', () => bar.remove());
+  yes.addEventListener('click', async () => {
+    try {
+      const out = await api('POST', '/desks/catch', shared);
+      bar.remove();
+      load(await api('GET', `/desks/${out.desk.id}`));
+      say(CAUGHT, false, true);
+    } catch (e) { say(`Not saved: ${e.message}`, true); }
+  });
+}
+
 (async function start() {
+  const confirmShare = location.pathname === '/share/confirm' ? Object.fromEntries(['title', 'text', 'url'].map((k) => [k, new URLSearchParams(location.search).get(k) || ''])) : null;
   const caught = await catchShared();
+  if (confirmShare) askToCatch(confirmShare);
   try {
     load(await api('GET', '/desks/current'));
   } catch (e) {
