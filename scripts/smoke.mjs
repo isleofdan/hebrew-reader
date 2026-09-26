@@ -299,7 +299,7 @@ try {
     asked.status === 200 && /not sure/.test(asked.body.answer) && asked.body.links.length === 3
     && asked.body.links.map((l) => l.reference).join(',') === 'pealim,wiktionary,academy'
     && asked.body.links[0].url === 'https://www.pealim.com/search/?q=' + encodeURIComponent('אלצ')
-    && asked.body.links[1].url === 'https://he.wiktionary.org/wiki/' + encodeURIComponent('נאלץ')
+    && asked.body.links[1].url === 'https://he.wiktionary.org/w/index.php?search=' + encodeURIComponent('נאלץ')
     && asked.body.links[2].url === 'https://hebrew-academy.org.il/?s=' + encodeURIComponent('נאלץ'), JSON.stringify(asked.body).slice(0, 200));
   const askedPiece = await api('POST', '/ask', { question: "Which Nif'al forms are in this piece?", article_id: stored.id });
   check("ask with an article: the piece's mapped words reach the model, so the Nif'al forms are answered from data",

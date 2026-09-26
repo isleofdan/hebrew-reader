@@ -799,3 +799,93 @@ and on a failed download reloads and tries again, at most three times.
 
 **Checks.** 254 server (from 224), 276 page (229 + 47 desk checks in
 `scripts/desk-pages.mjs`, run by `npm run screenshots`).
+
+## Session thirteen — hebrew-reader-thirteen (26 Sep 2026, cloud): a card grows
+
+**Data.** New records, each named by a key of the card shape: `answers(id,
+question, answer, links_json, made_at)` → `answer:<id>`; `examples(id,
+sentence, source_name, source_kind news|tv|blog|other, source_date, url, kept,
+found_at)` → `example:<id>`; `lookups(id, reference, term, at)` →
+`lookup:<id>`. A typed note on a card is a note card (`note:<id>`). New
+`card_links` kinds: `layer` (child is a layer of parent), `branched-from`,
+`cut-from`. A card's layers are its `layer` children in link order (time, then
+row order); a cut moves a layer's link, keeping its time. A thread is computed,
+never stored: a card, its layers, and every card branched or cut from it or its
+layers, recursively, in creation order. Placements are untouched; a layer
+cannot be placed (400). Every write goes through `lib/desk.js`. The card's own
+record is never written by any of this, so a card Dan confirmed stays locked.
+
+**Routes.** `GET /card/:key` (the full view: `layers`, `counts`,
+`layers_line`, `footer { origin, desks, branched }`, `thread_line`,
+`references`); `POST /card/:key/notes {text}`; `POST /card/:key/ask
+{question}`; `POST /card/:key/examples`; `POST /card/example:<id>/keep
+{kept}`; `POST /card/:key/lookup {reference}` → `{ layer, url }`; `POST
+/card/:key/branch {desk_id?, unplaced?}` (on a card or a layer); `POST
+/card/:key/cut {at, desk_id?, unplaced?}`; `GET /desks/find?q=&source=&time=`
+now answers `cards` (with `origin_line`, `owner`), `threads`, `desks`;
+`GET /desks/past` (the corner).
+
+**Model calls (`lib/grow.js`).** Both through `lookup.chat({ tools })`, which
+for a call with tools sends no `response_format`, reads the JSON from the
+answer's text, and hands back `url_citation` annotations as `info.citations`
+and `usage.server_tool_use.web_search_requests` as `info.searches`. Tool:
+`{ type: 'openrouter:web_search', parameters: { max_uses: 3,
+max_total_results: 15 } }`, plus `allowed_domains` = the seven references for
+Ask here. **Ask here** keeps an answer only when the search cited at least one
+page (the links are the citations, never URLs the model wrote); none → 422,
+said on the card, nothing saved. **Find more examples** keeps an example only
+with an http(s) url and the card's word by the reader's own matching
+(`HebrewTokenize.markFor`: the card's surface and lemma, every surface its
+word was met as, alone or after one listed prefix); a url already on the card
+is not added again. Time limits 55 s each (expected 33 s and 45 s), under the
+minute a quiet request may be dropped by the proxy in front of the site.
+Engine: `auto` (left unset). Per OpenRouter's docs as searched on 26 Sep 2026
+(the sandbox cannot open openrouter.ai), `auto` uses the provider's native
+search for Anthropic models on endpoints that advertise it, else Exa; so live
+calls with `anthropic/claude-sonnet-4.6` should use Anthropic's own search
+(about $0.01 a search) — unconfirmed until the first live answer's log line.
+
+**The Ask box on the reader page is unchanged.** It builds reference links from
+a reference and a term the model names; it makes no web search, and an answer
+with no link is still an answer there (session three's decision). The brief
+assumed the opposite; see the session report.
+
+**The seven references (`lib/references.js`), in Dan's order, and their link
+shapes** (from search-index evidence, 26 Sep 2026; the sandbox could reach none
+of the sites, so each is unconfirmed until Dan's live round):
+- Morfix — `https://www.morfix.co.il/en/{word}` (the /en/ segment; the shape
+  without it was the Ask box's before and is likely wrong)
+- Pealim — `https://www.pealim.com/search/?q={word}`
+- Wiktionary (Hebrew) — `https://he.wiktionary.org/w/index.php?search={word}`
+  (search, because an inflected form such as להמר has no page of its own)
+- Milog — `https://milog.co.il/{word}`
+- the Academy — `https://hebrew-academy.org.il/?s={word}` (the site's search;
+  the Academy's term database was reported offline)
+- Kizur — `https://www.kizur.co.il/search_word.php?abbr={word}` (a dictionary
+  of abbreviations: most words will find nothing there)
+- Sefaria — `https://www.sefaria.org/search?q={word}`
+The word asked for is the unpointed infinitive when the card is a verb met as
+its infinitive (להמר), else the dictionary form.
+
+**Screens.** `public/grow-ui.js` draws the layers, the action row, cut mode
+and the footer under the card's entry in the desk page's full view (computer
+"open", a tap on the phone, a Find result). Find shows Cards, Threads and
+Desks with source and time chips. The past desk sits small in the bottom
+right corner at computer width (`#past`): the desk worked on longest ago that
+holds a card, never the desk open now; tapping it opens it. "Note on a new
+card" left the full view (the card's own "Branch a new card from here" does
+the same); it stays on the desk card itself.
+
+**Checks.** 320 server (254 + 66 in `scripts/grow-smoke.mjs`), 324 page (276 +
+48 in `scripts/grow-pages.mjs`). One session-twelve page check waited for
+"On the desk" with a case-blind match and so read "putting it on the desk…"
+too early; it now waits for the finished line.
+
+**After review (same session).** An old card given its sentence on a later
+open no longer has its built time reset (`db.setCardSentence`, not `putCard`);
+the example search is told the forms the app accepts (`desk.formsOf`), since
+the gate knows only the lemma, the surfaces met, and one prefix — a new
+conjugation (הם מהמרים) is still refused; the card view ignores a reply that
+arrives after another card was opened, runs one action at a time, keeps a note
+as typed before it is saved, and labels "Cut here (every layer)" by the
+server's own order.

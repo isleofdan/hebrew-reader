@@ -256,7 +256,7 @@ try {
     await cardEl.locator('.meaning:not(:empty)').waitFor({ timeout: 10000 });
     let n0 = await onDesk();
     await tap(cardEl.locator('[data-act=desk]'));
-    await cardEl.locator('.foot', { hasText: 'On the desk' }).waitFor({ timeout: 5000 });
+    await cardEl.locator('.foot', { hasText: /^On the desk/ }).waitFor({ timeout: 5000 });
     const n1 = await onDesk();
     const deskName = (await api('GET', '/desks/current')).body.desk.name;
     check(`${name}: "Put on the desk" on the reader's card puts it on the current desk and says so quietly, with a way to the desk`,
@@ -280,7 +280,7 @@ try {
     await lc.locator('.meaning:not(:empty)').waitFor({ timeout: 10000 });
     n0 = await onDesk();
     await tap(lc.locator('[data-act=desk]'));
-    await lc.locator('.foot', { hasText: 'On the desk' }).waitFor({ timeout: 5000 });
+    await lc.locator('.foot', { hasText: /^On the desk/ }).waitFor({ timeout: 5000 });
     const cur = (await api('GET', '/desks/current')).body;
     check(`${name}: "Put on the desk" on the phone page's quick lookup puts that card on the desk`, (await onDesk()) === n0 + 1 && cur.cards.some((c) => c.kind === 'word' && c.card.surface === looked));
     await lc.scrollIntoViewIfNeeded();
@@ -299,7 +299,7 @@ try {
     await cardEl.locator('.meaning:not(:empty)').waitFor({ timeout: 10000 });
     n0 = await onDesk();
     await tap(cardEl.locator('[data-act=desk]'));
-    await cardEl.locator('.foot', { hasText: 'On the desk' }).waitFor({ timeout: 5000 });
+    await cardEl.locator('.foot', { hasText: /^On the desk/ }).waitFor({ timeout: 5000 });
     const cur2 = (await api('GET', '/desks/current')).body;
     check(`${name}: "Put on the desk" on a lesson word's card puts that card on the desk`, (await onDesk()) === n0 + 1 && cur2.cards.some((c) => c.kind === 'word' && c.card.surface === lw));
     for (const theme of ['light', 'dark']) {
@@ -458,7 +458,7 @@ try {
     await page.locator('.ditem.word', { hasText: 'ה.מ.ר' }).locator('button').tap();
     await page.locator('#full:not(.hidden) #full-card').waitFor();
     check('phone: a card opens its full view — the reader\'s card, with its note and buttons', (await page.locator('#full-card .surface .pointed').innerText()) === 'הִימֵּר'
-      && (await page.locator('#full-card .meaning').innerText()) === 'to gamble, to bet' && (await page.locator('#full-card .actions button', { hasText: 'Note on a new card' }).count()) === 1);
+      && (await page.locator('#full-card .meaning').innerText()) === 'to gamble, to bet' && (await page.locator('#full-card #grow .grow-acts button', { hasText: 'Branch a new card from here' }).count()) === 1);
     for (const theme of ['light', 'dark']) {
       await page.emulateMedia({ colorScheme: theme });
       await page.waitForTimeout(150);
