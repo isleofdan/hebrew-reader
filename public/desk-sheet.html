@@ -46,7 +46,8 @@
   .s-ink { width: 42%; color: var(--ink); line-height: 0; }
   .s-ink svg { width: 100%; height: auto; display: block; }
   .s-link { color: var(--blue); font-size: 15px; border: 1px solid var(--blue); border-radius: 8px; padding: 6px 10px; align-self: flex-start; unicode-bidi: plaintext; }
-  .prompts-title { font-size: 13px; font-weight: 700; margin: 6px 0 0; }
+  .prompts-start { display: flex; flex-direction: column; gap: 14px; padding-top: 6px; }
+  .prompts-title { font-size: 13px; font-weight: 700; margin: 0; }
   .prompt { font-size: 15px; line-height: 1.5; margin: 0; display: flex; gap: 8px; }
   .prompt .n { font-weight: 700; min-width: 1.4em; }
   .prompt .t { unicode-bidi: plaintext; }
@@ -64,7 +65,7 @@
 </head>
 <body>
 <div class="bar">
-  <a href="/desk">← Back to the desk</a>
+  <a href="/desk" id="back">← Back to the desk</a>
   <span class="how" id="how"></span>
   <button type="button" id="print">Print</button>
 </div>

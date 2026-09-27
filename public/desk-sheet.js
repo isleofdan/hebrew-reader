@@ -79,14 +79,14 @@
     for (const c of g.cards) blocks.push(cardBlock(c));
     for (const l of g.links) blocks.push(linkBlock(l));
     if (g.prompts.length) {
-      blocks.push(el('p', 'prompts-title', 'Write'));
       g.prompts.forEach((p, n) => {
         const b = el('p', 'prompt');
         b.dataset.kind = p.kind;
         b.append(el('span', 'n', `${n + 1}.`));
         const t = el('span', 't', p.text); t.dir = 'auto';
         b.append(t);
-        blocks.push(b);
+        // "Write" goes onto the page with its first prompt, never alone at the foot of one
+        if (n === 0) { const first = el('div', 'prompts-start'); first.append(el('p', 'prompts-title', 'Write'), b); blocks.push(first); } else blocks.push(b);
       });
     } else if (g.prompts_error) {
       blocks.push(el('p', 's-muted', 'No writing prompts this time: they could not be made. Write what these cards bring to mind.'));
@@ -105,7 +105,13 @@
     return { page, body };
   }
 
-  const over = (body) => body.scrollHeight > body.clientHeight + 1;
+  // does what the page holds run past its foot? (the last block's margin counted)
+  const over = (body) => {
+    const last = body.lastElementChild;
+    if (!last) return false;
+    const bottom = last.getBoundingClientRect().bottom + parseFloat(getComputedStyle(last).marginBottom || 0);
+    return body.scrollHeight > body.clientHeight + 1 || bottom > body.getBoundingClientRect().bottom + 1;
+  };
 
   function lay(sheet) {
     const pages = [];
@@ -158,5 +164,7 @@
   }
 
   $('#print').addEventListener('click', () => window.print());
+  // opened from the desk in a tab of its own: going back closes it, the desk tab is still there
+  $('#back').addEventListener('click', (e) => { if (window.opener && !window.opener.closed) { e.preventDefault(); window.close(); } });
   start();
 })();

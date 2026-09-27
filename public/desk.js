@@ -759,12 +759,22 @@ $('#make-sheet').addEventListener('click', async () => {
   const was = b.textContent;
   b.textContent = 'Making the sheet…';
   say('Making the sheet from this desk, with writing prompts for each group… this can take half a minute.');
+  // the sheet opens in a tab of its own, the desk staying where it is: the tab
+  // is opened by the click itself (a browser blocks one opened later) and
+  // shown the sheet once it is made
+  const tab = window.open('about:blank', '_blank');
+  if (tab) { try { tab.document.title = 'Making the sheet…'; tab.document.body.textContent = 'Making the sheet from the desk… this can take half a minute.'; } catch { /* a blank tab */ } }
   try {
     const out = await api('POST', `/desks/${desk.id}/sheets`);
     sheets = out.sheets;
     drawStrip();
-    location.href = `/desk/sheet/${out.sheet.id}`;
-  } catch (e) { say(`The sheet was not made: ${e.message}`, true); }
+    const url = `/desk/sheet/${out.sheet.id}`;
+    if (tab && !tab.closed) { tab.location.replace(url); say('The sheet is open in a new tab.'); }
+    else location.href = url; // no new tab allowed: this one shows it
+  } catch (e) {
+    if (tab && !tab.closed) tab.close();
+    say(`The sheet was not made: ${e.message}`, true);
+  }
   b.disabled = false;
   b.textContent = was;
 });
