@@ -978,3 +978,8 @@ drawn.
 **Checks.** 401 server (320 + 81 in `scripts/paper-smoke.mjs`), 375 page
 (324 + 51 in `scripts/paper-pages.mjs`). Twelve's count check reads past the
 new "·" separator; thirteen's action-row check skips "Draw here".
+
+**Live (27–28 Sep 2026, deploy runs 27 and 28).** Dan's round passed all five
+steps; see `docs/reports/hebrew-reader-fourteen-report.md`. After it, on
+Dan's word, the sheet opens in a new tab ("Back to the desk" closes it), and
+"Write" goes onto the page with its first prompt.
