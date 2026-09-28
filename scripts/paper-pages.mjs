@@ -259,9 +259,19 @@ try {
     // --- 4. the sheet for the reMarkable ---------------------------------------------------------------
     check(`${name}: the strip reads "not yet sent to the reMarkable"`, (await page.locator('#desk-sheets').innerText()) === '· not yet sent to the reMarkable');
     await both(page, 'strip-desktop');
-    const nav = page.waitForURL(/\/desk\/sheet\/\d+$/, { timeout: 15000 });
+    const popup = page.waitForEvent('popup', { timeout: 15000 });
     await page.locator('#make-sheet').click();
-    await nav;
+    const tab = await popup;
+    await tab.waitForURL(/\/desk\/sheet\/\d+$/, { timeout: 15000, waitUntil: 'commit' });
+    await page.locator('#desk-msg', { hasText: 'The sheet is open in a new tab.' }).waitFor({ timeout: 5000 });
+    check(`${name}: the sheet opens in a new tab; the desk stays where it was`, new URL(page.url()).pathname === '/desk');
+    const sheetUrl = tab.url();
+    await tab.waitForFunction(() => document.body.dataset.pages, null, { timeout: 15000 });
+    const closing = tab.waitForEvent('close', { timeout: 5000 }).catch(() => null);
+    await tab.locator('#back').click();
+    await closing;
+    check(`${name}: "Back to the desk" on the sheet closes its tab`, tab.isClosed());
+    await page.goto(sheetUrl);
     await page.waitForFunction(() => document.body.dataset.pages, null, { timeout: 10000 });
     const sheetId = Number(page.url().split('/').pop());
     const pages = page.locator('.page');
