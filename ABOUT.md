@@ -24,7 +24,7 @@ It is one program written in the programming language JavaScript and run by Node
 It runs on one small always-on computer in Tokyo rented from Fly.io, a company that rents out computers to run websites, at https://hebrew-reader-dan.fly.dev. To check it, open https://hebrew-reader-dan.fly.dev ; a page headed "Hebrew reader" with a "Sign in" button means it is up. Its health address, a page kept only for checking that it runs, is https://hebrew-reader-dan.fly.dev/health, which shows `{"ok":true,"configured":true}` when it is running with its passphrase in place. Checked 2 Oct 2026: the main address sent the visitor to its sign-in page, and the health address answered that it was up and set up.
 
 ## Which hand-off route it is on
-Not yet set. (This line is filled in by a later step of Dan's build plan.)
+Dan builds.
 
 ## Which assistants can reach it
 None found in the files. The app has no door for an AI assistant of its own (no MCP, the plug-in connection Claude chats use); every page and data address sits behind the passphrase. The files show only that it writes word marks to the spine, and PLAN.md notes the spine has its own MCP door; the files do not say which assistants use that.
