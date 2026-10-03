@@ -1067,3 +1067,31 @@ the button. Report: `docs/reports/hebrew-hunt-build-report.md`.
   are left as they are.
 - TheMarker and Kan stay out (ask 3); the last search stays on the
   Articles screen (ask 4).
+
+## hebrew-hunt-two (3 Oct 2026, the rented Linux machine): live blogs skipped; the guide's icons and future tables
+
+**Dan's screens changed:** in a study guide's vocabulary the ⚠️ sits only on a
+spelling trap or a preposition note, and every drill's future table is
+complete. The chooser's change shows only in which article a tap brings.
+Report: `docs/reports/hebrew-hunt-two-report.md`; PR #10, merge `4d0bf53`.
+
+- **Chooser** (`lib/hunt.js` `pageKind`, before the model): skipped when the
+  page calls itself a live blog (Globes `article:type` "סקירת מסחר",
+  `LiveBlogPosting`, "עדכונים שוטפים" in the title), when 4+ lines open with a
+  clock time, when 13%+ of words are numbers and market names, or over 1,500
+  words. Recorded as "skipped: live blog …", "skipped: market ticker …",
+  "skipped: N words, over 1500". Measured on 36 candidates, 3 Oct 2026.
+  "Already in your articles" now runs after these tests.
+- **Trial** (`?trial=1`): a tap's tests on today's candidates, up to 6 model
+  calls, answers every candidate with its reason; nothing stored. The deploy
+  prints the list. First live run (deploy 37110529261): Globes did=1001558228
+  "skipped: live blog"; Calcalist 2,747 words skipped; Maariv article-1373034
+  "would be chosen" by anthropic/claude-sonnet-4.6.
+- **Guide:** vocabulary flags drawn by `vocabFlags` (⚠️ only on Prep,
+  Spelling, Confusable; "no spelling trap" never shown); stored guides are
+  redrawn when served (`redrawFlags`), records unchanged. A future table
+  missing a person its past has fails a check (`futureGaps`) and is rebuilt
+  once. Persons follow Dan's drill tables in
+  `docs/guy-lessons/chat-guide-2026-06-15.md`; the reader has no conjugator.
+- **Checks:** `hunt-smoke.mjs` 39; `hunt-pages.mjs` checks both guide fixes at
+  both widths and shoots `hunt-vocab-*`, `hunt-drill-*`.
