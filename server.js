@@ -220,8 +220,9 @@ route('POST', /^\/articles$/, async (req, res) => {
 // stays open), then { done: true, article_id, guide } or { done: true,
 // nothing }, or { done: true, error }. A tap that leaves before the end does
 // not stop it: the article and its guide are stored all the same.
-// ?trial=1 is the deploy's check: one model call on one candidate, nothing
-// stored; it answers one JSON object { status, model, line }.
+// ?trial=1 is the deploy's check: the same candidates, tests and model
+// question as a tap, nothing stored; it answers one JSON object
+// { status, model, line, tried } (tried: every candidate and why it was left).
 route('POST', /^\/articles\/find$/, async (req, res, g, url) => {
   if (url.searchParams.get('trial') === '1') {
     const out = await hunt.trial();
@@ -404,7 +405,7 @@ function guidePage(res, id) {
   let article;
   try { article = db.getArticle(id); } catch (e) { return sendHtml(res, 404, GUIDE_TEMPLATE.replace('{{TITLE}}', 'Study guide').replace('{{BACK}}', '/').replace('{{BODY}}', `<p class="empty">${escapeHtml(e.message)}</p>`)); }
   const html = db.articleGuide(id);
-  const body = html || '<p class="empty">This article has no study guide yet.</p>';
+  const body = (html && hunt.redrawFlags(html)) || '<p class="empty">This article has no study guide yet.</p>';
   return sendHtml(res, 200, GUIDE_TEMPLATE.replace('{{TITLE}}', () => `Study guide — ${escapeHtml(article.title)}`).replace('{{BACK}}', `/read.html?id=${id}`).replace('{{BODY}}', () => body));
 }
 

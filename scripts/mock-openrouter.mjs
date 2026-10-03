@@ -204,7 +204,9 @@ function mockJudge(user) {
 }
 // A guide that passes the server's checks unless `fault` names one to break:
 // 'few' (only ten vocabulary rows), 'regular' (the drill verb regular while
-// the article has a Nif'al verb), 'decline'.
+// the article has a Nif'al verb), 'future' (a future table without 2fs, 2mp
+// and 2fp, as the live guide model wrote one on 3 Oct 2026), 'decline'.
+const ALL = ['1s', '2ms', '2fs', '3ms', '3fs', '1p', '2mp', '2fp', '3mp', '3fp'];
 function mockArticleGuide(user, fault) {
   if (fault === 'decline') return { error: 'the guide maker declines in this mock' };
   const body = bodyOf(user);
@@ -212,7 +214,8 @@ function mockArticleGuide(user, fault) {
   const why = JSON.parse((/What made it suitable: (.*)/.exec(user) || [])[1] || '{"nifal_or_irregular":[]}');
   const nif = why.nifal_or_irregular[0];
   const sentence = body.split(/(?<=\.)\s+/).find((x) => x.length > 20) || body.slice(0, 80);
-  const rows = words.slice(0, fault === 'few' ? 10 : 30).map((w, i) => ({ he: w, pointed: point(w), en: `meaning of ${w}`, root: '', binyan: '', category: ['Energy', 'Economy', 'Policy', 'Verbs'][i % 4], flags: SPELLING.test(w) ? `⚠️ Spelling: mind the letters of ${w}` : 'no spelling trap' }));
+  const rows = words.slice(0, fault === 'few' ? 10 : 30).map((w, i) => ({ he: w, pointed: point(w), en: `meaning of ${w}`, root: '', binyan: '', category: ['Energy', 'Economy', 'Policy', 'Verbs'][i % 4], flags: SPELLING.test(w) ? `⚠️ Spelling: mind the letters of ${w}` : i % 4 === 3 ? '⚠️ Prep: ל- (English: to); no spelling trap' : i % 2 ? '⚠️ Spelling: no spelling trap' : 'no spelling trap' }));
+  // (the last two as the live guide model wrote them on 3 Oct 2026: an icon on a row with no trap)
   const drill = fault === 'regular' || !nif
     ? { verb: 'לכתוב', root: 'כ.ת.ב', binyan: "Pa'al", deviation: 'none' }
     : { verb: nif.word, root: nif.root, binyan: "Nif'al", deviation: 'none' };
@@ -223,7 +226,8 @@ function mockArticleGuide(user, fault) {
       { kind: 'vocabulary', rows },
       { kind: 'paper', prompts: [1, 2, 3].map((n) => ({ type: 'Root radiation map', anchor: words[n] || '', prompt: `Prompt ${n}: put ${words[n] || 'the root'} in the center.`, categories: ['Verb conjugation production'] })) },
       { kind: 'drills', verbs: [{ ...drill, takes_object: false, why: "Nif'al (1a); governs ל- (2).",
-        table: [{ tense: 'past', forms: [{ person: '3ms', he: point(drill.verb) }] }, { tense: 'future', forms: [{ person: '3ms', he: point(drill.verb) }] }],
+        table: [{ tense: 'past', forms: ALL.map((person) => ({ person, he: point(drill.verb) })) },
+                { tense: 'future', forms: ALL.filter((p) => fault !== 'future' || !['2fs', '2mp', '2fp'].includes(p)).map((person) => ({ person, he: point(drill.verb) })) }],
         deviations: 'None in the mock.', paal_comparison: "Pa'al of the same root, compared in the mock.",
         exercises: [{ sentence: 'הוא ___ אתמול.', cue: '3ms past', answer: drill.verb }, { sentence: 'היא ___ מחר.', cue: '3fs future', answer: drill.verb }, { sentence: 'הם ___ השבוע.', cue: '3mp past', answer: drill.verb }] }] },
       { kind: 'questions', items: ['מה הנושא העיקרי של הכתבה?', 'מי מוזכר בכתבה?', 'מה צפוי לקרות?'] },

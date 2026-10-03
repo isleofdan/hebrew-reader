@@ -106,10 +106,12 @@ jobs:
           fi
           echo "Live at $base"
 
-      # "Find an article" with the live key, once: the trial puts one real
-      # candidate to the model and stores nothing (no article, no search in
-      # the last-search block). It proves the key and the model are served;
-      # a failure is shown, the deploy itself already stands.
+      # "Find an article" with the live key, once: the trial runs a tap's
+      # tests on today's candidates and puts them to the model until one would
+      # be chosen, and stores nothing (no article, no search in the
+      # last-search block). It proves the key and the model are served and
+      # prints why each candidate was left; a failure is shown, the deploy
+      # itself already stands.
       - name: Check "Find an article" reaches the model
         env:
           APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
@@ -120,9 +122,10 @@ jobs:
             --data "$(jq -cn --arg p "$APP_PASSWORD" '{passphrase: $p}')" "$base/login")
           echo "sign-in: $login"
           out=$(mktemp)
-          code=$(curl -s -o "$out" -w "%{http_code}" -b "$jar" -X POST -H 'accept: application/json' --max-time 240 "$base/articles/find?trial=1")
+          code=$(curl -s -o "$out" -w "%{http_code}" -b "$jar" -X POST -H 'accept: application/json' --max-time 480 "$base/articles/find?trial=1")
           echo "trial: $code"
           echo "upstream status: $(jq -r '.status // "none"' "$out") (model $(jq -r '.model // "none"' "$out"))"
           echo "first line: $(jq -r '.line // .error // "no answer"' "$out" | head -n 1)"
+          jq -r '.tried[]? | "- \(.source): \(.title // .url) (\(.words // "-") words): \(.outcome)"' "$out" || true
           rm -f "$jar" "$out"
           if [ "$code" != "200" ]; then echo "::warning::\"Find an article\" did not reach the model: trial answered $code."; fi

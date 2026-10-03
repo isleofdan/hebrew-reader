@@ -28,9 +28,14 @@ const SENTENCES = [
   'הוועדה נדרשה להכריע בשאלת המכסות לפני סוף השנה הנוכחית.',
 ];
 const body = (n) => Array.from({ length: n }, (_, i) => SENTENCES[i % SENTENCES.length]).join(' ');
-const page = (title, text, published) => `<!doctype html><html lang="he"><head><meta charset="utf-8"><title>${title}</title>`
+const paras = (text) => text.match(/[^.]+\./g).reduce((a, s, i) => { if (i % 5 === 0) a.push(''); a[a.length - 1] += s; return a; }, []);
+// `type` is the page's article:type (Globes names its market live blogs
+// "סקירת מסחר"); `clock` puts a time line before every paragraph, as a live blog does.
+const page = (title, text, published, { type = '', clock = false } = {}) => `<!doctype html><html lang="he"><head><meta charset="utf-8"><title>${title}</title>`
   + (published ? `<meta property="article:published_time" content="${published}">` : '')
-  + `</head><body><nav>תפריט</nav><article><h1>${title}</h1>${text.match(/[^.]+\./g).reduce((a, s, i) => { if (i % 5 === 0) a.push(''); a[a.length - 1] += s; return a; }, []).map((p) => `<p>${p}</p>`).join('')}</article><footer>כל הזכויות שמורות</footer></body></html>`;
+  + (type ? `<meta property="article:type" content="${type}">` : '')
+  + `</head><body><nav>תפריט</nav><article><h1>${title}</h1>${paras(text).map((p, i) => (clock ? `<p>${String(22 - i).padStart(2, '0')}:${i % 2 ? '35' : '00'}</p>` : '') + `<p>${p}</p>`).join('')}</article><footer>כל הזכויות שמורות</footer></body></html>`;
+const TICKER = ['מדד ת"א 35 עלה ב-1.2% ל-2,345 נקודות, מדד הבנקים ירד ב-0.4% ומדד ת"א 90 עלה ב-0.8%.', 'הדולר נסחר ב-3.71 שקלים, האירו ב-4.02 שקלים, ותשואות האג"ח ל-10 שנים ירדו ל-4.1%.', 'מניית טבע עלתה ב-2.3%, מניית אלביט ירדה ב-1.1% ומניות הבנקים עלו ב-0.5%.'];
 const ARTICLES = {
   '/a/old': { title: 'כתבה ישנה על משק החשמל', text: body(80), published: iso(20 * day) },
   '/a/short': { title: 'ידיעה קצרה על הגז', text: body(15), published: iso(1 * day) },
@@ -45,7 +50,7 @@ const newsServer = http.createServer((req, res) => {
   if (u === '/feed') { res.writeHead(200, { 'content-type': 'text/xml' }); return res.end(rss(FEED)); }
   if (u === '/section') { res.writeHead(200, { 'content-type': 'text/html' }); return res.end(`<html><body><a href="${news}/b/one">one</a><a href="${news}/b/one">again</a></body></html>`); }
   const a = ARTICLES[u];
-  if (a) { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end(page(a.title, a.text, a.published)); }
+  if (a) { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end(page(a.title, a.text, a.published, a)); }
   res.writeHead(500); res.end('down');
 });
 await new Promise((r) => newsServer.listen(NEWS_PORT, r));
@@ -141,6 +146,15 @@ try {
   check('the drill verb is the Nif\'al verb found', /data-drills="[^"]*Nif&#39;al/.test(guide));
   check('the link to the original is there, and an excerpt not in the article was dropped', guide.includes(`href="${news}/a/good"`) && !guide.includes('משפט שלא מופיע בכתבה בכלל'));
   check('Hebrew is right-to-left, no transliteration, and the page is the reader\'s own', /class="he[^"]*" dir="rtl"/.test(guide) && !/translit/i.test(guide) && guide.includes('/app.css') && guide.includes('Study guide'));
+  const vocabTable = (/<table class="vocab">[\s\S]*?<\/table>/.exec(guide) || [''])[0];
+  const flagLines = [...vocabTable.matchAll(/<div class="flags">([\s\S]*?)<\/div>/g)].map((m) => m[1]);
+  check('vocabulary: the ⚠️ only on a spelling trap or a preposition note; "no spelling trap" is not shown',
+    !/no spelling trap/i.test(vocabTable) && flagLines.length > 0 && flagLines.every((f) => !f.includes('⚠️') || /^⚠️ (Prep|Spelling|Confusable):/.test(f))
+      && flagLines.some((f) => /^⚠️ Prep: ל-/.test(f)) && !flagLines.some((f) => /^⚠️ Spelling:\s*$/.test(f)), JSON.stringify(flagLines.slice(0, 6)));
+  const { redrawFlags } = createRequire(import.meta.url)(join(root, 'lib', 'hunt.js'));
+  const old = '<table class="vocab"><tr><td><div class="flags">⚠️ Prep: ב- (English: in); no spelling trap</div></td></tr><tr><td><div class="flags">⚠️ Spelling: no spelling trap</div></td></tr></table>';
+  check('a guide stored before the rule is shown by it: its vocabulary flags are redrawn when served',
+    redrawFlags(old) === '<table class="vocab"><tr><td><div class="flags">⚠️ Prep: ב- (English: in)</div></td></tr><tr><td></td></tr></table>', redrawFlags(old));
   check('the guide was made by the guide model', (await calls()).last_article_guide_model === 'anthropic/claude-opus-4.6');
   check('a signed-out guide page goes to sign-in', (await fetch(`${base}/guide/${art.id}`, { redirect: 'manual' })).status === 303);
 
@@ -160,6 +174,15 @@ try {
   FEED.unshift(['/a/fresh', day / 2]);
   const three = await find();
   check('a guide that fails its checks is asked for once more, and the second passes', three.done.guide && three.done.guide.ok && three.done.guide.counts.tries === 2, JSON.stringify(three.done));
+  const g3 = await (await fetch(`${base}/guide/${three.done.article_id}`, { headers: { cookie } })).text();
+  const futureOf = (html) => [...((/<div class="label">future<\/div><dl class="forms">([\s\S]*?)<\/dl>/.exec(html) || ['', ''])[1]).matchAll(/<dt>([^<]*)<\/dt>/g)].map((m) => m[1]);
+  await control({ article_guide_faults: ['future'] });
+  ARTICLES['/a/future'] = { title: 'כתבה על מחיר הגז לתעשייה', text: body(83), published: iso(day / 2.5) };
+  FEED.unshift(['/a/future', day / 2.5]);
+  const threeB = await find();
+  const g3b = threeB.done.article_id && await (await fetch(`${base}/guide/${threeB.done.article_id}`, { headers: { cookie } })).text();
+  check('a drill whose future lacks 2fs, 2mp and 2fp is asked for once more; the stored future carries every person the past does',
+    threeB.done.guide && threeB.done.guide.ok && threeB.done.guide.counts.tries === 2 && ['2fs', '2mp', '2fp'].every((p) => futureOf(g3b).includes(p)) && futureOf(g3).length === 10, JSON.stringify([threeB.done.guide, futureOf(g3b)]));
   await control({ article_guide_faults: ['decline'] });
   const before = peek('SELECT COUNT(*) AS n FROM articles')[0].n;
   ARTICLES['/b/two'] = { title: 'עוד כתבה מהאתר השני', text: body(90), published: iso(1 * day) };
@@ -167,7 +190,7 @@ try {
   newsServer.on('request', (req, res) => {
     if (req.url === '/section') { res.writeHead(200); return res.end(`<a href="${news}/b/two">two</a>`); }
     const a = ARTICLES[req.url];
-    if (a) { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end(page(a.title, a.text, a.published)); }
+    if (a) { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end(page(a.title, a.text, a.published, a)); }
     res.writeHead(500); res.end('down');
   });
   const four = await find();
@@ -185,7 +208,7 @@ try {
   newsServer.on('request', (req, res) => {
     if (req.url === '/feed') { res.writeHead(200, { 'content-type': 'text/xml' }); return res.end(rss(FEED)); }
     const a = ARTICLES[req.url];
-    if (a) { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end(page(a.title, a.text, a.published)); }
+    if (a) { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end(page(a.title, a.text, a.published, a)); }
     res.writeHead(500); res.end('down');
   });
   const judgedBefore = (await calls()).judge_calls;
@@ -193,11 +216,32 @@ try {
   const cutArt = cut.done.article_id && (await api('GET', `/articles/${cut.done.article_id}`)).body;
   check('an answer cut off is asked once more, and the article is found', cutArt && cutArt.source_url === `${news}/a/cut` && (await calls()).judge_calls >= judgedBefore + 2, JSON.stringify(cut.done));
 
-  // --- the deploy's trial: one model call, nothing stored ------------------------------------
+  // --- live blogs and tickers are skipped, by a recorded rule (hebrew-hunt-two) ----------------
+  const judgedAtSkip = (await calls()).judge_calls;
+  ARTICLES['/a/live'] = { title: 'נעילה חיובית בארה"ב; תשואות האג"ח ירדו', text: body(85), published: iso(day / 10), type: 'סקירת מסחר' };
+  ARTICLES['/a/clock'] = { title: 'הבורסה היום: המסחר בשעה זו', text: body(85), published: iso(day / 9), clock: true };
+  ARTICLES['/a/ticker'] = { title: 'נעילה מעורבת בתל אביב', text: Array.from({ length: 30 }, (_, i) => (i % 3 === 2 ? SENTENCES[i % 5] : TICKER[i % 3])).join(' '), published: iso(day / 8) };
+  ARTICLES['/a/long'] = { title: 'כתבה ארוכה מאוד על משק האנרגיה', text: body(180), published: iso(day / 7) };
+  FEED.unshift(['/a/long', day / 7], ['/a/ticker', day / 8], ['/a/clock', day / 9], ['/a/live', day / 10]);
+  const five = await find();
+  const out5 = Object.fromEntries((await api('GET', '/articles/find/last')).body.hunt.tried.map((t) => [t.url.replace(news, ''), t.outcome]));
+  check('a live blog is skipped and the record says "skipped: live blog": by the page\'s own marker, and by its clock-time lines',
+    /^skipped: live blog \(the page calls itself "סקירת מסחר"\)$/.test(out5['/a/live']) && /^skipped: live blog \(\d+ lines open with a clock time\)$/.test(out5['/a/clock']), JSON.stringify([out5['/a/live'], out5['/a/clock']]));
+  check('a market ticker is skipped: "skipped: market ticker"', /^skipped: market ticker \([\d.]+% numbers and market names\)$/.test(out5['/a/ticker']), out5['/a/ticker']);
+  check('a piece over 1,500 words is skipped by the length window', /^skipped: \d+ words, over 1500$/.test(out5['/a/long']), out5['/a/long']);
+  check('none of them was put to the model, and none was stored', !five.done.article_id && !['/a/live', '/a/clock', '/a/ticker', '/a/long'].some((u) => peek('SELECT id FROM articles WHERE source_url = ?', news + u).length)
+    && (await calls()).judge_calls - judgedAtSkip <= 1, JSON.stringify(five.done));
+
+  // --- the deploy's trial: the same tests, nothing stored ------------------------------------
+  ARTICLES['/a/next'] = { title: 'הרגולטור פרסם תעריף חדש לאגירת חשמל', text: body(88), published: iso(day / 6) };
+  FEED.unshift(['/a/next', day / 6]); // older than the four above: the trial meets them first
   const hunts = peek('SELECT COUNT(*) AS n FROM hunts')[0].n, arts = peek('SELECT COUNT(*) AS n FROM articles')[0].n, judged = (await calls()).judge_calls;
   const trial = await api('POST', '/articles/find?trial=1');
-  check('?trial=1 puts one article to the model and stores nothing', trial.status === 200 && trial.body.status === 200 && /would be/.test(trial.body.line) && (await calls()).judge_calls === judged + 1
+  check('?trial=1 puts the first article that passes the tests to the model and stores nothing', trial.status === 200 && trial.body.status === 200 && /\/a\/next|לאגירת חשמל" would be chosen/.test(trial.body.line) && (await calls()).judge_calls === judged + 1
     && peek('SELECT COUNT(*) AS n FROM hunts')[0].n === hunts && peek('SELECT COUNT(*) AS n FROM articles')[0].n === arts, JSON.stringify(trial.body));
+  const outT = Object.fromEntries(trial.body.tried.map((t) => [t.url.replace(news, ''), t.outcome]));
+  check('the trial lists every candidate with its reason: the live blog "skipped: live blog", the chosen one "would be chosen"',
+    /^skipped: live blog/.test(outT['/a/live']) && /^skipped: market ticker/.test(outT['/a/ticker']) && outT['/a/next'] === 'would be chosen', JSON.stringify(outT));
 
   // --- signed out ----------------------------------------------------------------------------
   check('signed out, the search answers 401', (await fetch(`${base}/articles/find`, { method: 'POST', headers: { accept: 'application/json' } })).status === 401);

@@ -167,6 +167,17 @@ try {
     check(`${name}: 25-35 words in the core vocabulary, 1-2 Thinking on Paper prompts`, vocab >= 25 && vocab <= 35 && [1, 2].includes(await page.locator('.guide .paper-prompt').count()), String(vocab));
     await both(page, `guide-${name}`);
     await page.screenshot({ path: join(out, `hunt-guide-full-${name}.png`), fullPage: true });
+    // Dan's review of the first live guide (3 Oct 2026): the ⚠️ only where
+    // there is a trap, and every future table complete.
+    const flagLines = await page.locator('.guide .vocab .flags').allInnerTexts();
+    check(`${name}: vocabulary: the ⚠️ only on a spelling trap or a preposition note, "no spelling trap" nowhere`,
+      flagLines.length > 0 && flagLines.every((f) => !f.includes('⚠️') || /^⚠️ (Prep|Spelling|Confusable):/.test(f)) && !/no spelling trap/i.test(await page.locator('.guide .vocab').innerText()), JSON.stringify(flagLines.slice(0, 6)));
+    await page.locator('.guide .g-vocabulary').screenshot({ path: join(out, `hunt-vocab-${name}.png`) });
+    const tenses = await page.locator('.guide .drill').first().locator('.tense').evaluateAll((els) => els.map((e) => ({ tense: e.querySelector('.label').textContent, persons: [...e.querySelectorAll('dt')].map((d) => d.textContent) })));
+    const past = (tenses.find((t) => t.tense === 'past') || {}).persons || [], future = (tenses.find((t) => t.tense === 'future') || {}).persons || [];
+    check(`${name}: the drill's future table carries every person the past does, 2fs, 2mp and 2fp included`,
+      past.length === 10 && past.every((p) => future.includes(p)) && ['2fs', '2mp', '2fp'].every((p) => future.includes(p)), JSON.stringify(tenses));
+    await page.locator('.guide .drill').first().screenshot({ path: join(out, `hunt-drill-${name}.png`) });
 
     // --- the last search, on the Articles screen ------------------------------------------
     await page.goto(`${base}/`);
