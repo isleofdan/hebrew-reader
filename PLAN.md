@@ -978,3 +978,35 @@ drawn.
 **Checks.** 401 server (320 + 81 in `scripts/paper-smoke.mjs`), 375 page
 (324 + 51 in `scripts/paper-pages.mjs`). Twelve's count check reads past the
 new "·" separator; thirteen's action-row check skips "Draw here".
+
+## hebrew-adopt-kit (3 Oct 2026, the rented Linux machine): the kit's checks and rules
+
+**Nothing on Dan's screens changed.** The reader now has the starting kit's
+checks and rules (`docs/CHECKS.md`, `CLAUDE.md`, `.claude/settings.json`,
+`.github/workflows/checks.yml`) and a map for the article hunt
+(`docs/HUNT-MAP.md`). Report: `docs/reports/hebrew-adopt-kit-report.md`.
+
+- **Tests are the smoke scripts.** `npm test` = `npm run smoke` (401
+  checks, about 38 s here); `npm run test:fast` = grow and paper (147
+  checks, about 4.5 s). `scripts/smoke.mjs` alone takes about 33 s, past the
+  after-edit hook's 30 s, so the hook runs syntax plus the fast tests (about
+  7 s) and the Checks workflow runs everything, screenshots included.
+  `scripts/check.mjs` differs from the kit's in two lines: `--fast`/`--hook`
+  run `test:fast`, and a failure is named from the smoke scripts' `FAIL`
+  lines.
+- **Rules:** the kit's set, every deny kept, plus `sqlite3` and
+  `scripts/import-lessons.js` (it uploads to the live site) denied.
+  `git push *` stays allowed: a branch push does not deploy (Deploy runs on
+  a push to `main`, which is denied, or by hand).
+- **Proven in this trusted clone** (headless `claude -p`): `flyctl deploy`
+  and `git push origin main` are refused by the rules themselves.
+- **This machine:** the clone is `$HOME/work/hebrew-reader`, marked trusted
+  in `~/.claude.json`; Dan added the user rule
+  `Edit(/data/home/dan/work/hebrew-reader/.claude/settings.json)` to
+  `~/.claude/settings.json` so a session could write the rules file. The
+  OpenRouter key does not load in a login shell here (`bash -lc` test
+  printed nothing).
+- **Next session needs:** the hunt map's findings — no lesson is made from
+  one article today (the lesson sheet is built from touches across recent
+  articles); the reader never reads marks from the spine; Dan's words are in
+  `reader.db` on Fly, out of a session's reach.
