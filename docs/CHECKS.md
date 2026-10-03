@@ -10,10 +10,10 @@ screenshot scripts, unchanged.
 | Check | What it proves |
 | - | - |
 | syntax | Every `.js`, `.mjs` and `.cjs` file outside `node_modules` parses (`node --check`, file by file). |
-| tests | `npm test` = `npm run smoke`: `scripts/smoke.mjs` (254 checks), `scripts/grow-smoke.mjs` (66) and `scripts/paper-smoke.mjs` (81), each against a real server with local stand-ins for OpenRouter and the spine (`scripts/mock-openrouter.mjs`, `scripts/mock-spine.mjs`). |
-| screenshots | `npm run screenshots`: `scripts/screenshots.mjs`, `desk-pages.mjs`, `grow-pages.mjs`, `paper-pages.mjs` — every screen at phone and computer size, signing in through the form. Needs Playwright's browser. |
+| tests | `npm test` = `npm run smoke`: `scripts/smoke.mjs` (254 checks), `scripts/grow-smoke.mjs` (66), `scripts/paper-smoke.mjs` (81) and `scripts/hunt-smoke.mjs` (28, "Find an article" against local news pages), each against a real server with local stand-ins for OpenRouter and the spine (`scripts/mock-openrouter.mjs`, `scripts/mock-spine.mjs`). |
+| screenshots | `npm run screenshots`: `scripts/screenshots.mjs`, `desk-pages.mjs`, `grow-pages.mjs`, `paper-pages.mjs`, `hunt-pages.mjs` — every screen at phone and computer size, signing in through the form. Needs Playwright's browser. The Checks run keeps the hunt's screenshots as the artifact `hunt-screenshots`. |
 
-The fast tests, `npm run test:fast`, are grow and paper only:
+The fast tests, `npm run test:fast`, are grow, paper and hunt only:
 `scripts/smoke.mjs` alone takes about 33 s, past the after-edit hook's 30 s
 limit, so it runs in the full run and on every push and pull request, not
 after every edit.
@@ -46,7 +46,7 @@ On the rented Linux machine (`agent-machine-dan`, Node 24.21.0), 3 Oct
 | `npm run test:fast` | 4.75 s, 4.77 s, 4.37 s | hook |
 | syntax, inside `npm run check` | 1.82 s, 1.88 s, 1.89 s | hook and workflow |
 | tests, inside `npm run check` | 38.10 s, 37.41 s, 37.93 s | workflow |
-| the hook's command (`--hook`: syntax and fast tests) | 6.79 s, 6.92 s, 6.52 s | hook |
+| the hook's command (`--hook`: syntax and fast tests) | 6.79 s, 6.92 s, 6.52 s (with hunt-smoke, 3 Oct: 10.2 s) | hook |
 | `npm run check -- --fast` | 7.09 s, 7.21 s, 7.09 s | by hand |
 | `npm run check` (screenshots skipped here) | 40.74 s, 40.04 s, 40.59 s | by hand |
 | `npm run screenshots` | not run here: this machine has no Playwright browser | workflow only |
