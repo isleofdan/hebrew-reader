@@ -118,6 +118,7 @@ try {
   check('and it ends on the found article', one.done.done === true && Number.isInteger(one.done.article_id) && one.done.guide.ok === true, JSON.stringify(one.done));
   const art = (await api('GET', `/articles/${one.done.article_id}`)).body;
   check('the found article is the good one, stored like any other, origin "found", its site and date', art.source_url === `${news}/a/good` && art.origin === 'found' && art.source_name === 'Feedsite' && /^\d{4}-\d\d-\d\dT/.test(art.found_at) && art.text.length > 2000);
+  check('the found article keeps its paragraphs: a line break between them, the headline not run into the text', (art.text.match(/\n/g) || []).length >= 10 && !/לדרךהממשלה|הקרוב\.חברת/.test(art.text), JSON.stringify(art.text.slice(0, 120)));
   check('its "why this one" record holds the words found for the three tests, each in the article',
     art.why && art.why.nifal_or_irregular.length >= 1 && art.why.prepositions.length >= 3 && art.why.family.some((f) => f.forms.length >= 2)
       && [...art.why.nifal_or_irregular, ...art.why.prepositions].every((v) => art.text.includes(v.word)) && art.why.words > 600, JSON.stringify(art.why));
@@ -174,6 +175,23 @@ try {
   check('a guide the model declines leaves the article stored, without a guide, and says why', noGuide && noGuide.has_guide === false && four.done.guide.ok === false && /declined/.test(four.done.guide.error) && peek('SELECT COUNT(*) AS n FROM articles')[0].n === before + 1, JSON.stringify(four.done));
   const remade = await api('POST', `/articles/${four.done.article_id}/guide`);
   check('"Make the study guide" makes it on the article', remade.status === 200 && remade.body.ok && (await api('GET', `/articles/${four.done.article_id}`)).body.has_guide === true, JSON.stringify(remade.body));
+
+  // --- a cut-off judgement (the first live trial, 3 Oct 2026) ----------------------------------
+  check('the three-test question has room: 6,000 tokens, not 2,500', (await calls()).last_judge_max_tokens === 6000, String((await calls()).last_judge_max_tokens));
+  await control({ judge_truncated: 1 });
+  ARTICLES['/a/cut'] = { title: 'כתבה על רשת החשמל', text: body(84), published: iso(day / 3) };
+  FEED.unshift(['/a/cut', day / 3]);
+  newsServer.removeAllListeners('request');
+  newsServer.on('request', (req, res) => {
+    if (req.url === '/feed') { res.writeHead(200, { 'content-type': 'text/xml' }); return res.end(rss(FEED)); }
+    const a = ARTICLES[req.url];
+    if (a) { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end(page(a.title, a.text, a.published)); }
+    res.writeHead(500); res.end('down');
+  });
+  const judgedBefore = (await calls()).judge_calls;
+  const cut = await find();
+  const cutArt = cut.done.article_id && (await api('GET', `/articles/${cut.done.article_id}`)).body;
+  check('an answer cut off is asked once more, and the article is found', cutArt && cutArt.source_url === `${news}/a/cut` && (await calls()).judge_calls >= judgedBefore + 2, JSON.stringify(cut.done));
 
   // --- the deploy's trial: one model call, nothing stored ------------------------------------
   const hunts = peek('SELECT COUNT(*) AS n FROM hunts')[0].n, arts = peek('SELECT COUNT(*) AS n FROM articles')[0].n, judged = (await calls()).judge_calls;

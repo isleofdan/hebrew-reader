@@ -1051,3 +1051,19 @@ the button. Report: `docs/reports/hebrew-hunt-build-report.md`.
 - **Known:** `fromUrl` glues paragraphs (Readability's text): a Maariv
   article comes as one paragraph with words run together at the joins.
   Left as is (the brief kept `fromUrl` unchanged); an ask in the report.
+
+### hunt-fixes (3 Oct 2026, after PR #8's merge, on Dan's yes to asks 1–4)
+
+- **The first live trial** (deploy run 37106950709) reached the model with
+  the live key, but its three-test answer was cut off at 2,500 tokens: the
+  real model listed every verb. The question now caps the lists (3 / 5 / 2),
+  the limit is 6,000, and a cut-off answer is asked once more
+  (`retryParse`). Without this, every candidate on a live tap would have
+  been dropped.
+- **`fromUrl` keeps paragraph breaks** (ask 2): the text comes from
+  Readability's HTML with a line break at every block, not from its
+  `textContent`, so no word runs into the next paragraph's ("לדרךחוקר").
+  A Maariv article went from 1 paragraph to 34. Articles already stored
+  are left as they are.
+- TheMarker and Kan stay out (ask 3); the last search stays on the
+  Articles screen (ask 4).
