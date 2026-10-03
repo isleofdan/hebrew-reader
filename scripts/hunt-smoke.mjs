@@ -228,9 +228,9 @@ try {
   check('a live blog is skipped and the record says "skipped: live blog": by the page\'s own marker, and by its clock-time lines',
     /^skipped: live blog \(the page calls itself "סקירת מסחר"\)$/.test(out5['/a/live']) && /^skipped: live blog \(\d+ lines open with a clock time\)$/.test(out5['/a/clock']), JSON.stringify([out5['/a/live'], out5['/a/clock']]));
   check('a market ticker is skipped: "skipped: market ticker"', /^skipped: market ticker \([\d.]+% numbers and market names\)$/.test(out5['/a/ticker']), out5['/a/ticker']);
-  check('a piece over 1,500 words is skipped by the length window', /^skipped: \d+ words, over 1500$/.test(out5['/a/long']), out5['/a/long']);
-  check('none of them was put to the model, and none was stored', !five.done.article_id && !['/a/live', '/a/clock', '/a/ticker', '/a/long'].some((u) => peek('SELECT id FROM articles WHERE source_url = ?', news + u).length)
-    && (await calls()).judge_calls - judgedAtSkip <= 1, JSON.stringify(five.done));
+  check('a long reported piece (about 1,800 words) is not skipped for its length: it is the one chosen', out5['/a/long'] === 'chosen' && five.done.article_id && peek('SELECT id FROM articles WHERE source_url = ?', news + '/a/long').length === 1, JSON.stringify([out5['/a/long'], five.done]));
+  check('the live blogs and the ticker were not put to the model, and none was stored', !['/a/live', '/a/clock', '/a/ticker'].some((u) => peek('SELECT id FROM articles WHERE source_url = ?', news + u).length)
+    && (await calls()).judge_calls - judgedAtSkip === 1, String((await calls()).judge_calls - judgedAtSkip));
 
   // --- the deploy's trial: the same tests, nothing stored ------------------------------------
   ARTICLES['/a/next'] = { title: 'הרגולטור פרסם תעריף חדש לאגירת חשמל', text: body(88), published: iso(day / 6) };
