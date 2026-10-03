@@ -28,7 +28,17 @@
 <main class="page">
   <div class="add-row">
   <section class="panel">
-    <h2>Add an article</h2>
+    <div class="panel-head">
+      <h2>Add an article</h2>
+      <button class="btn" id="find" type="button">Find an article</button>
+    </div>
+    <p class="msg" id="find-msg" aria-live="polite"></p>
+    <details class="last-find hidden" id="last-find">
+      <summary id="last-find-summary"></summary>
+      <ul id="last-find-tried"></ul>
+      <p class="caption" id="last-find-model"></p>
+      <p class="caption" id="last-find-left"></p>
+    </details>
     <label for="url">Address of the article</label>
     <input id="url" type="url" placeholder="https://www.ynet.co.il/economy/article/…" dir="ltr">
     <label for="text">Or paste the text (first line becomes the headline)</label>
