@@ -1,0 +1,38 @@
+# Runs every check (npm run check: syntax, tests, screenshots) on every
+# push and every pull request, so the result shows on the pull request
+# before Dan is asked to merge. It never deploys and never touches Fly.
+# A failure shows here and on the pull request, nowhere else.
+name: Checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      # No --with-deps: the runner image already has what Chromium needs,
+      # and --with-deps fetched ~32 MB of extra fonts from Ubuntu's package
+      # mirror, which on some runners crawled for 5 to 10 minutes.
+      - name: Install
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install chromium
+
+      - name: Run every check
+        run: npm run check
