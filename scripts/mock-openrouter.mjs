@@ -212,7 +212,8 @@ function mockArticleGuide(user, fault) {
   const why = JSON.parse((/What made it suitable: (.*)/.exec(user) || [])[1] || '{"nifal_or_irregular":[]}');
   const nif = why.nifal_or_irregular[0];
   const sentence = body.split(/(?<=\.)\s+/).find((x) => x.length > 20) || body.slice(0, 80);
-  const rows = words.slice(0, fault === 'few' ? 10 : 30).map((w, i) => ({ he: w, pointed: point(w), en: `meaning of ${w}`, root: '', binyan: '', category: ['Energy', 'Economy', 'Policy', 'Verbs'][i % 4], flags: SPELLING.test(w) ? `⚠️ Spelling: mind the letters of ${w}` : 'no spelling trap' }));
+  const rows = words.slice(0, fault === 'few' ? 10 : 30).map((w, i) => ({ he: w, pointed: point(w), en: `meaning of ${w}`, root: '', binyan: '', category: ['Energy', 'Economy', 'Policy', 'Verbs'][i % 4], flags: SPELLING.test(w) ? `⚠️ Spelling: mind the letters of ${w}` : i % 4 === 3 ? '⚠️ Prep: ל- (English: to); no spelling trap' : i % 2 ? '⚠️ Spelling: no spelling trap' : 'no spelling trap' }));
+  // (the last two as the live guide model wrote them on 3 Oct 2026: an icon on a row with no trap)
   const drill = fault === 'regular' || !nif
     ? { verb: 'לכתוב', root: 'כ.ת.ב', binyan: "Pa'al", deviation: 'none' }
     : { verb: nif.word, root: nif.root, binyan: "Nif'al", deviation: 'none' };

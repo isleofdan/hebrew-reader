@@ -146,6 +146,15 @@ try {
   check('the drill verb is the Nif\'al verb found', /data-drills="[^"]*Nif&#39;al/.test(guide));
   check('the link to the original is there, and an excerpt not in the article was dropped', guide.includes(`href="${news}/a/good"`) && !guide.includes('משפט שלא מופיע בכתבה בכלל'));
   check('Hebrew is right-to-left, no transliteration, and the page is the reader\'s own', /class="he[^"]*" dir="rtl"/.test(guide) && !/translit/i.test(guide) && guide.includes('/app.css') && guide.includes('Study guide'));
+  const vocabTable = (/<table class="vocab">[\s\S]*?<\/table>/.exec(guide) || [''])[0];
+  const flagLines = [...vocabTable.matchAll(/<div class="flags">([\s\S]*?)<\/div>/g)].map((m) => m[1]);
+  check('vocabulary: the ⚠️ only on a spelling trap or a preposition note; "no spelling trap" is not shown',
+    !/no spelling trap/i.test(vocabTable) && flagLines.length > 0 && flagLines.every((f) => !f.includes('⚠️') || /^⚠️ (Prep|Spelling|Confusable):/.test(f))
+      && flagLines.some((f) => /^⚠️ Prep: ל-/.test(f)) && !flagLines.some((f) => /^⚠️ Spelling:\s*$/.test(f)), JSON.stringify(flagLines.slice(0, 6)));
+  const { redrawFlags } = createRequire(import.meta.url)(join(root, 'lib', 'hunt.js'));
+  const old = '<table class="vocab"><tr><td><div class="flags">⚠️ Prep: ב- (English: in); no spelling trap</div></td></tr><tr><td><div class="flags">⚠️ Spelling: no spelling trap</div></td></tr></table>';
+  check('a guide stored before the rule is shown by it: its vocabulary flags are redrawn when served',
+    redrawFlags(old) === '<table class="vocab"><tr><td><div class="flags">⚠️ Prep: ב- (English: in)</div></td></tr><tr><td></td></tr></table>', redrawFlags(old));
   check('the guide was made by the guide model', (await calls()).last_article_guide_model === 'anthropic/claude-opus-4.6');
   check('a signed-out guide page goes to sign-in', (await fetch(`${base}/guide/${art.id}`, { redirect: 'manual' })).status === 303);
 

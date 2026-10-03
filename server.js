@@ -405,7 +405,7 @@ function guidePage(res, id) {
   let article;
   try { article = db.getArticle(id); } catch (e) { return sendHtml(res, 404, GUIDE_TEMPLATE.replace('{{TITLE}}', 'Study guide').replace('{{BACK}}', '/').replace('{{BODY}}', `<p class="empty">${escapeHtml(e.message)}</p>`)); }
   const html = db.articleGuide(id);
-  const body = html || '<p class="empty">This article has no study guide yet.</p>';
+  const body = (html && hunt.redrawFlags(html)) || '<p class="empty">This article has no study guide yet.</p>';
   return sendHtml(res, 200, GUIDE_TEMPLATE.replace('{{TITLE}}', () => `Study guide — ${escapeHtml(article.title)}`).replace('{{BACK}}', `/read.html?id=${id}`).replace('{{BODY}}', () => body));
 }
 
