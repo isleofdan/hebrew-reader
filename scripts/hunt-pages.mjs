@@ -81,7 +81,12 @@ try {
     page.jargon = [];
     const shoot = page.screenshot.bind(page);
     page.screenshot = async (opts) => {
-      const visible = await page.evaluate(() => document.body.innerText).catch(() => '');
+      // Kept, as screenshots.mjs keeps "Root radiation map": the Thinking on
+      // Paper prompts, whose seven type names ("…map") are Dan's own terms
+      const visible = await page.evaluate(() => {
+        const skip = [...document.querySelectorAll('.guide .paper-prompt')].map((e) => e.innerText);
+        return skip.reduce((t, s) => t.split(s).join(' '), document.body.innerText);
+      }).catch(() => '');
       const hits = visible.match(/\b(maps?|mapped|met|touch(es|ed)?|hunt(s|ed|ing)?)\b/gi);
       if (hits) page.jargon.push(`${opts.path.split('/').pop()}: ${[...new Set(hits)].join(', ')}`);
       return shoot(opts);
