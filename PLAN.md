@@ -1078,14 +1078,16 @@ Report: `docs/reports/hebrew-hunt-two-report.md`; PR #10, merge `4d0bf53`.
 - **Chooser** (`lib/hunt.js` `pageKind`, before the model): skipped when the
   page calls itself a live blog (Globes `article:type` "סקירת מסחר",
   `LiveBlogPosting`, "עדכונים שוטפים" in the title), when 4+ lines open with a
-  clock time, when 13%+ of words are numbers and market names, or over 1,500
-  words. Recorded as "skipped: live blog …", "skipped: market ticker …",
-  "skipped: N words, over 1500". Measured on 36 candidates, 3 Oct 2026.
+  clock time, or when 13%+ of words are numbers and market names. Recorded
+  as "skipped: live blog …" and "skipped: market ticker …". Measured on 36
+  candidates, 3 Oct 2026. The 1,500-word ceiling PR #10 added was removed
+  on Dan's word (3 Oct: "I don't see a real reason for the limit"): it only
+  dropped long reported pieces; the floor of 600 stays.
   "Already in your articles" now runs after these tests.
 - **Trial** (`?trial=1`): a tap's tests on today's candidates, up to 6 model
   calls, answers every candidate with its reason; nothing stored. The deploy
   prints the list. First live run (deploy 37110529261): Globes did=1001558228
-  "skipped: live blog"; Calcalist 2,747 words skipped; Maariv article-1373034
+  "skipped: live blog"; Calcalist 2,747 words skipped (by the ceiling since removed); Maariv article-1373034
   "would be chosen" by anthropic/claude-sonnet-4.6.
 - **Guide:** vocabulary flags drawn by `vocabFlags` (⚠️ only on Prep,
   Spelling, Confusable; "no spelling trap" never shown); stored guides are
