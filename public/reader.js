@@ -78,6 +78,7 @@ function draw() {
   const headline = $('#headline');
   headline.innerHTML = '';
   fillWords(headline, article.title);
+  drawFound();
   const body = $('#body');
   body.innerHTML = '';
   for (const para of article.text.split(/\n+/)) {
@@ -88,6 +89,31 @@ function draw() {
   meta.append(counter);
   meta.append(deleteButton());
   applyTints();
+}
+
+// A found article: where and when it was found, and its study guide (or,
+// when it could not be made, a button that makes it).
+function drawFound() {
+  const line = $('#found-line');
+  line.classList.toggle('hidden', article.origin !== 'found');
+  if (article.origin !== 'found') return;
+  line.innerHTML = '';
+  const when = new Date(article.found_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  line.append(document.createTextNode(`Found on ${when} from ${article.source_name}`));
+  line.append(document.createTextNode(' · '));
+  if (article.has_guide) {
+    const a = document.createElement('a'); a.href = `/guide/${ARTICLE_ID}`; a.id = 'guide-link'; a.textContent = 'Study guide';
+    line.append(a);
+  } else {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'linklike'; b.id = 'make-guide'; b.textContent = 'Make the study guide';
+    const say = document.createElement('span'); say.className = 'msg';
+    b.addEventListener('click', async () => {
+      b.disabled = true; say.className = 'msg'; say.textContent = ' Writing the study guide… this can take a few minutes.';
+      try { await api('POST', `/articles/${ARTICLE_ID}/guide`); article.has_guide = true; drawFound(); }
+      catch (e) { say.className = 'msg error'; say.textContent = ` ${e.message}`; b.disabled = false; }
+    });
+    line.append(b, say);
+  }
 }
 
 function applyTints() {

@@ -457,8 +457,12 @@ try {
     // a card opens its full view
     await page.locator('.ditem.word', { hasText: 'ה.מ.ר' }).locator('button').tap();
     await page.locator('#full:not(.hidden) #full-card').waitFor();
-    check('phone: a card opens its full view — the reader\'s card, with its note and buttons', (await page.locator('#full-card .surface .pointed').innerText()) === 'הִימֵּר'
-      && (await page.locator('#full-card .meaning').innerText()) === 'to gamble, to bet' && (await page.locator('#full-card #grow .grow-acts button', { hasText: 'Branch a new card from here' }).count()) === 1);
+    // the card's layers and actions are drawn after GET /card/<key> answers: wait for them before reading
+    const branchBtn = page.locator('#full-card #grow .grow-acts button', { hasText: 'Branch a new card from here' });
+    await branchBtn.first().waitFor({ timeout: 5000 }).catch(() => {});
+    const fullRead = { pointed: await page.locator('#full-card .surface .pointed').innerText(), meaning: await page.locator('#full-card .meaning').innerText(), branch: await branchBtn.count() };
+    check('phone: a card opens its full view — the reader\'s card, with its note and buttons', fullRead.pointed === 'הִימֵּר'
+      && fullRead.meaning === 'to gamble, to bet' && fullRead.branch === 1, JSON.stringify(fullRead));
     for (const theme of ['light', 'dark']) {
       await page.emulateMedia({ colorScheme: theme });
       await page.waitForTimeout(150);

@@ -36,3 +36,14 @@ jobs:
 
       - name: Run every check
         run: npm run check
+
+      # The article hunt's screens, phone and computer, kept with the run so
+      # the field report can carry them (this machine has no browser).
+      - name: Keep the hunt's screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hunt-screenshots
+          path: docs/screenshots/hunt-*.png
+          if-no-files-found: ignore
+          retention-days: 30

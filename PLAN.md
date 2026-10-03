@@ -1010,3 +1010,44 @@ checks and rules (`docs/CHECKS.md`, `CLAUDE.md`, `.claude/settings.json`,
   one article today (the lesson sheet is built from touches across recent
   articles); the reader never reads marks from the spine; Dan's words are in
   `reader.db` on Fly, out of a session's reach.
+
+## hebrew-hunt-build (3 Oct 2026, the rented Linux machine, unattended): "Find an article"
+
+**Dan's screens changed.** The Articles screen has "Find an article" beside
+"Add an article". A tap looks through recent Globes, Calcalist and Maariv
+business and energy news, loads the first article that passes the 2026
+Hebrew Study project's tests exactly as a pasted address would be loaded,
+and attaches a study guide. A found article shows "Found on <date> from
+<source>" under its title, with "Study guide". The last search (when, each
+article tried and why it was left, the last model call) is in a block under
+the button. Report: `docs/reports/hebrew-hunt-build-report.md`.
+
+- **Pull-only.** Nothing runs on a schedule or at startup; the search runs
+  inside the tap's request (`POST /articles/find`, a stream of progress
+  lines). A tap that leaves early does not stop it. One search at a time.
+- **Choosing** (`lib/hunt.js`): sources in turn, newest first, starting
+  after the last found article's source; last 14 days (feed date, or the
+  page's `article:published_time`); `fromUrl` unchanged; thin, paywalled
+  or under 600 Hebrew words dropped; then one model call (the card model)
+  per candidate, at most 6, answering the words it found for the three
+  tests, each checked by code to be in the body. TheMarker (a paywall stub
+  of about 150 words) and Kan (403 to this server) are left out and named.
+- **The study guide** is one call to the guide model over the article and
+  its "why this one" words, kept to the note's eight parts (at most 35
+  vocabulary rows, 2 prompts, 2 drills) and checked by the reader's own
+  guide checks (`lib/guide-checks.js`: drill, nikud, flags, objects) plus
+  the counts; one rebuild when a check fails. Dan's Register, Thinking on
+  Paper and objectives files (`docs/guy-lessons/`) are its instructions.
+  Stored as HTML in `articles.guide_html`, served at `/guide/<id>`.
+- **Storage:** `articles.origin` (`pasted` for every older row), `found_at`,
+  `source_name`, `why_json`, `guide_html`, added by ALTER TABLE; a `hunts`
+  table logs each search.
+- **Deploy:** a last step signs in and calls `POST /articles/find?trial=1`:
+  one real model call on one real candidate, nothing stored.
+- **Checks:** `scripts/hunt-smoke.mjs` (28, in `npm test` and the fast set)
+  and `scripts/hunt-pages.mjs` (19 page checks); the Checks run keeps the
+  hunt's screenshots. The red phone check in `desk-pages.mjs` was the
+  check's own fault (it counted a button drawn after a fetch); fixed.
+- **Known:** `fromUrl` glues paragraphs (Readability's text): a Maariv
+  article comes as one paragraph with words run together at the joins.
+  Left as is (the brief kept `fromUrl` unchanged); an ask in the report.
