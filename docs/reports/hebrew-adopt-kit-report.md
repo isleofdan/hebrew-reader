@@ -151,13 +151,22 @@ note "START HERE — hebrew-adopt-kit — 2 Oct 2026 (session A of two)".
    - The screenshots then failed at one check of 278: `desk-pages.mjs`,
      "phone: a card opens its full view — the reader's card, with its note
      and buttons" (`check: FAILED at screenshots (95.84 s)`).
-   - The check reads the card's pointed headword and meaning as soon as
-     `#full-card` appears, with no wait for the card's text to load: most
-     likely a timing race in the check, not in the app. No code under
-     `public/` or `lib/` changed in this session.
-   - Per rule 4 it is recorded and left as is. This is the first time the
-     reader's screenshots have run anywhere but a cloud session. The run on
-     this report's commit is read in the wall note.
+   - The same check failed, alone, on all three runs:
+     [37102650906](https://github.com/isleofdan/hebrew-reader/actions/runs/37102650906)
+     (push, step 3),
+     [37102859350](https://github.com/isleofdan/hebrew-reader/actions/runs/37102859350)
+     (push, report) and
+     [37102862550](https://github.com/isleofdan/hebrew-reader/actions/runs/37102862550)
+     (pull request #7). So it is steady, not intermittent.
+   - **Cause: UNKNOWN.** The check reads the card's pointed headword and
+     meaning as soon as `#full-card` appears, with no wait for the card's
+     text to load. Two other candidates:
+     - pull request #4 (the sheet opens in a new tab), merged after
+       fourteen's 377 page checks last passed;
+     - a newer Chromium on GitHub's runner than in fourteen's cloud session.
+   - No code under `public/` or `lib/` changed in this session. Per rule
+     4 it is recorded and left as is. This is the first time the reader's
+     screenshots have run on GitHub.
 7. **After the merge:** see the wall note on card `hebrew-hunt`. This
    report is on the branch, which cannot be changed after the merge without
    a new pull request.
@@ -196,11 +205,12 @@ note "START HERE — hebrew-adopt-kit — 2 Oct 2026 (session A of two)".
    **Recommended: yes.** Pushes to `main` stay refused, and a branch push
    deploys nothing. Unattended session B needs to push its branch.
 2. **The one red screenshot check:**
-   - **Recommended:** session B's brief first adds a wait for the card's
-     text in `scripts/desk-pages.mjs` (the check, not the app).
+   - **Recommended:** session B's brief starts by finding why
+     `desk-pages.mjs` "a card opens its full view" fails on GitHub, and
+     fixes the check or the screen, whichever is wrong.
    - **Recommended:** merge this pull request now with the red mark
-     recorded. Its 401 tests are green on GitHub, and the failure predates
-     it.
+     recorded. All 401 tests and the other 277 screenshot checks are green
+     on GitHub, and this pull request changes no screen or route.
 3. **The OpenRouter key on this machine does not load in a login shell.**
    **Recommended:** session B's brief has it checked and fixed on the
    agent-machine side, or the hunt is proven only against the reader's
