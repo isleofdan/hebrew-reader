@@ -10,7 +10,7 @@ screenshot scripts, unchanged.
 | Check | What it proves |
 | - | - |
 | syntax | Every `.js`, `.mjs` and `.cjs` file outside `node_modules` parses (`node --check`, file by file). |
-| tests | `npm test` = `npm run smoke`: `scripts/smoke.mjs` (254 checks), `scripts/grow-smoke.mjs` (66), `scripts/paper-smoke.mjs` (81) and `scripts/hunt-smoke.mjs` (28, "Find an article" against local news pages), each against a real server with local stand-ins for OpenRouter and the spine (`scripts/mock-openrouter.mjs`, `scripts/mock-spine.mjs`). |
+| tests | `npm test` = `npm run smoke`: `scripts/smoke.mjs` (255 checks), `scripts/grow-smoke.mjs` (66), `scripts/paper-smoke.mjs` (81) and `scripts/hunt-smoke.mjs` (31, "Find an article" against local news pages), each against a real server with local stand-ins for OpenRouter and the spine (`scripts/mock-openrouter.mjs`, `scripts/mock-spine.mjs`). |
 | screenshots | `npm run screenshots`: `scripts/screenshots.mjs`, `desk-pages.mjs`, `grow-pages.mjs`, `paper-pages.mjs`, `hunt-pages.mjs` — every screen at phone and computer size, signing in through the form. Needs Playwright's browser. The Checks run keeps the hunt's screenshots as the artifact `hunt-screenshots`. |
 
 The fast tests, `npm run test:fast`, are grow, paper and hunt only:

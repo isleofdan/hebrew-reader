@@ -108,6 +108,8 @@ try {
   check('article by paste stored with headline', pasted.status === 201 && pasted.body.title === sampleTitle && !pasted.body.thin, pasted.body.error);
   const byUrl = await api('POST', '/articles', { url: `http://127.0.0.1:${PAGE_PORT}/economy/article/1` });
   check('article by url extracted (local page standing in for a news site)', byUrl.status === 201 && byUrl.body.title === sampleTitle && byUrl.body.text.includes('שנאלצה') && !byUrl.body.text.includes('כל הזכויות'), byUrl.body.error || `title=${byUrl.body.title}`);
+  const byUrlParas = byUrl.body.text ? byUrl.body.text.split(/\n+/).filter((l) => l.trim()) : [];
+  check('article by url keeps its paragraphs apart (no word run into the next paragraph)', byUrlParas.length >= sampleParas.length && sampleParas.every((p) => byUrl.body.text.includes(p.trim())), `${byUrlParas.length} paragraphs for ${sampleParas.length}`);
   const stored = (await api('GET', `/articles/${pasted.body.id}`)).body;
   const wordsStored = tok.count(stored.text);
   check('word count of stored text is known for the page check', wordsStored > 50, `${wordsStored} words`);

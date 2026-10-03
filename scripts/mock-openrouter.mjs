@@ -74,7 +74,7 @@ let lastGuideModel = null;
 // JSON at all). review_format_again: the same for the answer to the one
 // follow-up ask. schema_refused: structured output answered 404, as OpenRouter
 // does when no provider of the model takes the parameters asked for.
-const control = { judge_same: false, article_guide_faults: [], unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false, verb_fixes: {}, verb_extra: [], verb_decline: false, guide_silent: [], refresh_fail: false, review_verdicts: {}, review_verdict_extra: [], examples: null };
+const control = { judge_same: false, judge_truncated: 0, article_guide_faults: [], unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false, verb_fixes: {}, verb_extra: [], verb_decline: false, guide_silent: [], refresh_fail: false, review_verdicts: {}, review_verdict_extra: [], examples: null };
 // verb_fixes: word -> { root?, binyan?, why }, the verb-card check's fix for
 // that card (every other card answered "correct"); verb_extra: answers added
 // after the cards'; verb_decline: the check answers {"error"}.
@@ -187,7 +187,7 @@ function webSearch(res, body, user) {
 }
 
 // --- the article hunt (hebrew-hunt-build) ---------------------------------------
-let judgeCalls = 0, articleGuides = 0, lastArticleGuideModel = null;
+let judgeCalls = 0, lastJudgeMaxTokens = null, articleGuides = 0, lastArticleGuideModel = null;
 const bodyOf = (user) => user.split('\nBody:\n')[1].split('\n\nYour previous answer')[0];
 const wordsOf = (text) => [...new Set(text.split(/[\s.,:;"'()?!\-–—]+/).filter((w) => /^[א-ת]{3,}$/.test(w)))];
 function mockJudge(user) {
@@ -234,7 +234,7 @@ function mockArticleGuide(user, fault) {
 }
 
 http.createServer((req, res) => {
-  if (req.url === '/calls') { res.end(JSON.stringify({ judge_calls: judgeCalls, article_guides: articleGuides, last_article_guide_model: lastArticleGuideModel, sheet_calls: sheetCalls, sheet_asks: sheetAsks, search_calls: searchCalls, search_asks: searchAsks, calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
+  if (req.url === '/calls') { res.end(JSON.stringify({ judge_calls: judgeCalls, last_judge_max_tokens: lastJudgeMaxTokens, article_guides: articleGuides, last_article_guide_model: lastArticleGuideModel, sheet_calls: sheetCalls, sheet_asks: sheetAsks, search_calls: searchCalls, search_asks: searchAsks, calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
   let raw = '';
   req.on('data', (c) => raw += c);
   req.on('end', () => {
@@ -376,8 +376,12 @@ http.createServer((req, res) => {
       // so the server's check that each is in the article holds. An article
       // whose title holds "דל" fails (no Nif'al); control.judge_same marks
       // every article the same story as the previous one.
+      // judge_truncated: that many first answers cut off, as the live model's
+      // was at 2,500 tokens (3 Oct 2026); the follow-up answers in full
       judgeCalls++;
+      lastJudgeMaxTokens = body.max_tokens;
       answer = mockJudge(user);
+      if (control.judge_truncated > 0 && !followUp) { control.judge_truncated--; format = 'truncated'; }
     } else if (user.startsWith('Article for a study guide\n')) {
       articleGuides++;
       lastArticleGuideModel = body.model;
