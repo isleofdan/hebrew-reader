@@ -22,6 +22,7 @@ const desk = require('./lib/desk');
 const grow = require('./lib/grow');
 const sheet = require('./lib/sheet');
 const caught = require('./lib/catch');
+const hunt = require('./lib/hunt');
 const { CATEGORIES } = require('./lib/categories');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, readFile, serveStatic } = require('./lib/http');
@@ -213,6 +214,48 @@ route('POST', /^\/articles$/, async (req, res) => {
   return sendJson(res, 201, { ...stored, thin: drafted.thin });
 });
 
+// --- "Find an article" (the article hunt) --------------------------------------
+// Runs only on Dan's tap. The answer is a stream of lines, one JSON object
+// each: { progress } while it looks (repeated every 15 s so the connection
+// stays open), then { done: true, article_id, guide } or { done: true,
+// nothing }, or { done: true, error }. A tap that leaves before the end does
+// not stop it: the article and its guide are stored all the same.
+// ?trial=1 is the deploy's check: one model call on one candidate, nothing
+// stored; it answers one JSON object { status, model, line }.
+route('POST', /^\/articles\/find$/, async (req, res, g, url) => {
+  if (url.searchParams.get('trial') === '1') {
+    const out = await hunt.trial();
+    console.log(`hunt trial: ${out.status} ${out.line}`);
+    return sendJson(res, out.status === 200 ? 200 : 502, out);
+  }
+  if (hunt.isRunning()) throw new db.ReaderError(409, 'Already looking for an article; wait for it to finish.');
+  res.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-store', 'x-accel-buffering': 'no' });
+  let last = 'Starting…';
+  const send = (o) => { if (!res.writableEnded && !res.destroyed) res.write(JSON.stringify(o) + '\n'); };
+  const beat = setInterval(() => send({ progress: last }), 15000);
+  try {
+    const out = await hunt.run({ progress: (line) => { last = line; send({ progress: line }); } });
+    send(out.article ? { done: true, article_id: out.article.id, title: out.article.title, guide: out.guide } : { done: true, nothing: out.nothing });
+  } catch (e) {
+    if (e.status !== 409) console.error(e);
+    send({ done: true, error: e.message });
+  } finally {
+    clearInterval(beat);
+    res.end();
+  }
+});
+
+// The last search: when, the candidates tried and why each was dropped, the
+// last model call's status; and the sources left out.
+route('GET', /^\/articles\/find\/last$/, (req, res) => sendJson(res, 200, hunt.last()));
+
+// (Re)makes a found article's study guide: { ok, counts } or 502 and why.
+route('POST', /^\/articles\/(?<id>\d+)\/guide$/, async (req, res, { id }) => {
+  db.getArticle(id);
+  const out = await hunt.makeGuide(Number(id));
+  return sendJson(res, out.ok ? 200 : 502, out.ok ? out : { error: out.error });
+});
+
 // --- lessons from Guy ------------------------------------------------------
 
 route('GET', /^\/lessons$/, (req, res) => sendJson(res, 200, db.listLessons()));
@@ -356,6 +399,15 @@ route('POST', new RegExp(`^/card/${CARD}/cut$`), async (req, res, { key }) => {
   return sendJson(res, 201, desk.cut(key, body.at, body));
 });
 
+const GUIDE_TEMPLATE = fs.readFileSync(path.join(PUBLIC, 'guide.html'), 'utf8');
+function guidePage(res, id) {
+  let article;
+  try { article = db.getArticle(id); } catch (e) { return sendHtml(res, 404, GUIDE_TEMPLATE.replace('{{TITLE}}', 'Study guide').replace('{{BACK}}', '/').replace('{{BODY}}', `<p class="empty">${escapeHtml(e.message)}</p>`)); }
+  const html = db.articleGuide(id);
+  const body = html || '<p class="empty">This article has no study guide yet.</p>';
+  return sendHtml(res, 200, GUIDE_TEMPLATE.replace('{{TITLE}}', () => `Study guide — ${escapeHtml(article.title)}`).replace('{{BACK}}', `/read.html?id=${id}`).replace('{{BODY}}', () => body));
+}
+
 function isApiPath(p) {
   return /^\/(articles|lookup|spots|marks-for-article|marks-for-lesson|categories|demand|ask|make|lessons|desks|notes|card|sheets)(\/|$)/.test(p);
 }
@@ -404,6 +456,9 @@ async function handle(req, res) {
   // desk page saves it (a GET here writes nothing)
   if (p === '/share' && fromAnotherSite(req)) return redirect(res, `/share/confirm${url.search}`);
   if (p === '/desk' || p === '/share' || p === '/share/confirm') return serveStatic(res, PUBLIC, '/desk.html') || sendJson(res, 404, { error: 'desk.html is missing.' });
+  // an article's study guide, as a page of its own
+  const guideMatch = /^\/guide\/(\d+)$/.exec(p);
+  if (guideMatch) return guidePage(res, Number(guideMatch[1]));
   if (/^\/desk\/sheet\/\d+$/.test(p)) return serveStatic(res, PUBLIC, '/desk-sheet.html') || sendJson(res, 404, { error: 'desk-sheet.html is missing.' });
   if (serveStatic(res, PUBLIC, p)) return;
   return sendJson(res, 404, { error: `Nothing at ${p}.` });

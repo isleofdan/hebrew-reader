@@ -74,7 +74,7 @@ let lastGuideModel = null;
 // JSON at all). review_format_again: the same for the answer to the one
 // follow-up ask. schema_refused: structured output answered 404, as OpenRouter
 // does when no provider of the model takes the parameters asked for.
-const control = { unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false, verb_fixes: {}, verb_extra: [], verb_decline: false, guide_silent: [], refresh_fail: false, review_verdicts: {}, review_verdict_extra: [], examples: null };
+const control = { judge_same: false, article_guide_faults: [], unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false, verb_fixes: {}, verb_extra: [], verb_decline: false, guide_silent: [], refresh_fail: false, review_verdicts: {}, review_verdict_extra: [], examples: null };
 // verb_fixes: word -> { root?, binyan?, why }, the verb-card check's fix for
 // that card (every other card answered "correct"); verb_extra: answers added
 // after the cards'; verb_decline: the check answers {"error"}.
@@ -186,8 +186,55 @@ function webSearch(res, body, user) {
     usage: { prompt_tokens: 900, completion_tokens: 300, server_tool_use: { web_search_requests: 2 } } }));
 }
 
+// --- the article hunt (hebrew-hunt-build) ---------------------------------------
+let judgeCalls = 0, articleGuides = 0, lastArticleGuideModel = null;
+const bodyOf = (user) => user.split('\nBody:\n')[1].split('\n\nYour previous answer')[0];
+const wordsOf = (text) => [...new Set(text.split(/[\s.,:;"'()?!\-–—]+/).filter((w) => /^[א-ת]{3,}$/.test(w)))];
+function mockJudge(user) {
+  const title = (/Title: (.*)/.exec(user) || [])[1] || '';
+  const words = wordsOf(bodyOf(user));
+  const nif = words.filter((w) => /^נ[א-ת]{3}$/.test(w));
+  const fam = (() => { for (const a of words) for (const b of words) if (a !== b && a.length >= 4 && b.length >= 4 && b.includes(a.slice(1, 4))) return [a, b]; return null; })();
+  return {
+    topic: `mock topic: ${title.slice(0, 40)}`, beat: 'economy', formal: true, same_story: Boolean(control.judge_same),
+    nifal_or_irregular: title.includes('דל') ? [] : nif.slice(0, 2).map((w) => ({ word: w, lemma: w, root: `${w[1]}.${w[2]}.${w[3]}`, binyan: 'nifal', why: "Nif'al" })),
+    prepositions: words.filter((w) => /^ל[א-ת]{3,}$/.test(w)).slice(0, 3).map((w) => ({ word: w, lemma: w, hebrew: 'ב-', english: 'none (direct object)' })),
+    family: fam ? [{ root: fam[0].slice(1, 4).split('').join('.'), forms: fam }] : [],
+  };
+}
+// A guide that passes the server's checks unless `fault` names one to break:
+// 'few' (only ten vocabulary rows), 'regular' (the drill verb regular while
+// the article has a Nif'al verb), 'decline'.
+function mockArticleGuide(user, fault) {
+  if (fault === 'decline') return { error: 'the guide maker declines in this mock' };
+  const body = bodyOf(user);
+  const words = wordsOf(body);
+  const why = JSON.parse((/What made it suitable: (.*)/.exec(user) || [])[1] || '{"nifal_or_irregular":[]}');
+  const nif = why.nifal_or_irregular[0];
+  const sentence = body.split(/(?<=\.)\s+/).find((x) => x.length > 20) || body.slice(0, 80);
+  const rows = words.slice(0, fault === 'few' ? 10 : 30).map((w, i) => ({ he: w, pointed: point(w), en: `meaning of ${w}`, root: '', binyan: '', category: ['Energy', 'Economy', 'Policy', 'Verbs'][i % 4], flags: SPELLING.test(w) ? `⚠️ Spelling: mind the letters of ${w}` : 'no spelling trap' }));
+  const drill = fault === 'regular' || !nif
+    ? { verb: 'לכתוב', root: 'כ.ת.ב', binyan: "Pa'al", deviation: 'none' }
+    : { verb: nif.word, root: nif.root, binyan: "Nif'al", deviation: 'none' };
+  return {
+    header: { topic_he: 'נושא הכתבה', topic_en: 'The article in the mock', description: 'A study guide from the stand-in.' },
+    excerpts: [{ theme: 'Opening', he: sentence }, { theme: 'Not in the article', he: 'משפט שלא מופיע בכתבה בכלל' }],
+    sections: [
+      { kind: 'vocabulary', rows },
+      { kind: 'paper', prompts: [1, 2, 3].map((n) => ({ type: 'Root radiation map', anchor: words[n] || '', prompt: `Prompt ${n}: put ${words[n] || 'the root'} in the center.`, categories: ['Verb conjugation production'] })) },
+      { kind: 'drills', verbs: [{ ...drill, takes_object: false, why: "Nif'al (1a); governs ל- (2).",
+        table: [{ tense: 'past', forms: [{ person: '3ms', he: point(drill.verb) }] }, { tense: 'future', forms: [{ person: '3ms', he: point(drill.verb) }] }],
+        deviations: 'None in the mock.', paal_comparison: "Pa'al of the same root, compared in the mock.",
+        exercises: [{ sentence: 'הוא ___ אתמול.', cue: '3ms past', answer: drill.verb }, { sentence: 'היא ___ מחר.', cue: '3fs future', answer: drill.verb }, { sentence: 'הם ___ השבוע.', cue: '3mp past', answer: drill.verb }] }] },
+      { kind: 'questions', items: ['מה הנושא העיקרי של הכתבה?', 'מי מוזכר בכתבה?', 'מה צפוי לקרות?'] },
+      { kind: 'expressions', items: [{ he: words[0] || 'ביטוי', en: 'an expression', usage: 'In the news.', flags: '⚠️ Prep: ב- where English has none' }] },
+    ],
+    relevance: 'How this connects to Japan energy security, in the mock.',
+  };
+}
+
 http.createServer((req, res) => {
-  if (req.url === '/calls') { res.end(JSON.stringify({ sheet_calls: sheetCalls, sheet_asks: sheetAsks, search_calls: searchCalls, search_asks: searchAsks, calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
+  if (req.url === '/calls') { res.end(JSON.stringify({ judge_calls: judgeCalls, article_guides: articleGuides, last_article_guide_model: lastArticleGuideModel, sheet_calls: sheetCalls, sheet_asks: sheetAsks, search_calls: searchCalls, search_asks: searchAsks, calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
   let raw = '';
   req.on('data', (c) => raw += c);
   req.on('end', () => {
@@ -324,6 +371,17 @@ http.createServer((req, res) => {
       answer = control.review === 'decline' ? { error: 'the reviewer declines in this mock' }
         : control.review === 'whole-guide' ? { guide, changes: [] }
         : { corrections, remove, verb_cards: [...verbCards, ...control.review_verdict_extra] };
+    } else if (user.startsWith('Article to judge\n')) {
+      // the hunt's three tests (lib/hunt.js): words taken from the body itself
+      // so the server's check that each is in the article holds. An article
+      // whose title holds "דל" fails (no Nif'al); control.judge_same marks
+      // every article the same story as the previous one.
+      judgeCalls++;
+      answer = mockJudge(user);
+    } else if (user.startsWith('Article for a study guide\n')) {
+      articleGuides++;
+      lastArticleGuideModel = body.model;
+      answer = mockArticleGuide(user, control.article_guide_faults.shift());
     } else if (user.startsWith('Lesson: ')) {
       guides++;
       lastGuideModel = body.model;

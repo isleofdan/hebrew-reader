@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@400;500;700&family=Noto+Serif+Hebrew:wght@400;500;600&display=swap">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="/app.css">
+<script src="/theme.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">Hebrew reader</a>
+  <nav><a href="/">Articles</a><a href="{{BACK}}">Read</a><a class="active" href="#">Study guide</a></nav>
+  <span class="spacer"></span>
+  <div class="theme" role="group" aria-label="Theme">
+    <button type="button" data-theme-choice="light">Light</button>
+    <button type="button" data-theme-choice="dark">Dark</button>
+    <button type="button" data-theme-choice="device">Device</button>
+  </div>
+</header>
+<main class="page study-guide">
+{{BODY}}
+</main>
+</body>
+</html>
