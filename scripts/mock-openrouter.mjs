@@ -204,7 +204,9 @@ function mockJudge(user) {
 }
 // A guide that passes the server's checks unless `fault` names one to break:
 // 'few' (only ten vocabulary rows), 'regular' (the drill verb regular while
-// the article has a Nif'al verb), 'decline'.
+// the article has a Nif'al verb), 'future' (a future table without 2fs, 2mp
+// and 2fp, as the live guide model wrote one on 3 Oct 2026), 'decline'.
+const ALL = ['1s', '2ms', '2fs', '3ms', '3fs', '1p', '2mp', '2fp', '3mp', '3fp'];
 function mockArticleGuide(user, fault) {
   if (fault === 'decline') return { error: 'the guide maker declines in this mock' };
   const body = bodyOf(user);
@@ -224,7 +226,8 @@ function mockArticleGuide(user, fault) {
       { kind: 'vocabulary', rows },
       { kind: 'paper', prompts: [1, 2, 3].map((n) => ({ type: 'Root radiation map', anchor: words[n] || '', prompt: `Prompt ${n}: put ${words[n] || 'the root'} in the center.`, categories: ['Verb conjugation production'] })) },
       { kind: 'drills', verbs: [{ ...drill, takes_object: false, why: "Nif'al (1a); governs ל- (2).",
-        table: [{ tense: 'past', forms: [{ person: '3ms', he: point(drill.verb) }] }, { tense: 'future', forms: [{ person: '3ms', he: point(drill.verb) }] }],
+        table: [{ tense: 'past', forms: ALL.map((person) => ({ person, he: point(drill.verb) })) },
+                { tense: 'future', forms: ALL.filter((p) => fault !== 'future' || !['2fs', '2mp', '2fp'].includes(p)).map((person) => ({ person, he: point(drill.verb) })) }],
         deviations: 'None in the mock.', paal_comparison: "Pa'al of the same root, compared in the mock.",
         exercises: [{ sentence: 'הוא ___ אתמול.', cue: '3ms past', answer: drill.verb }, { sentence: 'היא ___ מחר.', cue: '3fs future', answer: drill.verb }, { sentence: 'הם ___ השבוע.', cue: '3mp past', answer: drill.verb }] }] },
       { kind: 'questions', items: ['מה הנושא העיקרי של הכתבה?', 'מי מוזכר בכתבה?', 'מה צפוי לקרות?'] },

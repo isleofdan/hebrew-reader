@@ -174,6 +174,15 @@ try {
   FEED.unshift(['/a/fresh', day / 2]);
   const three = await find();
   check('a guide that fails its checks is asked for once more, and the second passes', three.done.guide && three.done.guide.ok && three.done.guide.counts.tries === 2, JSON.stringify(three.done));
+  const g3 = await (await fetch(`${base}/guide/${three.done.article_id}`, { headers: { cookie } })).text();
+  const futureOf = (html) => [...((/<div class="label">future<\/div><dl class="forms">([\s\S]*?)<\/dl>/.exec(html) || ['', ''])[1]).matchAll(/<dt>([^<]*)<\/dt>/g)].map((m) => m[1]);
+  await control({ article_guide_faults: ['future'] });
+  ARTICLES['/a/future'] = { title: 'כתבה על מחיר הגז לתעשייה', text: body(83), published: iso(day / 2.5) };
+  FEED.unshift(['/a/future', day / 2.5]);
+  const threeB = await find();
+  const g3b = threeB.done.article_id && await (await fetch(`${base}/guide/${threeB.done.article_id}`, { headers: { cookie } })).text();
+  check('a drill whose future lacks 2fs, 2mp and 2fp is asked for once more; the stored future carries every person the past does',
+    threeB.done.guide && threeB.done.guide.ok && threeB.done.guide.counts.tries === 2 && ['2fs', '2mp', '2fp'].every((p) => futureOf(g3b).includes(p)) && futureOf(g3).length === 10, JSON.stringify([threeB.done.guide, futureOf(g3b)]));
   await control({ article_guide_faults: ['decline'] });
   const before = peek('SELECT COUNT(*) AS n FROM articles')[0].n;
   ARTICLES['/b/two'] = { title: 'עוד כתבה מהאתר השני', text: body(90), published: iso(1 * day) };
