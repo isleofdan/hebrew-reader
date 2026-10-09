@@ -18,7 +18,7 @@ const root = join(here, '..');
 const out = join(root, 'docs', 'screenshots');
 mkdirSync(out, { recursive: true });
 
-const PORT = 8810, OR_PORT = 8811, SPINE_PORT = 8812;
+const PORT = 8810, OR_PORT = 8811, SPINE_PORT = 8812, REF_PORT = 8813;
 const PASS = 'open-sesame';
 const dataDir = mkdtempSync(join(tmpdir(), 'hr-grow-pages-'));
 const kids = [];
@@ -28,10 +28,14 @@ async function up(url) { for (let i = 0; i < 60; i++) { try { await fetch(url); 
 
 start(['scripts/mock-openrouter.mjs', String(OR_PORT)]);
 start(['scripts/mock-spine.mjs', String(SPINE_PORT), 'test-spine-token']);
+// the seven reference sites, stood in for (hebrew-lookup-one): a copy is
+// fetched from here and a framed page is loaded from here
+start(['scripts/mock-references.mjs', String(REF_PORT)]);
+const standin = `http://127.0.0.1:${REF_PORT}`;
 start(['server.js'], {
   PORT: String(PORT), DATA_DIR: dataDir, APP_PASSWORD: PASS, COOKIE_SECRET: 'g'.repeat(64), COOKIE_INSECURE: '1',
   OPENROUTER_API_KEY: 'test-key', OPENROUTER_URL: `http://127.0.0.1:${OR_PORT}/v1/chat/completions`,
-  SPINE_TOKEN: 'test-spine-token', SPINE_URL: `http://127.0.0.1:${SPINE_PORT}`,
+  SPINE_TOKEN: 'test-spine-token', SPINE_URL: `http://127.0.0.1:${SPINE_PORT}`, REFERENCE_STANDIN: standin,
 });
 const base = `http://127.0.0.1:${PORT}`;
 const exe = existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined;
@@ -208,20 +212,63 @@ try {
     check(`${name}: "Note here" adds a note as a layer of this card, its text box focused, saved as typed, and not put on the desk`,
       focused && notes.length === before + 1 && notes.at(-1).text === `note from the ${name}` && !(await api('GET', '/desks/current')).body.cards.some((c) => c.key === notes.at(-1).key));
 
-    // --- the seven lookups: each opens its page and records a lookup ------------------
-    if (!phone) {
-      const n0 = (await api('GET', `/card/${W}`)).body.layers.filter((l) => l.kind === 'lookup').length;
-      const hrefs = await g.locator('a.ref').evaluateAll((as) => as.map((a) => [a.dataset.ref, a.href, a.target]));
+    // --- the seven lookups open inside the card (hebrew-lookup-one) -------------------
+    // a tap opens the reference in a pane under the row, never a new tab, and
+    // records a lookup layer as before: a copy (Pealim), a framed page
+    // (Wiktionary), and a site that does not answer (the Academy)
+    {
       const enc = encodeURIComponent('להמר');
-      check('desktop: each "Look up in" is a link to that site\'s page for the unpointed headword, opening in a new tab',
-        hrefs.map((h) => h[1]).join(' ') === [`https://www.morfix.co.il/en/${enc}`, `https://www.pealim.com/search/?q=${enc}`, `https://he.wiktionary.org/w/index.php?search=${enc}`, `https://milog.co.il/${enc}`, `https://hebrew-academy.org.il/?s=${enc}`, `http://www.kizur.co.il/search_word.php?abbr=${enc}`, `https://www.sefaria.org/search?q=${enc}`].join(' ') && hrefs.every((h) => h[2] === '_blank'), JSON.stringify(hrefs));
-      const popup = page.waitForEvent('popup');
-      const recorded = page.waitForResponse((r) => /\/lookup$/.test(r.url()) && r.status() === 201);
-      await g.locator('a.ref[data-ref=pealim]').click();
-      const tab = await popup; await recorded;
-      await tab.close();
+      const popups = [];
+      page.on('popup', (p) => popups.push(p.url()));
+      const lookups = async () => (await api('GET', `/card/${W}`)).body.layers.filter((l) => l.kind === 'lookup').length;
+      const n0 = await lookups();
+      check(`${name}: each "Look up in" is a button, not a link to a new tab`,
+        (await g.locator('.refs a').count()) === 0 && (await g.locator('.refs button.ref').count()) === 7);
+      const pane = g.locator('.ref-pane');
+      const recorded = page.waitForResponse((r) => /\/card\/word:\d+\/lookup$/.test(r.url()) && r.status() === 201);
+      await g.locator('.refs button.ref[data-ref=pealim]').click();
+      await recorded;
+      await pane.locator('iframe.ref-frame.copy').waitFor({ timeout: 8000 });
       await page.waitForFunction((n) => document.querySelectorAll('#grow .layer.lookup').length === n, n0 + 1, { timeout: 5000 });
-      check('desktop: a tap opens the reference in a new tab and records a lookup layer', opened.some((u) => u.startsWith('https://www.pealim.com/search/?q=')) && /^looked up in Pealim/.test(await g.locator('.layer.lookup .lookup-line').last().innerText()));
+      const doc = await pane.locator('iframe.ref-frame.copy').getAttribute('srcdoc');
+      const frame = page.frameLocator('#grow .ref-pane iframe.ref-frame.copy');
+      check(`${name}: Pealim (a copy) opens in a pane under the row: the copy line, a link to the live page, the copy in a sandboxed frame with no script`,
+        (await pane.locator('.ref-line').innerText()).startsWith('Shown from a copy fetched by the reader; open the site for the live page')
+        && (await pane.locator('.ref-line a').getAttribute('href')) === `https://www.pealim.com/search/?q=${enc}` && (await pane.locator('.ref-line a').getAttribute('target')) === '_blank'
+        && (await pane.locator('iframe.copy').getAttribute('sandbox')) === 'allow-popups allow-popups-to-escape-sandbox' && !/<script/i.test(doc)
+        && (await frame.locator('h1').innerText()) === 'להמר', await pane.innerText());
+      const order = await g.evaluate((box) => [...box.children].map((c) => c.className.split(' ')[0]));
+      check(`${name}: the pane sits under the "Look up in" row, and the tap recorded a lookup layer ("looked up in Pealim")`,
+        order.join(',') === 'grow-top,ref-pane,grow-bottom' && (await g.locator('.grow-top > .refs').count()) === 1 && /^looked up in Pealim/.test(await g.locator('.layer.lookup .lookup-line').last().innerText()), order.join(','));
+      check(`${name}: the open reference's button is marked`, (await g.locator('.refs button.ref.active').getAttribute('data-ref')) === 'pealim');
+      await pane.scrollIntoViewIfNeeded();
+      await both(page, `ref-copy-${name}`);
+      // a framed reference replaces it: one pane at a time
+      await g.locator('.refs button.ref[data-ref=wiktionary]').click();
+      await pane.locator('iframe.ref-frame:not(.copy)').waitFor({ timeout: 8000 });
+      check(`${name}: Wiktionary (framed) replaces the copy in the one pane: the site's page in a frame`,
+        (await g.locator('.ref-pane').count()) === 1 && (await pane.locator('iframe').count()) === 1
+        && (await pane.locator('iframe').getAttribute('src')) === `${standin}/wiktionary/${enc}` && /Wiktionary's own page/.test(await pane.locator('.ref-line').innerText())
+        && (await page.frameLocator('#grow .ref-pane iframe').locator('h1').innerText()) === 'להמר');
+      await page.waitForFunction((n) => document.querySelectorAll('#grow .layer.lookup').length === n, n0 + 2, { timeout: 5000 });
+      check(`${name}: the frame stays open while the card redraws after the lookup is recorded`, (await pane.locator('iframe').getAttribute('src')) === `${standin}/wiktionary/${enc}` && (await lookups()) === n0 + 2);
+      await pane.scrollIntoViewIfNeeded();
+      await both(page, `ref-frame-${name}`);
+      // a site that does not answer
+      await fetch(`${standin}/control`, { method: 'POST', body: JSON.stringify({ academy: 'status:403' }) });
+      await g.locator('.refs button.ref[data-ref=academy]').click();
+      await pane.locator('.ref-line.bad').waitFor({ timeout: 8000 });
+      check(`${name}: a site that does not answer: "The site did not answer; open it directly", with the link`,
+        (await pane.locator('.ref-line.bad').innerText()).startsWith('The site did not answer; open it directly.') && (await pane.locator('.ref-line.bad a').getAttribute('href')) === `https://hebrew-academy.org.il/?s=${enc}`
+        && (await pane.locator('iframe').count()) === 0, await pane.innerText());
+      check(`${name}: the failure line is legible`, contrast(await paint(pane.locator('.ref-line.bad'), 'color'), await ground(pane.locator('.ref-line.bad'))) >= 4.5);
+      await pane.scrollIntoViewIfNeeded();
+      await both(page, `ref-failed-${name}`);
+      await fetch(`${standin}/control`, { method: 'POST', body: JSON.stringify({ academy: 'page' }) });
+      await pane.locator('.ref-close').click();
+      check(`${name}: Close shuts the pane and unmarks the button`, (await pane.isHidden()) && (await g.locator('.refs button.ref.active').count()) === 0);
+      // (the copy's own images load from the live site, in the pane; that is not a tab)
+      check(`${name}: no tap opened a new tab`, popups.length === 0, JSON.stringify(popups));
     }
 
     // --- branch from the kept example: a new card beside להמר, a grey line ----------------

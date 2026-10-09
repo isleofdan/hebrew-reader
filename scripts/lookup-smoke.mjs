@@ -127,7 +127,7 @@ try {
     hung.body.mode === 'failed' && /20 s/.test(hung.body.reason) && hung.s >= 19 && hung.s < 23, JSON.stringify({ ...hung.body, s: hung.s }));
   check('false-rejection: a stand-in that answers after 10 s still returns the copy (the limit stays quiet on a slow healthy answer)',
     slow.body.mode === 'copy' && slow.s >= 9.5 && slow.s < 15 && slow.body.html.includes('<h1>להמר</h1>'), JSON.stringify({ mode: slow.body.mode, reason: slow.body.reason, s: slow.s }));
-  check('the pane line the page shows on failure has the reason in plain words', /^The site did not answer: /.test(hung.body.reason));
+  check('the reason a fetch failed is said in plain words', hung.body.reason === 'no answer in 20 s' && refused.body.reason === 'it answered 403', JSON.stringify([hung.body.reason, refused.body.reason]));
   await control({ morfix: 'page', academy: 'page' });
 
   // two taps at once make one fetch

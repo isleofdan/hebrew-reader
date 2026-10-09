@@ -485,6 +485,22 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 .grow .grow-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .grow .grow-acts .btn.small { align-self: auto; }
 .grow .grow-acts.refs .refs-label { font-size: 13px; color: var(--muted); margin-right: 2px; }
+.grow .grow-top, .grow .grow-bottom { display: contents; }
+.grow .grow-acts.refs .btn.ref.active, .lookup-tabs .btn.ref.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-dark); }
+
+/* A reference shown inside the reader (hebrew-lookup-one): framed, or a copy */
+.ref-pane { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 8px 10px 10px; background: var(--panel); }
+.ref-pane.hidden { display: none; }
+.ref-pane .ref-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ref-pane .ref-title { font-weight: 600; font-size: 14px; }
+.ref-pane .ref-title .he { font-family: var(--serif); font-size: 17px; }
+.ref-pane .ref-line { margin: 0; font-size: 13px; color: var(--muted); }
+.ref-pane .ref-line.bad { color: var(--danger); font-size: 14px; }
+.ref-pane .ref-why, .ref-pane .ref-wait { margin: 0; font-size: 13px; color: var(--muted); }
+.ref-pane .ref-live { color: var(--accent); }
+/* the site's own page keeps its own (light) colors, in dark mode too */
+.ref-pane .ref-frame { width: 100%; height: 70vh; min-height: 360px; border: 1px solid var(--line); border-radius: 6px; background: #ffffff; }
+@media (max-width: 699px) { .ref-pane .ref-frame { height: 65vh; min-height: 300px; } }
 .grow a.btn.small { display: inline-flex; align-items: center; text-decoration: none; color: var(--text); }
 .grow .ask-here { display: flex; gap: 8px; }
 .grow .ask-input { flex: 1 1 auto; min-width: 0; height: 36px; font-size: 15px; }
