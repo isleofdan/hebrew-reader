@@ -154,6 +154,18 @@ try {
     check(`${name}: the card's lookup count rises by three, and each tap is a lookup layer with origin lookup`,
       n1 === n0 + 3 && (await api('GET', `/card/${W}`)).body.layers.filter((l) => l.kind === 'lookup' && l.origin === 'lookup' && l.reference !== 'page').length === (phone ? 7 : 3), `${n0} -> ${n1}`);
     check(`${name}: no tab opened a new tab`, page.popups.length === 0, page.popups.join(' '));
+    // --- step 6: at phone width the tabs stand as a list, the pane opens in place ------------
+    const boxes = await page.locator('#tabs > button.ref').evaluateAll((bs) => bs.map((b) => { const r = b.getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width) }; }));
+    const stacked = boxes.every((b, i) => i === 0 || (b.x === boxes[0].x && b.y > boxes[i - 1].y));
+    const after = await page.locator('#pane').evaluate((p) => p.previousElementSibling && p.previousElementSibling.dataset.ref);
+    const wide = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+    if (phone) {
+      check('phone: the tabs stand stacked under the entry, the full width, as a list of reference buttons', stacked && boxes[0].w >= 330, JSON.stringify(boxes));
+      check('phone: the open reference\'s pane opens in place, right under its button (Milog)', after === 'milog', String(after));
+      check('phone: nothing scrolls sideways with a reference open', wide);
+    } else {
+      check('desktop: the tabs are one row, the pane under the row', boxes.every((b) => b.y === boxes[0].y) && (await page.locator('#tabs + #pane').count()) === 1 && wide, JSON.stringify(boxes));
+    }
     await page.locator('#pane').scrollIntoViewIfNeeded();
     await both(page, `tab-frame-${name}`);
     await page.locator('#tabs button.ref[data-ref=pealim]').click();
@@ -194,6 +206,22 @@ try {
       await page.locator('.dcard, .unplaced, #unplaced').first().waitFor({ timeout: 8000 }).catch(() => {});
       check('desktop: at /desk the word is there, waiting to be placed', /הימר|להמר/.test(await page.locator('body').innerText()));
       await page.screenshot({ path: join(out, 'lookup-desk-after-put-desktop-light.png') });
+      await page.goto(`${base}/lookup`);
+      await page.locator('#looked-list li').first().waitFor({ timeout: 8000 });
+    }
+
+    // the phone page's own quick lookup stays as it is: a card, nothing saved, nothing recorded
+    if (phone) {
+      const before = (await api('GET', '/lookups')).body.items.length;
+      const spot0 = (await api('GET', `/spots/${enc('w:נחתם')}`)).status;
+      await page.goto(`${base}/phone`);
+      check('phone: the phone page links to the Look up page', (await page.locator('.topbar nav a[href="/lookup"]').innerText()) === 'Look up');
+      await page.fill('#lookup', 'נחתם');
+      await page.locator('#lookup-go').click();
+      await page.locator('#card-lookup:not(.idle) .surface .pointed').waitFor({ timeout: 8000 });
+      const spot1 = (await api('GET', `/spots/${enc('v:ח.ת.מ:nifal')}`)).body;
+      check('phone: the phone page\'s quick lookup is unchanged: the card shows, the word is not saved, and it does not join "Looked up"',
+        spot0 === 404 && spot1.status === 'new' && (await api('GET', '/lookups')).body.items.length === before && (await page.locator('#card-lookup .actions [data-act=ask]').isVisible()), JSON.stringify(spot1));
       await page.goto(`${base}/lookup`);
       await page.locator('#looked-list li').first().waitFor({ timeout: 8000 });
     }
