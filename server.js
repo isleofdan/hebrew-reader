@@ -23,6 +23,7 @@ const grow = require('./lib/grow');
 const sheet = require('./lib/sheet');
 const caught = require('./lib/catch');
 const hunt = require('./lib/hunt');
+const referencePages = require('./lib/reference-pages');
 const { CATEGORIES } = require('./lib/categories');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, readFile, serveStatic } = require('./lib/http');
@@ -400,7 +401,12 @@ route('POST', new RegExp(`^/card/${CARD}/cut$`), async (req, res, { key }) => {
   return sendJson(res, 201, desk.cut(key, body.at, body));
 });
 
-const GUIDE_TEMPLATE = fs.readFileSync(path.join(PUBLIC, 'guide.html'), 'utf8');
+// --- a reference shown inside the reader (hebrew-lookup-one) ------------------
+// ?term=<word> -> { mode: 'frame', url } | { mode: 'copy', html, fetched_at, url }
+// | { mode: 'failed', url, reason }. A copy is fetched only here, on Dan's tap.
+route('GET', /^\/reference\/(?<id>[a-z]+)$/, async (req, res, { id }, url) => sendJson(res, 200, await referencePages.pane(id, url.searchParams.get('term'))));
+
+const GUIDE_TEMPLATE =fs.readFileSync(path.join(PUBLIC, 'guide.html'), 'utf8');
 function guidePage(res, id) {
   let article;
   try { article = db.getArticle(id); } catch (e) { return sendHtml(res, 404, GUIDE_TEMPLATE.replace('{{TITLE}}', 'Study guide').replace('{{BACK}}', '/').replace('{{BODY}}', `<p class="empty">${escapeHtml(e.message)}</p>`)); }
@@ -410,7 +416,7 @@ function guidePage(res, id) {
 }
 
 function isApiPath(p) {
-  return /^\/(articles|lookup|spots|marks-for-article|marks-for-lesson|categories|demand|ask|make|lessons|desks|notes|card|sheets)(\/|$)/.test(p);
+  return /^\/(articles|lookup|spots|marks-for-article|marks-for-lesson|categories|demand|ask|make|lessons|desks|notes|card|sheets|reference|lookups)(\/|$)/.test(p);
 }
 
 async function handle(req, res) {
