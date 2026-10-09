@@ -114,7 +114,7 @@
         li.append(ta);
         if (state.noting === l.key) setTimeout(() => ta.focus(), 0);
       }
-      if (l.kind === 'lookup') li.append(el('div', 'lookup-line', `looked up in ${l.label}, ${day(l.made_at)}`));
+      if (l.kind === 'lookup') li.append(el('div', 'lookup-line', `${l.line || `looked up in ${l.label}`}, ${day(l.made_at)}`));
       if (l.kind === 'ink') {
         li.append(el('div', 'layer-kind', `note · ink · ${day(l.drawn_at || l.made_at)}`));
         li.append(inkArea(l));

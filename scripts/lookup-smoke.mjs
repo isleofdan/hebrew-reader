@@ -5,7 +5,7 @@
 //   node scripts/lookup-smoke.mjs   (npm test runs it; not in the fast set:
 //   the 20-second fetch limit is checked for real, so it takes about 25 s)
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -140,6 +140,96 @@ try {
   check('nothing was fetched ahead: each reference was asked only on a tap',
     JSON.stringify(await refCalls()) === JSON.stringify({ pealim: 4, academy: 2, kizur: 2, morfix: 3 }), JSON.stringify(await refCalls()));
   check('the server log names each copy fetched and each failure', /reference pealim "להמר": copy fetched in \d+ ms/.test(server.log) && /reference morfix "להמר": not fetched after \d+ ms: no answer in 20 s/.test(server.log));
+
+  // --- step 4: the Look up page, its search and its tabs -------------------------------------
+  const orCalls = async () => (await (await fetch(`http://127.0.0.1:${OR_PORT}/calls`)).json()).calls;
+  const page = await fetch(`${base}/lookup`, { headers: { cookie } });
+  const pageOut = await fetch(`${base}/lookup`, { redirect: 'manual' });
+  check('GET /lookup is the Look up page behind the passphrase (signed out: to the sign-in page)',
+    page.status === 200 && /<title>Hebrew reader · Look up<\/title>/.test(await page.text()) && pageOut.status === 303 && pageOut.headers.get('location') === '/login');
+  // Dan's card for להמר, from Guy's lesson, confirmed by him (session eleven)
+  const form = new FormData();
+  form.append('file', new Blob([readFileSync(join(here, 'fixtures', 'Daniel Hebrew 24feb26.pdf'))], { type: 'application/pdf' }), 'Daniel Hebrew 24feb26.pdf');
+  const lesson = await (await fetch(`${base}/lessons`, { method: 'POST', headers: { cookie }, body: form })).json();
+  const sentence = 'לא כדאי להמר על העתיד של החברה.';
+  await api('POST', '/lookup', { surface: 'להמר', sentence, lesson_id: lesson.id });
+  await api('POST', '/lookup/confirm', { surface: 'להמר', sentence, root: 'ה.מ.ר', binyan: 'piel' });
+  const cardId = peek('SELECT id FROM cards WHERE surface = ?', 'להמר')[0].id;
+  const W = `word:${cardId}`;
+  const entry = peek('SELECT json FROM cards WHERE id = ?', cardId)[0].json;
+  const spotBefore = (await api('GET', `/spots/${enc('v:ה.מ.ר:piel')}`)).body;
+
+  // POST /lookup's own matching, unchanged: a word and its sentence, exactly
+  const c0 = await orCalls();
+  const pointedOld = await api('POST', '/lookup', { surface: 'לְהַמֵּר', sentence: '' });
+  const prefixedOld = await api('POST', '/lookup', { surface: 'ולהמר', sentence: '' });
+  check('POST /lookup as it was: a pointed or prefixed form with no sentence is not matched to the card; each asks the model (the stand-in knows neither: 422)',
+    pointedOld.status === 422 && prefixedOld.status === 422 && (await orCalls()) === c0 + 2, JSON.stringify([pointedOld.body, prefixedOld.body]));
+
+  const c1 = await orCalls();
+  const first = await api('POST', '/lookup', { surface: 'להמר', sentence: '', origin: 'lookup' });
+  check('the page\'s search finds Dan\'s own card for להמר (the lesson\'s, confirmed), with no model call',
+    first.status === 200 && first.body.key === W && first.body.card.confirmed && (await orCalls()) === c1 && first.body.found_by === 'a card of this word', JSON.stringify({ ...first.body, references: undefined }).slice(0, 300));
+  check('the word is saved at once, as the reader\'s save does it: the spot shaky, the mark sent to the spine',
+    spotBefore.status === 'new' && first.body.saved.status === 'shaky' && first.body.saved.already === false && first.body.saved.spine === 'recorded' && first.body.spot.status === 'shaky'
+    && (await (await fetch(`http://127.0.0.1:${SPINE_PORT}/puts`)).json()).puts['v:ה.מ.ר:piel'] >= 1);
+  check('the confirmed card\'s entry is untouched by the search and the save (byte for byte)', peek('SELECT json FROM cards WHERE id = ?', cardId)[0].json === entry);
+  const pageLayer = peek("SELECT l.* FROM lookups l JOIN card_links k ON k.child = 'lookup:' || l.id WHERE k.parent = ? AND k.kind = 'layer'", W);
+  check('one lookup layer is recorded on the card in the same request: reference page, origin lookup, nothing fetched',
+    pageLayer.length === 1 && pageLayer[0].reference === 'page' && pageLayer[0].origin === 'lookup' && pageLayer[0].term === 'להמר' && first.body.layer.line === 'looked up on the Look up page', JSON.stringify(pageLayer));
+  check('the answer carries the seven tabs in the references\' order, each with the word to ask for',
+    first.body.references.map((r) => r.id).join() === 'morfix,pealim,wiktionary,milog,academy,kizur,sefaria' && first.body.references.every((r) => r.term === 'להמר') && first.body.lookups === 1);
+  const forms = {};
+  for (const w of ['לְהַמֵּר', 'ולהמר', 'הימר', 'וּלְהַמֵּר', 'שלהמר']) forms[w] = (await api('POST', '/lookup', { surface: w, origin: 'lookup' })).body;
+  check('false-rejection: the pointed form, a prefixed form, the dictionary form, and pointed after a prefix all find the same card, with no model call',
+    Object.values(forms).every((b) => b.key === W) && (await orCalls()) === c1, JSON.stringify(Object.fromEntries(Object.entries(forms).map(([k, v]) => [k, v.key || v.error]))));
+  check('…found by the reader\'s own matching (one prefix), the pointed form by its letters',
+    forms['ולהמר'].found_by === 'the reader’s matching' && forms['הימר'].found_by === 'the reader’s matching' && forms['לְהַמֵּר'].found_by === 'a card of this word', JSON.stringify(Object.fromEntries(Object.entries(forms).map(([k, v]) => [k, v.found_by]))));
+  check('a word already saved stays as it is (already: true), and a search never lowers a word marked solid',
+    forms['ולהמר'].saved.already === true && await (async () => { await api('POST', `/spots/${enc('v:ה.מ.ר:piel')}`, { status: 'solid' }); const again = (await api('POST', '/lookup', { surface: 'להמר', origin: 'lookup' })).body; return again.saved.status === 'solid' && again.spot.status === 'solid'; })());
+  const pages = peek("SELECT COUNT(*) AS n FROM lookups WHERE reference = 'page'")[0].n;
+  const c3 = await orCalls();
+  const twice = await api('POST', '/lookup', { surface: 'הימרתי', origin: 'lookup' });
+  check('a form never met (הימרתי, "I bet") is past the reader\'s matching: asked of the model as a new word (the stand-in does not know it: 422, nothing recorded)',
+    twice.status === 422 && (await orCalls()) === c3 + 1 && peek("SELECT COUNT(*) AS n FROM lookups WHERE reference = 'page'")[0].n === pages, JSON.stringify(twice.body));
+  const vs = await api('POST', '/lookup', { surface: 'ושלהמר', origin: 'lookup' });
+  check('ו with ש in front (ושלהמר) is one listed prefix, so it finds the card too', vs.body.key === W && vs.body.found_by === 'the reader’s matching');
+  const c2 = await orCalls();
+  const fresh = await api('POST', '/lookup', { surface: 'רפורמה', sentence: '', origin: 'lookup' });
+  check('a word with no card yet: one model call, the card made as POST /lookup makes it (the word, an empty sentence), saved',
+    fresh.status === 200 && (await orCalls()) === c2 + 1 && fresh.body.found_by === 'a new card' && fresh.body.saved.status === 'shaky' && peek('SELECT sentence FROM cards WHERE surface = ?', 'רפורמה')[0].sentence === '');
+  const refound = await api('POST', '/lookup', { surface: 'רפורמה', origin: 'lookup' });
+  check('the same word again is POST /lookup\'s own cache hit (no model call)', refound.body.key === fresh.body.key && (await orCalls()) === c2 + 1 && refound.body.found_by === 'the word looked up before');
+  const emptyW = await api('POST', '/lookup', { surface: '  ', origin: 'lookup' }), longW = await api('POST', '/lookup', { surface: 'א'.repeat(61), origin: 'lookup' });
+  check('an empty box or a whole passage is refused, saying why', emptyW.status === 400 && /Type a word/.test(emptyW.body.error) && longW.status === 400 && /one word/.test(longW.body.error));
+
+  // a tab: the reference opened, and recorded with origin lookup; the desk's row stays origin desk
+  const tab = await api('POST', `/card/${W}/lookup`, { reference: 'pealim', origin: 'lookup' });
+  const row = await api('POST', `/card/${W}/lookup`, { reference: 'wiktionary' });
+  check('a tab tap is recorded as a lookup layer with origin lookup; the desk\'s row records origin desk, as before',
+    tab.status === 201 && row.status === 201 && tab.body.layer.origin === 'lookup' && row.body.layer.origin === 'desk' && tab.body.layer.line === 'looked up in Pealim');
+  const badOrigin = await api('POST', `/card/${W}/lookup`, { reference: 'pealim', origin: 'phone' }), deskPage = await api('POST', `/card/${W}/lookup`, { reference: 'page' });
+  check('an unknown origin, or a "Look up page" record made from the desk, is refused (400)', badOrigin.status === 400 && deskPage.status === 400, JSON.stringify([badOrigin.body, deskPage.body]));
+  const view = (await api('GET', `/card/${W}`)).body;
+  check('the card\'s full view lists the page\'s record as "looked up on the Look up page", and counts it in the thread line',
+    view.layers.some((l) => l.kind === 'lookup' && l.line === 'looked up on the Look up page') && /looked up \d+ times/.test(view.thread_line), view.thread_line);
+
+  // the origin column on a database made before it: added by ALTER TABLE, old rows back-filled 'desk'
+  {
+    const oldDir = mkdtempSync(join(tmpdir(), 'hr-lookup-old-'));
+    const Old = new Database(join(oldDir, 'reader.db'));
+    Old.exec("CREATE TABLE lookups (id INTEGER PRIMARY KEY AUTOINCREMENT, reference TEXT NOT NULL, term TEXT NOT NULL, at TEXT NOT NULL); INSERT INTO lookups (reference, term, at) VALUES ('milog', 'להמר', '2026-09-26T00:00:00.000Z');");
+    Old.close();
+    const mig = spawn('node', ['-e', `const db = require('./lib/db'); db.open(${JSON.stringify(oldDir)}); console.log(JSON.stringify(db.getLookup(1)));`], { cwd: root });
+    let outMig = ''; mig.stdout.on('data', (d) => outMig += d);
+    await new Promise((r) => mig.on('close', r));
+    const after = JSON.parse(outMig.trim().split('\n').pop());
+    check('an existing database gains lookups.origin by ALTER TABLE ADD COLUMN; its rows back-filled as desk, kept as they were',
+      after.origin === 'desk' && after.reference === 'milog' && after.term === 'להמר' && after.at === '2026-09-26T00:00:00.000Z' && /added lookups\.origin \(existing rows: desk\)/.test(outMig), outMig);
+    rmSync(oldDir, { recursive: true, force: true });
+  }
+  const spotSave = await api('POST', `/spots/${enc('w:רפורמה')}`, { status: 'solid' });
+  check('the reader\'s own save (POST /spots) answers as before, through the same code', spotSave.status === 200 && spotSave.body.spot.status === 'solid' && spotSave.body.spine === 'recorded');
 } catch (e) {
   console.error(e);
   failed++;

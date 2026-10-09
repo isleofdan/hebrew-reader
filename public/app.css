@@ -589,3 +589,23 @@ body.linking .dcard { cursor: pointer; }
 .ditem.fresh .ditem-open { outline: 3px solid var(--accent); outline-offset: 2px; }
 .grow .layer.ink.pending .ink-pad { min-height: 90px; }
 .grow .linked-line { border-top: 0; padding-top: 0; color: var(--link-blue-ink); }
+
+/* the Look up page (hebrew-lookup-one) */
+.lookup-page { max-width: 900px; }
+.lookup-page .panel .msg { margin: 0; }
+.lookup-search form { display: flex; gap: 8px; }
+.lookup-search #word { flex: 1 1 auto; min-width: 0; height: 52px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--field); color: var(--text); font-family: var(--serif); font-size: 24px; direction: rtl; }
+.lookup-search .btn { height: 52px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.lookup-entry .saved-line, .lookup-entry .looked-line { margin: 0; font-size: 14px; color: var(--muted); }
+.lookup-entry .saved-line { color: var(--ok-ink); font-weight: 600; }
+.lookup-entry .saved-line:empty, .lookup-entry .looked-line:empty { display: none; }
+/* "Ask about this root" opens two new tabs; here the tabs below do that inside the page */
+.lookup-entry .card [data-act=ask] { display: none; }
+.lookup-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.lookup-tabs > .btn.ref, .lookup-list .btn.small { height: 40px; font-size: 14px; padding: 0 14px; }
+@media (max-width: 699px) {
+  .lookup-tabs { flex-direction: column; }
+  .lookup-tabs > .btn.ref { width: 100%; text-align: start; height: 48px; font-size: 16px; }
+  .lookup-search #word { font-size: 22px; }
+}
