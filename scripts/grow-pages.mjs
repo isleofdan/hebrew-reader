@@ -214,7 +214,7 @@ try {
       const hrefs = await g.locator('a.ref').evaluateAll((as) => as.map((a) => [a.dataset.ref, a.href, a.target]));
       const enc = encodeURIComponent('להמר');
       check('desktop: each "Look up in" is a link to that site\'s page for the unpointed headword, opening in a new tab',
-        hrefs.map((h) => h[1]).join(' ') === [`https://www.morfix.co.il/en/${enc}`, `https://www.pealim.com/search/?q=${enc}`, `https://he.wiktionary.org/w/index.php?search=${enc}`, `https://milog.co.il/${enc}`, `https://hebrew-academy.org.il/?s=${enc}`, `https://www.kizur.co.il/search_word.php?abbr=${enc}`, `https://www.sefaria.org/search?q=${enc}`].join(' ') && hrefs.every((h) => h[2] === '_blank'), JSON.stringify(hrefs));
+        hrefs.map((h) => h[1]).join(' ') === [`https://www.morfix.co.il/en/${enc}`, `https://www.pealim.com/search/?q=${enc}`, `https://he.wiktionary.org/w/index.php?search=${enc}`, `https://milog.co.il/${enc}`, `https://hebrew-academy.org.il/?s=${enc}`, `http://www.kizur.co.il/search_word.php?abbr=${enc}`, `https://www.sefaria.org/search?q=${enc}`].join(' ') && hrefs.every((h) => h[2] === '_blank'), JSON.stringify(hrefs));
       const popup = page.waitForEvent('popup');
       const recorded = page.waitForResponse((r) => /\/lookup$/.test(r.url()) && r.status() === 201);
       await g.locator('a.ref[data-ref=pealim]').click();
