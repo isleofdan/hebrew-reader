@@ -37,6 +37,20 @@ writing prompts), and, with the site installed on his phone, share a line or
 a link from another app onto tonight's desk. A scheduled article hunt is a
 later session.
 
+The Look up page (`/lookup`, "Look up" in the top navigation) takes one word,
+typed or pasted, with or without nikud or a prefix, and shows its card (the
+reader's own card for that word when there is one); the word is saved as one
+of his at once, and the search is kept on the card. Under the card, seven
+tabs open the references inside the page, never in a new tab, only when
+tapped; each tap is kept on the card as a lookup. "Looked up" lists every word
+looked up there, newest first, with tick boxes and "Put on a desk", which
+puts the ticked words on tonight's desk, unplaced, as a line caught on the
+phone lands. A card's "Look up in" row on the desk now opens the reference in
+a pane under the row too. A site that lets itself be framed shows its own
+page; one that does not is shown from a cleaned copy the reader fetches on
+the tap and keeps seven days (`docs/REFERENCES.md` says which is which, and
+why).
+
 ## Running it
 
 ```
@@ -50,8 +64,8 @@ the environment variables, and how the app talks to the spine.
 ## Layout
 
 - `server.js` — one plain Node server: the passphrase gate, the JSON routes, static files.
-- `lib/` — database, auth, rate limit, article extraction, the word card (OpenRouter), the spine client, the category list, the demand, the ask surface and its reference list, the lesson sheet, the lesson guide and its rule checks (`guide-checks.js`), the desk and a card's layers (`desk.js`), the two web-search calls that grow a card (`grow.js`), the sheet's writing prompts (`sheet.js`), and a caught link's title (`catch.js`).
-- `public/` — the pages: `index.html` (articles + add form), `read.html?id=…` (the reader), `phone.html` (the demand and quick lookup), `sheet.html` (the print sheet; `?lesson=` for a lesson's guide), `lesson.html?id=…` (a lesson from Guy and its study guide), `cards.html?lesson=…` (its flashcards), `login.html`; `card-ui.js` is the card shared by the reader, the lesson page and the phone page, `guide-ui.js` the study guide shared by the lesson page and its print sheet; `desk.html` the desk, with `grow-ui.js` for a card's layers and `ink-ui.js` for drawing; `desk-sheet.html` the sheet for the reMarkable; `manifest.webmanifest`, `sw.js` and `install.js` make the site installable with a share target.
+- `lib/` — database, auth, rate limit, article extraction, the word card (OpenRouter), the spine client, the category list, the demand, the ask surface and its reference list, the lesson sheet, the lesson guide and its rule checks (`guide-checks.js`), the desk and a card's layers (`desk.js`), the two web-search calls that grow a card (`grow.js`), the sheet's writing prompts (`sheet.js`), a caught link's title (`catch.js`), the Look up page (`lookup-page.js`) and a reference shown inside the reader (`reference-pages.js`).
+- `public/` — the pages: `index.html` (articles + add form), `lookup.html` (the Look up page; `reference-ui.js` is the reference pane it shares with the desk), `read.html?id=…` (the reader), `phone.html` (the demand and quick lookup), `sheet.html` (the print sheet; `?lesson=` for a lesson's guide), `lesson.html?id=…` (a lesson from Guy and its study guide), `cards.html?lesson=…` (its flashcards), `login.html`; `card-ui.js` is the card shared by the reader, the lesson page and the phone page, `guide-ui.js` the study guide shared by the lesson page and its print sheet; `desk.html` the desk, with `grow-ui.js` for a card's layers and `ink-ui.js` for drawing; `desk-sheet.html` the sheet for the reMarkable; `manifest.webmanifest`, `sw.js` and `install.js` make the site installable with a share target.
 - `scripts/import-lessons.js` — bulk import of Guy's PDFs from a folder into the site (see `PLAN.md`).
 - `scripts/` — local checks: smoke test, screenshots, mock servers for OpenRouter and the spine; sample lesson PDFs in `scripts/fixtures/`, made by `make-fixtures.mjs`.
 - `docs/` — screenshots and session reports.
