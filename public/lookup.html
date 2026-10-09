@@ -58,6 +58,17 @@
     <div class="ref-pane hidden" id="pane"></div>
   </section>
 
+  <section class="panel lookup-list" id="looked">
+    <div class="panel-head">
+      <h2>Looked up</h2>
+      <button class="btn small primary" id="put" type="button" disabled>Put on a desk</button>
+    </div>
+    <p class="msg" id="put-msg" role="status"></p>
+    <ol class="looked" id="looked-list"></ol>
+    <p class="empty" id="looked-empty">The words you look up here will be listed here, newest first.</p>
+    <button class="btn small" id="more" type="button" hidden>Show more</button>
+  </section>
+
 </main>
 <script src="/card-ui.js"></script>
 <script src="/reference-ui.js"></script>

@@ -163,6 +163,41 @@ try {
     await page.locator('#pane').scrollIntoViewIfNeeded();
     await both(page, `tab-copy-${name}`);
 
+    // --- step 5: "Looked up" and "Put on a desk" ------------------------------------------
+    // (the computer round puts להמר on the desk; the phone round finds it there)
+    await page.fill('#word', 'הסלמה');
+    await page.press('#word', 'Enter');
+    await page.waitForFunction(() => document.querySelector('#looked-list li .he')?.textContent === 'הַסְלָמָה', null, { timeout: 8000 });
+    const rows = await page.locator('#looked-list li').evaluateAll((lis) => lis.map((li) => [li.querySelector('.he').textContent, li.querySelector('.gloss').textContent, li.querySelector('.meta').textContent]));
+    check(`${name}: "Looked up" lists the words looked up here, newest first, each with its gloss, the day and the tabs opened`,
+      rows[0][0] === 'הַסְלָמָה' && rows[0][1] === 'escalation' && /^\d{1,2} [A-Z][a-z]{2} \d{4}$/.test(rows[0][2]) && rows[1][0] === 'הִימֵּר' && /^\d{1,2} [A-Z][a-z]{2} \d{4} · opened Morfix, Pealim, Milog$/.test(rows[1][2])
+      && (await page.locator('#more').isHidden()), JSON.stringify(rows));
+    check(`${name}: "Put on a desk" waits for a tick`, await page.locator('#put').isDisabled());
+    const cur = (await api('GET', '/desks/current')).body.desk;
+    await page.locator(`#looked-list li[data-key="${W}"] input[type=checkbox]`).check();
+    check(`${name}: a tick readies the button and says how many`, (await page.locator('#put').innerText()) === 'Put on a desk (1)' && !(await page.locator('#put').isDisabled()));
+    await page.locator('#put').click();
+    await page.locator('#put-msg a').waitFor({ timeout: 8000 });
+    const said = await page.locator('#put-msg').innerText();
+    const placed = (await api('GET', `/desks/${cur.id}`)).body.cards.find((c) => c.key === W);
+    if (!phone) {
+      check('desktop: the word goes on the current desk, unplaced, and the page says "1 card put on tonight\'s desk, unplaced — place them at the desk" with a link to the desk',
+        said === '1 card put on tonight\'s desk, unplaced — place them at the desk' && (await page.locator('#put-msg a').getAttribute('href')) === '/desk' && placed && placed.place.x === null, said);
+    } else {
+      check('phone: the same word ticked again is already on that desk: "1 already there", nothing added', /^1 already there — open the desk$/.test(said) && (await api('GET', `/desks/${cur.id}`)).body.cards.filter((c) => c.key === W).length === 1, said);
+    }
+    check(`${name}: after putting, the tick clears and the button waits again`, !(await page.locator(`#looked-list li[data-key="${W}"] input`).isChecked()) && (await page.locator('#put').isDisabled()));
+    await page.locator('#looked').scrollIntoViewIfNeeded();
+    await both(page, `list-${name}`);
+    if (!phone) {
+      await page.goto(`${base}/desk`);
+      await page.locator('.dcard, .unplaced, #unplaced').first().waitFor({ timeout: 8000 }).catch(() => {});
+      check('desktop: at /desk the word is there, waiting to be placed', /הימר|להמר/.test(await page.locator('body').innerText()));
+      await page.screenshot({ path: join(out, 'lookup-desk-after-put-desktop-light.png') });
+      await page.goto(`${base}/lookup`);
+      await page.locator('#looked-list li').first().waitFor({ timeout: 8000 });
+    }
+
     // a word the stand-in does not know: said on the card, nothing saved
     await page.fill('#word', 'מילהלאידועה');
     await page.press('#word', 'Enter');

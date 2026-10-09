@@ -609,3 +609,21 @@ body.linking .dcard { cursor: pointer; }
   .lookup-tabs > .btn.ref { width: 100%; text-align: start; height: 48px; font-size: 16px; }
   .lookup-search #word { font-size: 22px; }
 }
+.lookup-list .panel-head .btn.small { align-self: auto; }
+.lookup-list ol.looked { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.lookup-list ol.looked li { display: grid; grid-template-columns: auto auto 1fr auto; align-items: baseline; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.lookup-list ol.looked li:first-child { border-top: 0; }
+.lookup-list input[type=checkbox] { width: 20px; height: 20px; margin: 0; align-self: center; accent-color: var(--accent); }
+.lookup-list .looked-word { color: var(--text); text-decoration: none; }
+.lookup-list .looked-word:hover { color: var(--accent); text-decoration: underline; }
+.lookup-list .looked-word .he { font-family: var(--pointed); font-size: 20px; }
+.lookup-list .gloss { font-size: 14px; }
+.lookup-list .meta { font-size: 13px; color: var(--muted); text-align: right; }
+.lookup-list #more { align-self: flex-start; }
+.lookup-list .msg a { color: var(--accent); font-weight: 600; }
+.lookup-list .empty { margin: 0; }
+@media (max-width: 699px) {
+  .lookup-list ol.looked li { grid-template-columns: auto 1fr; }
+  .lookup-list .gloss, .lookup-list .meta { grid-column: 2; text-align: start; }
+  .lookup-list input[type=checkbox] { width: 24px; height: 24px; grid-row: span 3; }
+}

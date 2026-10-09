@@ -136,4 +136,89 @@ async function search(ev) {
 
 $('#search').addEventListener('submit', search);
 
+// --- "Looked up": every word looked up here, newest first ------------------------
+// 200 at a time, "Show more" for the next 200, so every word stays reachable.
+
+const list = $('#looked-list');
+const ticked = new Set();
+let next = null;
+
+function row(item) {
+  const li = document.createElement('li');
+  li.dataset.key = item.key;
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.checked = ticked.has(item.key);
+  box.setAttribute('aria-label', `Tick ${item.word}`);
+  box.addEventListener('change', () => { if (box.checked) ticked.add(item.key); else ticked.delete(item.key); drawPut(); });
+  const word = document.createElement('button');
+  word.type = 'button'; word.className = 'linklike looked-word';
+  const he = document.createElement('span'); he.className = 'he'; he.dir = 'rtl'; he.lang = 'he'; he.textContent = item.headword;
+  word.append(he);
+  word.title = `Look up ${item.word} again`;
+  // the word looked up again, as typed in the box
+  word.addEventListener('click', () => { $('#word').value = item.surface || item.word; search(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  const gloss = document.createElement('span'); gloss.className = 'gloss'; gloss.textContent = item.gloss;
+  const meta = document.createElement('span'); meta.className = 'meta';
+  meta.textContent = item.day + (item.opened.length ? ` · opened ${item.opened.map((o) => o.label).join(', ')}` : '');
+  li.append(box, word, gloss, meta);
+  return li;
+}
+
+async function loadList(more) {
+  try {
+    const got = await api('GET', `/lookups?limit=200${more && next ? `&before=${encodeURIComponent(next)}` : ''}`);
+    if (!more) list.innerHTML = '';
+    for (const item of got.items) list.append(row(item));
+    next = got.next;
+    $('#more').hidden = !got.more;
+    $('#looked-empty').classList.toggle('hidden', list.children.length > 0);
+  } catch (e) {
+    $('#put-msg').className = 'msg error'; $('#put-msg').textContent = `The list could not be read: ${e.message}`;
+  }
+}
+
+function drawPut() {
+  $('#put').disabled = ticked.size === 0;
+  $('#put').textContent = ticked.size ? `Put on a desk (${ticked.size})` : 'Put on a desk';
+}
+
+// The ticked words onto the current desk, not yet placed — as a line caught
+// on the phone lands (POST /desks/<id>/cards with unplaced). A word already
+// on that desk is left where it is, and counted.
+async function putOnDesk() {
+  const msg = $('#put-msg');
+  msg.className = 'msg'; msg.textContent = 'putting them on the desk…';
+  $('#put').disabled = true;
+  let put = 0, already = 0;
+  const failedWords = [];
+  try {
+    const desk = (await api('GET', '/desks/current')).desk;
+    for (const key of [...ticked]) {
+      try {
+        const out = await api('POST', `/desks/${desk.id}/cards`, { card: key, unplaced: true });
+        if (out.already) already++; else put++;
+        ticked.delete(key);
+      } catch (e) { failedWords.push(e.message); }
+    }
+    msg.textContent = '';
+    if (put || !already) {
+      msg.append(document.createTextNode(`${put} card${put === 1 ? '' : 's'} put on tonight's desk, unplaced — `));
+      const a = document.createElement('a'); a.href = '/desk'; a.textContent = 'place them at the desk'; msg.append(a);
+    }
+    if (already) msg.append(document.createTextNode(`${put || !already ? ' · ' : ''}${already} already there`));
+    if (!put && already) { msg.append(document.createTextNode(' — ')); const a = document.createElement('a'); a.href = '/desk'; a.textContent = 'open the desk'; msg.append(a); }
+    if (failedWords.length) { msg.className = 'msg error'; msg.append(document.createTextNode(` · not put: ${failedWords.join('; ')}`)); }
+    for (const b of list.querySelectorAll('input[type=checkbox]')) b.checked = ticked.has(b.closest('li').dataset.key);
+  } catch (e) {
+    msg.className = 'msg error'; msg.textContent = `Not put on the desk: ${e.message}`;
+  }
+  drawPut();
+}
+
+$('#put').addEventListener('click', putOnDesk);
+$('#more').addEventListener('click', () => loadList(true));
+document.addEventListener('looked-up', () => loadList(false));
+loadList(false);
+
 window.Lookup = { api, get current() { return current; } };

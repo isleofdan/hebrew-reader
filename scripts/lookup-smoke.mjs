@@ -228,6 +228,54 @@ try {
       after.origin === 'desk' && after.reference === 'milog' && after.term === 'להמר' && after.at === '2026-09-26T00:00:00.000Z' && /added lookups\.origin \(existing rows: desk\)/.test(outMig), outMig);
     rmSync(oldDir, { recursive: true, force: true });
   }
+  // --- step 5: the "Looked up" list, and "Put on a desk" ---------------------------------------
+  const R = fresh.body.key;
+  let list = await api('GET', '/lookups');
+  check('GET /lookups: the words looked up on the page, newest search first (רפורמה, then להמר)',
+    list.status === 200 && list.body.items.map((i) => i.key).join() === `${R},${W}` && list.body.more === false && list.body.next === null, JSON.stringify(list.body.items.map((i) => i.key)));
+  const lr = list.body.items.find((i) => i.key === W), rr = list.body.items.find((i) => i.key === R);
+  check('each with its card key, headword (pointed), gloss and day, and the tabs opened from the page (Pealim; not the desk\'s Wiktionary)',
+    lr.headword === 'הִימֵּר' && lr.word === 'הימר' && lr.gloss === 'to gamble, to bet' && /^\d{1,2} [A-Z][a-z]{2} \d{4}$/.test(lr.day) && lr.opened.map((o) => o.label).join() === 'Pealim', JSON.stringify(lr));
+  check('false-rejection: a word whose tabs were never opened still stands in the list', rr && rr.opened.length === 0 && rr.gloss === 'a reform');
+  check('the list is read from the lookup layers and the cards: the only new table is reference_pages',
+    peek("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT IN ('articles','cards','spots','touches','lessons','steps','desks','notes','placements','card_links','answers','examples','lookups','inks','ink_strokes','sheets','sheet_cards','demand_translations','hunts','sqlite_sequence')").map((r) => r.name).join() === 'reference_pages');
+  const pg1 = await api('GET', '/lookups?limit=1'), pg2 = await api('GET', `/lookups?limit=1&before=${enc(pg1.body.next || '')}`);
+  check('one at a time: the next page starts where the last ended (before=<time>)', pg1.body.items[0].key === R && pg1.body.more === true && pg2.body.items[0].key === W && pg2.body.more === false, JSON.stringify([pg1.body, pg2.body]).slice(0, 300));
+  const badLimits = await Promise.all(['0', '201', 'x'].map((l) => api('GET', `/lookups?limit=${l}`))), badBefore = await api('GET', '/lookups?before=yesterday');
+  check('a limit outside 1–200 or a before that is not a time is refused (400)', badLimits.every((b) => b.status === 400) && badBefore.status === 400);
+  // 205 more words looked up on the page: 200 a time, every one reachable
+  {
+    const Dw = new Database(join(dataDir, 'reader.db'));
+    const addCard = Dw.prepare("INSERT INTO cards (surface, context_hash, spot_id, json, built_at, sentence) VALUES (?, ?, NULL, ?, ?, '')");
+    const addLook = Dw.prepare("INSERT INTO lookups (reference, term, at, origin) VALUES ('page', ?, ?, 'lookup')");
+    const addLink = Dw.prepare("INSERT INTO card_links (child, parent, kind, at) VALUES (?, ?, 'layer', ?)");
+    Dw.transaction(() => {
+      for (let i = 0; i < 205; i++) {
+        const at = new Date(Date.UTC(2026, 8, 1, 0, 0, i)).toISOString();
+        const id = addCard.run(`מילה${i}`, `hash-${i}`, JSON.stringify({ surface: `מילה${i}`, lemma: `מילה${i}`, pos: 'noun', meaning_en: `word ${i}`, pointed: { lemma: null, surface: null } }), at).lastInsertRowid;
+        const lid = addLook.run(`מילה${i}`, at).lastInsertRowid;
+        addLink.run(`lookup:${lid}`, `word:${id}`, at);
+      }
+    })();
+    Dw.close();
+  }
+  const big1 = await api('GET', '/lookups'), big2 = await api('GET', `/lookups?before=${enc(big1.body.next)}`);
+  const all = [...big1.body.items, ...big2.body.items].map((i) => i.key);
+  check('207 words looked up: 200 on the first page, "more" and the next 7 after it, each once, newest first',
+    big1.body.items.length === 200 && big1.body.more === true && big2.body.items.length === 7 && big2.body.more === false && new Set(all).size === 207 && all[0] === R && all[1] === W && big2.body.items.at(-1).gloss === 'word 0',
+    JSON.stringify({ a: big1.body.items.length, b: big2.body.items.length, more: big1.body.more }));
+
+  // "Put on a desk": the current desk, unplaced, as a caught line lands; a word already there is counted
+  const cur = (await api('GET', '/desks/current')).body.desk;
+  const putR = await api('POST', `/desks/${cur.id}/cards`, { card: R, unplaced: true });
+  const putAgain = await api('POST', `/desks/${cur.id}/cards`, { card: R, unplaced: true });
+  const onDesk = (await api('GET', `/desks/${cur.id}`)).body.cards.find((c) => c.key === R);
+  check('a ticked word goes on the current desk, not yet placed (x and y empty), as a line caught on the phone does',
+    putR.status === 201 && putR.body.already === false && onDesk && onDesk.place.x === null && onDesk.place.y === null, JSON.stringify(putR.body).slice(0, 200));
+  check('a word already on that desk is left there and answered "already" (the page counts it)', putAgain.status === 200 && putAgain.body.already === true);
+  const caught = await api('POST', '/desks/catch', { text: 'a line from the phone' });
+  check('…the same desk a caught line goes to', caught.status === 201 && caught.body.desk.id === cur.id && caught.body.place.x === null);
+
   const spotSave = await api('POST', `/spots/${enc('w:רפורמה')}`, { status: 'solid' });
   check('the reader\'s own save (POST /spots) answers as before, through the same code', spotSave.status === 200 && spotSave.body.spot.status === 'solid' && spotSave.body.spine === 'recorded');
 } catch (e) {
