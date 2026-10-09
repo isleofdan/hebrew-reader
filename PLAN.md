@@ -1151,7 +1151,9 @@ the tabs stand as a list and a tab's pane opens under it.
   tabs. `POST /card/<key>/lookup` takes `origin` (default `desk`). "Looked up"
   is `GET /lookups?limit=200&before=<time>` — every card with a page search,
   newest search first, 200 a page with "Show more", each with key, headword,
-  gloss, day and the tabs opened — read from the lookup layers and the cards;
+  gloss, day and the tabs opened (the row updates as a tab is recorded), with
+  `next`/`next_key` (`before`/`before_key`) so words searched in the same
+  millisecond are never skipped at a page's edge — read from the lookup layers and the cards;
   no table of its own.
 - **Put on a desk** reuses how a line caught on the phone lands
   (`/desks/catch` → `desk.place(…, { unplaced: true })` on the desk worked on
@@ -1164,10 +1166,10 @@ the tabs stand as a list and a tab's pane opens under it.
   about this root" still opens Pealim and Wiktionary in two new tabs — hidden
   on the Look up page only, whose tabs do the same inside. The phone page's
   quick lookup is unchanged (it does not save or record).
-- **Checks:** `scripts/lookup-smoke.mjs` (56 checks, in `npm test`, not the
+- **Checks:** `scripts/lookup-smoke.mjs` (58 checks, in `npm test`, not the
   fast set: the 20-second limit is timed for real, about 25 s) and
-  `scripts/lookup-pages.mjs` (42 page checks, in `npm run screenshots`);
+  `scripts/lookup-pages.mjs` (44 page checks, in `npm run screenshots`);
   `grow-pages.mjs` checks the card's pane (copy, frame, failure; both widths,
   light and dark) in place of the new tab. Playwright here is 1.63; its
   browser (build 1243) was installed into `~/.cache/ms-playwright`. Totals:
-  497 server checks (from 441), 460 page checks; `npm run check` passes.
+  499 server checks (from 441), 462 page checks; `npm run check` passes.

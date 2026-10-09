@@ -406,8 +406,8 @@ route('POST', new RegExp(`^/card/${CARD}/cut$`), async (req, res, { key }) => {
 // --- a reference shown inside the reader (hebrew-lookup-one) ------------------
 // ?term=<word> -> { mode: 'frame', url } | { mode: 'copy', html, fetched_at, url }
 // | { mode: 'failed', url, reason }. A copy is fetched only here, on Dan's tap.
-// The Look up page's "Looked up" list: ?limit=200&before=<time> -> { items, more, next }
-route('GET', /^\/lookups$/, (req, res, g, url) => sendJson(res, 200, lookupPage.list({ limit: url.searchParams.get('limit'), before: url.searchParams.get('before') })));
+// The Look up page's "Looked up" list: ?limit=200&before=<time>&before_key=<card> -> { items, more, next, next_key }
+route('GET', /^\/lookups$/, (req, res, g, url) => sendJson(res, 200, lookupPage.list({ limit: url.searchParams.get('limit'), before: url.searchParams.get('before'), before_key: url.searchParams.get('before_key') })));
 route('GET', /^\/reference\/(?<id>[a-z]+)$/, async (req, res, { id }, url) => sendJson(res, 200, await referencePages.pane(id, url.searchParams.get('term'))));
 
 const GUIDE_TEMPLATE =fs.readFileSync(path.join(PUBLIC, 'guide.html'), 'utf8');

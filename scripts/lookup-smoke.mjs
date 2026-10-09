@@ -265,6 +265,34 @@ try {
     big1.body.items.length === 200 && big1.body.more === true && big2.body.items.length === 7 && big2.body.more === false && new Set(all).size === 207 && all[0] === R && all[1] === W && big2.body.items.at(-1).gloss === 'word 0',
     JSON.stringify({ a: big1.body.items.length, b: big2.body.items.length, more: big1.body.more }));
 
+  // three words searched in the same millisecond, at a page's edge: none skipped
+  {
+    const Dw = new Database(join(dataDir, 'reader.db'));
+    const same = '2026-08-01T12:00:00.000Z';
+    Dw.transaction(() => {
+      for (let i = 0; i < 3; i++) {
+        const id = Dw.prepare("INSERT INTO cards (surface, context_hash, spot_id, json, built_at, sentence) VALUES (?, ?, NULL, ?, ?, '')").run(`תיקו${i}`, `tie-${i}`, JSON.stringify({ surface: `תיקו${i}`, lemma: `תיקו${i}`, pos: 'noun', meaning_en: `tie ${i}`, pointed: { lemma: null, surface: null } }), same).lastInsertRowid;
+        const lid = Dw.prepare("INSERT INTO lookups (reference, term, at, origin) VALUES ('page', ?, ?, 'lookup')").run(`תיקו${i}`, same).lastInsertRowid;
+        Dw.prepare("INSERT INTO card_links (child, parent, kind, at) VALUES (?, ?, 'layer', ?)").run(`lookup:${lid}`, `word:${id}`, same);
+      }
+    })();
+    Dw.close();
+    // walk the whole list two at a time
+    const seen = [];
+    let cursor = '';
+    for (let n = 0; n < 200; n++) {
+      const pg = (await api('GET', `/lookups?limit=2${cursor}`)).body;
+      seen.push(...pg.items.map((i) => i.key));
+      if (!pg.more) break;
+      cursor = `&before=${enc(pg.next)}&before_key=${enc(pg.next_key)}`;
+    }
+    const ties = seen.filter((k) => peek('SELECT surface FROM cards WHERE id = ?', Number(k.split(':')[1]))[0]?.surface?.startsWith('תיקו'));
+    check('false-rejection: words searched in the same millisecond are never skipped at a page\'s edge (two a page, every word once: 210)',
+      ties.length === 3 && new Set(seen).size === seen.length && seen.length === 210, JSON.stringify({ ties, n: seen.length }));
+    const keyAlone = await api('GET', '/lookups?before_key=word:1');
+    check('before_key without before is refused (400)', keyAlone.status === 400);
+  }
+
   // "Put on a desk": the current desk, unplaced, as a caught line lands; a word already there is counted
   const cur = (await api('GET', '/desks/current')).body.desk;
   const putR = await api('POST', `/desks/${cur.id}/cards`, { card: R, unplaced: true });

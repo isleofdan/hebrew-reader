@@ -87,7 +87,7 @@ function openTab(r, button) {
   markTabs();
   // recorded as a lookup on the card, from the Look up page
   api('POST', `/card/${at.key}/lookup`, { reference: r.id, origin: 'lookup' })
-    .then(() => { if (current === at) { current.lookups += 1; drawCount(); } })
+    .then(() => { markOpened(at.key, r.id); if (current === at) { current.lookups += 1; drawCount(); } })
     .catch((e) => { if (current === at) $('#search-msg').textContent = `The lookup was not recorded: ${e.message}`; });
 }
 
@@ -141,7 +141,32 @@ $('#search').addEventListener('submit', search);
 
 const list = $('#looked-list');
 const ticked = new Set();
-let next = null;
+let next = null, nextKey = null;
+const shown = new Map(); // card key -> its item in the list, as drawn
+
+const ORDER = ['morfix', 'pealim', 'wiktionary', 'milog', 'academy', 'kizur', 'sefaria'];
+function metaLine(item) {
+  return item.day + (item.opened.length ? ` · opened ${item.opened.map((o) => o.label).join(', ')}` : '');
+}
+
+// A tab's lookup was recorded: the word's row says so at once, in the
+// references' order; ticks and the rows already loaded stay as they are.
+// (a tab tapped while the list is being read again is kept until its row is drawn)
+const opening = new Map(); // card key -> [{ id, label }] recorded on this page
+function markOpened(key, id) {
+  const ref = (current && current.key === key ? current.references : []).find((r) => r.id === id);
+  const o = { id, label: ref ? ref.label : id };
+  opening.set(key, [...(opening.get(key) || []), o]);
+  const item = shown.get(key);
+  if (!item) return;
+  addOpened(item, [o]);
+  const li = list.querySelector(`li[data-key="${key}"] .meta`);
+  if (li) li.textContent = metaLine(item);
+}
+function addOpened(item, more) {
+  for (const o of more) if (!item.opened.some((x) => x.id === o.id)) item.opened = [...item.opened, o];
+  item.opened.sort((a, b) => ORDER.indexOf(a.id) - ORDER.indexOf(b.id));
+}
 
 function row(item) {
   const li = document.createElement('li');
@@ -160,17 +185,20 @@ function row(item) {
   word.addEventListener('click', () => { $('#word').value = item.surface || item.word; search(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
   const gloss = document.createElement('span'); gloss.className = 'gloss'; gloss.textContent = item.gloss;
   const meta = document.createElement('span'); meta.className = 'meta';
-  meta.textContent = item.day + (item.opened.length ? ` · opened ${item.opened.map((o) => o.label).join(', ')}` : '');
+  addOpened(item, opening.get(item.key) || []);
+  meta.textContent = metaLine(item);
+  shown.set(item.key, item);
   li.append(box, word, gloss, meta);
   return li;
 }
 
 async function loadList(more) {
   try {
-    const got = await api('GET', `/lookups?limit=200${more && next ? `&before=${encodeURIComponent(next)}` : ''}`);
+    const got = await api('GET', `/lookups?limit=200${more && next ? `&before=${encodeURIComponent(next)}&before_key=${encodeURIComponent(nextKey)}` : ''}`);
+    if (!more) shown.clear();
     if (!more) list.innerHTML = '';
     for (const item of got.items) list.append(row(item));
-    next = got.next;
+    next = got.next; nextKey = got.next_key;
     $('#more').hidden = !got.more;
     $('#looked-empty').classList.toggle('hidden', list.children.length > 0);
   } catch (e) {

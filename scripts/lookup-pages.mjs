@@ -154,6 +154,11 @@ try {
     check(`${name}: the card's lookup count rises by three, and each tap is a lookup layer with origin lookup`,
       n1 === n0 + 3 && (await api('GET', `/card/${W}`)).body.layers.filter((l) => l.kind === 'lookup' && l.origin === 'lookup' && l.reference !== 'page').length === (phone ? 7 : 3), `${n0} -> ${n1}`);
     check(`${name}: no tab opened a new tab`, page.popups.length === 0, page.popups.join(' '));
+    // the word's row in "Looked up" says which tabs were opened at once, with no other search or reload
+    const rowMeta = page.locator(`#looked-list li[data-key="${W}"] .meta`);
+    await page.waitForFunction((k) => /opened Morfix, Pealim, Milog$/.test(document.querySelector(`#looked-list li[data-key="${k}"] .meta`)?.textContent || ''), W, { timeout: 5000 }).catch(() => {});
+    check(`${name}: the word's "Looked up" row shows the tabs opened as soon as each is recorded (Morfix, Pealim, Milog), before any other search`,
+      /^\d{1,2} [A-Z][a-z]{2} \d{4} · opened Morfix, Pealim, Milog$/.test(await rowMeta.innerText()), await rowMeta.innerText());
     // --- step 6: at phone width the tabs stand as a list, the pane opens in place ------------
     const boxes = await page.locator('#tabs > button.ref').evaluateAll((bs) => bs.map((b) => { const r = b.getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width) }; }));
     const stacked = boxes.every((b, i) => i === 0 || (b.x === boxes[0].x && b.y > boxes[i - 1].y));
