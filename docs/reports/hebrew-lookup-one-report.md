@@ -152,7 +152,7 @@ Every file, function and route the brief named was present.
 
 ## Asks
 
-1. **Run the six signed-in live checks above** and tell the Personal Shipyard chat what differs from the expected result. Recommended answer: yes. Most worth seeing: whether Morfix and the Academy fail from Fly as they did from the machine.
+1. **Run the six signed-in live checks above** and reply in this session with what differs from the expected result; this session records the results on the card. Recommended answer: yes. Most worth seeing: whether Morfix and the Academy fail from Fly as they did from the machine.
 2. **Reader and phone cards' "Ask about this root":** should it also open inside the reader, in the same pane, instead of two new tabs? Recommended answer: yes. It is small and finishes "references embedded everywhere".
 3. **Morfix and the Academy** (if they fail live): keep the failure line with the link to the live site, rather than look for another way in? Recommended answer: keep it. Both sites block server fetches on purpose, and the link opens the real page in one tap.
 
@@ -169,7 +169,7 @@ Session fourteen's four asks remain open; this session left them alone, as the b
 
 ## What the next session needs
 
-- **Next work:** the Personal Shipyard chat reads this report and writes the next brief for card `hebrew-satellite`; Dan decides Asks 2 and 3 there. Then:
+- **Next work:** Dan answers the three asks in this session, and this session records his answers and the live check results on card `hebrew-satellite`. The Personal Shipyard chat then reads the card and writes the next brief. Then:
   - If Ask 2 is yes, the next brief turns the reader and phone card's "Ask about this root" (`public/card-ui.js`) into the same in-page pane: `public/reference-ui.js` with `GET /reference/<id>?term=`.
   - Still open from before: session fourteen's four asks, and session fifteen's Ask-box route change.
 - **Owner:** the Personal Shipyard chat writes the brief; a Claude Code session on the machine, with the OpenRig team, builds it.
@@ -199,7 +199,9 @@ Session fourteen's four asks remain open; this session left them alone, as the b
 5. **Result check, round 1** (`20261010-023950-fa40a1`, on report event 1237): **FINDINGS**, 2:
    - (1) the first line had no date. Changed: it now reads "# FIELD REPORT — hebrew-lookup-one — 2026-10-10".
    - (2) there was no "What the next session needs" section. Changed: added, with the next work, its owner and what it needs to know.
-6. **Result check, round 2:** run on this corrected filing; its verdict on this final version is given in the closing message.
+6. **Result check, round 2** (`20261010-024222-69f40e`, on report event 1239): **PASS**, 0 findings, 53 s.
+7. **Dan's correction after round 2:** the asks and closing message sent him to tell the Personal Shipyard chat the live check results, and the closing message ended with a paste block for that chat. Changed: Ask 1, "What the next session needs" and the closing message now have him answer in this session, which records the answers on the card for the chat to read; the paste block is removed.
+8. **Result check, round 3:** run on this corrected filing; its verdict on this final version is given in the closing message.
 
 ## Fly machine and OpenRig lessons
 
@@ -230,6 +232,11 @@ Session fourteen's four asks remain open; this session left them alone, as the b
    - What happened: Morfix's 403 passed section 6's environment check, yet it is the same wall that blocks the copy fetch.
    - What fixed it: the frame test probes both as a browser and as a plain client, and records both.
 
+8. **Never send Dan to another chat with a message to relay.**
+   - What happened: the closing message and Ask 1 told Dan to tell the Personal Shipyard chat what the live checks showed, and the message ended with a paste block addressed to that chat. The brief's close-out forbade exactly this.
+   - What it cost: Dan's correction, and a third filing and result check of the report.
+   - What fixed it: the asks are answered in this session, which writes them to the card; the chat reads the card. The session memory that said the closing paste block is "usually the message to the chat that briefs the next session" was rewritten.
+
 ## Closing message to Dan
 
 The Look up page is live at https://hebrew-reader-dan.fly.dev/lookup.
@@ -238,6 +245,8 @@ The Look up page is live at https://hebrew-reader-dan.fly.dev/lookup.
 - **Desk cards:** the "Look up in" buttons now open the reference in a pane under the row, not a new tab.
 
 Needed from you:
-1. Run the six signed-in checks in the report (type להמר on /lookup, tap Morfix, Pealim and Milog, and so on) and tell the Personal Shipyard chat what differs. Recommended: yes.
+1. Run the six signed-in checks in the report (type להמר on /lookup, tap Morfix, Pealim and Milog, and so on) and reply here with what differs; I record it on the card. Recommended: yes.
 2. Should the reader and phone cards' "Ask about this root" also open inside the reader instead of two new tabs? Recommended: yes.
 3. If Morfix and the Academy show "The site did not answer" live, keep that line with the link? Recommended: keep it.
+
+Answer all three here, in one reply.
