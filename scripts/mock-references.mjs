@@ -6,7 +6,10 @@
 // inside a form, a relative link). POST /control { <id>: how } sets how one
 // reference answers: 'page' (default), 'slow' (the page after `slow_ms`,
 // default 10 s), 'hang' (never answers), 'reset' (drops the connection),
-// 'status:<n>' (that status), 'blank' (a 200 with no text, as a bot check). GET /calls counts the requests per reference.
+// 'status:<n>' (that status), 'blank' (a 200 with no text, as a bot check),
+// 'redirect:<path>' (a 302 to that path on the stand-in). A path
+// /site/<scheme>/<host>/<rest> stands for <scheme>://<host>/<rest> (the
+// server reads it back so: its redirect gate) and answers a page. GET /calls counts the requests per reference.
 //   node scripts/mock-references.mjs [port]
 import http from 'node:http';
 
@@ -47,6 +50,12 @@ http.createServer((req, res) => {
     });
     return;
   }
+  const site = /^\/site\/(https?)\/([^/]+)(\/.*)?$/.exec(url.pathname);
+  if (site) {
+    calls[`site:${site[2]}`] = (calls[`site:${site[2]}`] || 0) + 1;
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    return res.end(page(site[2], decodeURIComponent(url.searchParams.get('q') || url.searchParams.get('abbr') || 'redirected')));
+  }
   const m = /^\/([a-z]+)\/(.+)$/.exec(url.pathname);
   if (!m) return json(404, { error: `nothing at ${url.pathname}` });
   const id = m[1], term = decodeURIComponent(m[2]);
@@ -54,6 +63,7 @@ http.createServer((req, res) => {
   const mode = how[id] || 'page';
   const send = () => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(page(id, term)); };
   if (mode === 'hang') return; // never answers
+  if (mode.startsWith('redirect:')) { res.writeHead(302, { location: mode.slice(9) }); return res.end(); }
   if (mode === 'reset') return req.socket.destroy();
   if (mode.startsWith('status:')) { res.writeHead(Number(mode.slice(7)), { 'content-type': 'text/html' }); return res.end('<p>refused</p>'); }
   if (mode === 'slow') return setTimeout(send, slowMs);
