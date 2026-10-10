@@ -13,7 +13,6 @@ const auth = require('./lib/auth');
 const db = require('./lib/db');
 const articles = require('./lib/articles');
 const lookup = require('./lib/lookup');
-const spine = require('./lib/spine');
 const demand = require('./lib/demand');
 const askRefs = require('./lib/ask');
 const lesson = require('./lib/lesson');
@@ -23,6 +22,8 @@ const grow = require('./lib/grow');
 const sheet = require('./lib/sheet');
 const caught = require('./lib/catch');
 const hunt = require('./lib/hunt');
+const referencePages = require('./lib/reference-pages');
+const lookupPage = require('./lib/lookup-page');
 const { CATEGORIES } = require('./lib/categories');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, readFile, serveStatic } = require('./lib/http');
@@ -110,8 +111,11 @@ route('GET', /^\/marks-for-article\/(?<id>\d+)$/, (req, res, { id }) => {
 // --- the card ---------------------------------------------------------------
 
 // { surface, sentence, article_id | lesson_id } -> { card, spot, cached }.
+// From the Look up page, { surface, origin: 'lookup' }: the same card, the
+// word saved, and the search recorded on the card (lib/lookup-page.js).
 route('POST', /^\/lookup$/, async (req, res) => {
   const body = await readJson(req);
+  if (body.origin === 'lookup') return sendJson(res, 200, await lookupPage.search(body));
   const articleId = body.article_id ? Number(body.article_id) : null;
   if (articleId) db.getArticle(articleId);
   const lessonId = body.lesson_id ? Number(body.lesson_id) : null;
@@ -143,10 +147,7 @@ route('GET', /^\/spots\/(?<id>.+)$/, (req, res, { id }) => sendJson(res, 200, db
 // { status } -> the spot. Status must be one of new, shaky, solid.
 route('POST', /^\/spots\/(?<id>.+)$/, async (req, res, { id }) => {
   const body = await readJson(req);
-  const spot = db.setSpotStatus(decodeURIComponent(id), body.status);
-  console.log(`spot ${spot.id}: ${spot.status}`);
-  const recorded = await spine.recordMark(spot, { lastArticleTitle: db.lastArticleTitle(spot.id) });
-  return sendJson(res, 200, { spot, spine: recorded });
+  return sendJson(res, 200, await lookupPage.saveStatus(decodeURIComponent(id), body.status));
 });
 
 // --- the demand (the phone page) --------------------------------------------
@@ -378,9 +379,11 @@ route('POST', new RegExp(`^/card/${CARD}/ask$`), async (req, res, { key }) => se
 route('POST', new RegExp(`^/card/${CARD}/examples$`), async (req, res, { key }) => sendJson(res, 200, await grow.findExamples(key)));
 // on an example: { kept: true | false }
 route('POST', new RegExp(`^/card/${CARD}/keep$`), async (req, res, { key }) => sendJson(res, 200, { layer: desk.keepExample(key, (await readJson(req)).kept) }));
-// { reference } -> { layer, url }: the page to open, and the lookup recorded
+// { reference, origin? } -> { layer, url }: the page to open, and the lookup
+// recorded; origin 'desk' (a card's row, the default) or 'lookup' (the Look up page's tabs)
 route('POST', new RegExp(`^/card/${CARD}/lookup$`), async (req, res, { key }) => {
-  const layer = desk.lookupLayer(key, (await readJson(req)).reference);
+  const body = await readJson(req);
+  const layer = desk.lookupLayer(key, body.reference, { origin: body.origin || 'desk' });
   return sendJson(res, 201, { layer, url: layer.url });
 });
 // on a card or a layer: { desk_id?, unplaced? } -> a new note card beside the card
@@ -400,7 +403,14 @@ route('POST', new RegExp(`^/card/${CARD}/cut$`), async (req, res, { key }) => {
   return sendJson(res, 201, desk.cut(key, body.at, body));
 });
 
-const GUIDE_TEMPLATE = fs.readFileSync(path.join(PUBLIC, 'guide.html'), 'utf8');
+// --- a reference shown inside the reader (hebrew-lookup-one) ------------------
+// ?term=<word> -> { mode: 'frame', url } | { mode: 'copy', html, fetched_at, url }
+// | { mode: 'failed', url, reason }. A copy is fetched only here, on Dan's tap.
+// The Look up page's "Looked up" list: ?limit=200&before=<time>&before_key=<card> -> { items, more, next, next_key }
+route('GET', /^\/lookups$/, (req, res, g, url) => sendJson(res, 200, lookupPage.list({ limit: url.searchParams.get('limit'), before: url.searchParams.get('before'), before_key: url.searchParams.get('before_key') })));
+route('GET', /^\/reference\/(?<id>[a-z]+)$/, async (req, res, { id }, url) => sendJson(res, 200, await referencePages.pane(id, url.searchParams.get('term'))));
+
+const GUIDE_TEMPLATE =fs.readFileSync(path.join(PUBLIC, 'guide.html'), 'utf8');
 function guidePage(res, id) {
   let article;
   try { article = db.getArticle(id); } catch (e) { return sendHtml(res, 404, GUIDE_TEMPLATE.replace('{{TITLE}}', 'Study guide').replace('{{BACK}}', '/').replace('{{BODY}}', `<p class="empty">${escapeHtml(e.message)}</p>`)); }
@@ -410,7 +420,7 @@ function guidePage(res, id) {
 }
 
 function isApiPath(p) {
-  return /^\/(articles|lookup|spots|marks-for-article|marks-for-lesson|categories|demand|ask|make|lessons|desks|notes|card|sheets)(\/|$)/.test(p);
+  return /^\/(articles|lookup|spots|marks-for-article|marks-for-lesson|categories|demand|ask|make|lessons|desks|notes|card|sheets|reference|lookups)(\/|$)/.test(p);
 }
 
 async function handle(req, res) {
@@ -427,13 +437,15 @@ async function handle(req, res) {
     return serveStatic(res, PUBLIC, p) || sendJson(res, 404, { error: `${p} is missing.` });
   }
 
-  if (!CONFIGURED) return isApiPath(p) ? sendJson(res, 503, { error: NOT_CONFIGURED }) : loginPage(res, 503, NOT_CONFIGURED);
+  // GET /lookup is the Look up page; POST /lookup the card
+  const apiPath = isApiPath(p) && !(p === '/lookup' && req.method === 'GET');
+  if (!CONFIGURED) return apiPath ? sendJson(res, 503, { error: NOT_CONFIGURED }) : loginPage(res, 503, NOT_CONFIGURED);
   if (!auth.cookieOk(req, COOKIE_SECRET)) {
     if (p === '/share' || p === '/share/confirm') {
       const back = `${p === '/share' && !fromAnotherSite(req) ? '/share' : '/share/confirm'}${url.search}`;
       return redirect(res, `/login?next=${encodeURIComponent(back)}`);
     }
-    return isApiPath(p) ? sendJson(res, 401, { error: 'Sign in first: POST /login with the passphrase.' }) : redirect(res, '/login');
+    return apiPath ? sendJson(res, 401, { error: 'Sign in first: POST /login with the passphrase.' }) : redirect(res, '/login');
   }
 
   for (const route of api) {
@@ -449,10 +461,11 @@ async function handle(req, res) {
     }
   }
 
-  if (isApiPath(p)) return sendJson(res, 404, { error: `No route ${req.method} ${p}.` });
+  if (apiPath) return sendJson(res, 404, { error: `No route ${req.method} ${p}.` });
   if (p === '/') return serveStatic(res, PUBLIC, '/index.html') || sendJson(res, 404, { error: 'index.html is missing.' });
   if (p === '/login.html') return redirect(res, '/login');
   if (p === '/phone') return serveStatic(res, PUBLIC, '/phone.html') || sendJson(res, 404, { error: 'phone.html is missing.' });
+  if (p === '/lookup') return serveStatic(res, PUBLIC, '/lookup.html') || sendJson(res, 404, { error: 'lookup.html is missing.' });
   // /share is where the installed app receives what another app shares; the
   // desk page saves it (a GET here writes nothing)
   if (p === '/share' && fromAnotherSite(req)) return redirect(res, `/share/confirm${url.search}`);

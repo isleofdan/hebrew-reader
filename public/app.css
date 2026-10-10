@@ -485,6 +485,22 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 .grow .grow-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .grow .grow-acts .btn.small { align-self: auto; }
 .grow .grow-acts.refs .refs-label { font-size: 13px; color: var(--muted); margin-right: 2px; }
+.grow .grow-top, .grow .grow-bottom { display: contents; }
+.grow .grow-acts.refs .btn.ref.active, .lookup-tabs .btn.ref.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-dark); }
+
+/* A reference shown inside the reader (hebrew-lookup-one): framed, or a copy */
+.ref-pane { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 8px 10px 10px; background: var(--panel); }
+.ref-pane.hidden { display: none; }
+.ref-pane .ref-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ref-pane .ref-title { font-weight: 600; font-size: 14px; }
+.ref-pane .ref-title .he { font-family: var(--serif); font-size: 17px; }
+.ref-pane .ref-line { margin: 0; font-size: 13px; color: var(--muted); }
+.ref-pane .ref-line.bad { color: var(--danger); font-size: 14px; }
+.ref-pane .ref-why, .ref-pane .ref-wait { margin: 0; font-size: 13px; color: var(--muted); }
+.ref-pane .ref-live { color: var(--accent); }
+/* the site's own page keeps its own (light) colors, in dark mode too */
+.ref-pane .ref-frame { width: 100%; height: 70vh; min-height: 360px; border: 1px solid var(--line); border-radius: 6px; background: #ffffff; }
+@media (max-width: 699px) { .ref-pane .ref-frame { height: 65vh; min-height: 300px; } }
 .grow a.btn.small { display: inline-flex; align-items: center; text-decoration: none; color: var(--text); }
 .grow .ask-here { display: flex; gap: 8px; }
 .grow .ask-input { flex: 1 1 auto; min-width: 0; height: 36px; font-size: 15px; }
@@ -573,3 +589,41 @@ body.linking .dcard { cursor: pointer; }
 .ditem.fresh .ditem-open { outline: 3px solid var(--accent); outline-offset: 2px; }
 .grow .layer.ink.pending .ink-pad { min-height: 90px; }
 .grow .linked-line { border-top: 0; padding-top: 0; color: var(--link-blue-ink); }
+
+/* the Look up page (hebrew-lookup-one) */
+.lookup-page { max-width: 900px; }
+.lookup-page .panel .msg { margin: 0; }
+.lookup-search form { display: flex; gap: 8px; }
+.lookup-search #word { flex: 1 1 auto; min-width: 0; height: 52px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--field); color: var(--text); font-family: var(--serif); font-size: 24px; direction: rtl; }
+.lookup-search .btn { height: 52px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.lookup-entry .saved-line, .lookup-entry .looked-line { margin: 0; font-size: 14px; color: var(--muted); }
+.lookup-entry .saved-line { color: var(--ok-ink); font-weight: 600; }
+.lookup-entry .saved-line:empty, .lookup-entry .looked-line:empty { display: none; }
+/* "Ask about this root" opens two new tabs; here the tabs below do that inside the page */
+.lookup-entry .card [data-act=ask] { display: none; }
+.lookup-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.lookup-tabs > .btn.ref, .lookup-list .btn.small { height: 40px; font-size: 14px; padding: 0 14px; }
+@media (max-width: 699px) {
+  .lookup-tabs { flex-direction: column; }
+  .lookup-tabs > .btn.ref { width: 100%; text-align: start; height: 48px; font-size: 16px; }
+  .lookup-search #word { font-size: 22px; }
+}
+.lookup-list .panel-head .btn.small { align-self: auto; }
+.lookup-list ol.looked { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.lookup-list ol.looked li { display: grid; grid-template-columns: auto auto 1fr auto; align-items: baseline; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.lookup-list ol.looked li:first-child { border-top: 0; }
+.lookup-list input[type=checkbox] { width: 20px; height: 20px; margin: 0; align-self: center; accent-color: var(--accent); }
+.lookup-list .looked-word { color: var(--text); text-decoration: none; justify-self: start; text-align: start; }
+.lookup-list .looked-word:hover { color: var(--accent); text-decoration: underline; }
+.lookup-list .looked-word .he { font-family: var(--pointed); font-size: 20px; }
+.lookup-list .gloss { font-size: 14px; }
+.lookup-list .meta { font-size: 13px; color: var(--muted); text-align: right; }
+.lookup-list #more { align-self: flex-start; }
+.lookup-list .msg a { color: var(--accent); font-weight: 600; }
+.lookup-list .empty { margin: 0; }
+@media (max-width: 699px) {
+  .lookup-list ol.looked li { grid-template-columns: auto 1fr; }
+  .lookup-list .gloss, .lookup-list .meta { grid-column: 2; text-align: start; }
+  .lookup-list input[type=checkbox] { width: 24px; height: 24px; grid-row: span 3; }
+}

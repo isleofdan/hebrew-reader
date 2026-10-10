@@ -114,7 +114,7 @@
         li.append(ta);
         if (state.noting === l.key) setTimeout(() => ta.focus(), 0);
       }
-      if (l.kind === 'lookup') li.append(el('div', 'lookup-line', `looked up in ${l.label}, ${day(l.made_at)}`));
+      if (l.kind === 'lookup') li.append(el('div', 'lookup-line', `${l.line || `looked up in ${l.label}`}, ${day(l.made_at)}`));
       if (l.kind === 'ink') {
         li.append(el('div', 'layer-kind', `note · ink · ${day(l.drawn_at || l.made_at)}`));
         li.append(inkArea(l));
@@ -177,14 +177,20 @@
     // --- the whole view ------------------------------------------------------------
     function draw() {
       if (!current()) return;
-      box.innerHTML = '';
       box.classList.add('grow');
+      // the reference pane sits between the "Look up in" row and the rest,
+      // and is left alone by every redraw, so an open page does not reload
+      if (!state.top) { state.top = el('div', 'grow-top'); state.pane = el('div', 'ref-pane hidden'); state.bottom = el('div', 'grow-bottom'); }
+      if (state.top.parentNode !== box) box.replaceChildren(state.top, state.pane, state.bottom);
+      state.top.innerHTML = ''; state.bottom.innerHTML = '';
+      let out = state.top;
+      const add = (x) => out.append(x);
       const v = state.view;
-      if (!v) { box.append(el('p', 'grow-msg' + (state.bad ? ' bad' : ''), state.msg || 'Opening the card…')); return; }
+      if (!v) { add(el('p', 'grow-msg' + (state.bad ? ' bad' : ''), state.msg || 'Opening the card…')); return; }
       const isWord = v.card.kind === 'word';
       const shown = v.layers.filter((l) => l.kind !== 'example' || l.kept);
       const examples = v.layers.filter((l) => l.kind === 'example');
-      box.append(el('div', 'layers-line', v.layers_line));
+      add(el('div', 'layers-line', v.layers_line));
 
       const list = el('ol', 'layers');
       // the examples stand as one group, where the first of them came
@@ -214,14 +220,14 @@
         list.append(layerBox(l, shown.indexOf(l), shown));
       });
       if (state.drawing && !v.ink && window.InkUI) list.append(newInk());
-      if (v.layers.length || list.children.length) box.append(list);
-      if (!v.layers.length) box.append(el('p', 'no-layers', 'Nothing has grown on this card yet: ask about it, find examples of it, or add a note.'));
+      if (v.layers.length || list.children.length) add(list);
+      if (!v.layers.length) add(el('p', 'no-layers', 'Nothing has grown on this card yet: ask about it, find examples of it, or add a note.'));
 
       if (state.cutting) {
         const c = el('div', 'cut-bar');
         c.append(el('span', '', shown.length ? 'Choose the layer to cut at: it and every layer after it go to a new card.' : 'Nothing to cut yet: this card has no layers.'));
         c.append(btn('Cancel', 'btn small', () => { state.cutting = false; draw(); }));
-        box.append(c);
+        add(c);
       }
 
       // the ask box
@@ -248,7 +254,7 @@
             opts.onChange && opts.onChange();
           }, 'asking');
         });
-        box.append(f);
+        add(f);
         if (state.focusAsk) { state.focusAsk = false; setTimeout(() => input.focus(), 0); }
       }
 
@@ -276,26 +282,30 @@
         acts.append(find);
       }
       if (!opts.phone && window.InkUI && !v.ink) acts.append(btn(state.drawing ? 'Drawing: use the area above' : 'Draw here', 'btn small draw-here', () => { state.drawing = !state.drawing; state.asking = false; state.cutting = false; draw(); }));
-      box.append(acts);
+      add(acts);
       if (isWord) {
         const refs = el('div', 'grow-acts refs');
         refs.append(el('span', 'refs-label', 'Look up in'));
         for (const r of v.references) {
-          const a = el('a', 'btn small ref');
-          a.href = r.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
-          a.textContent = r.label;
-          a.dataset.ref = r.id;
-          // the page opens from the tap itself (no pop-up blocker); the lookup is recorded beside it
-          a.addEventListener('click', () => { api('POST', `/card/${key}/lookup`, { reference: r.id }).then(reload).catch((e) => say(`The lookup was not recorded: ${e.message}`, true)); });
-          refs.append(a);
+          // the reference opens inside the card's view, in the pane under this
+          // row (one at a time); the lookup is recorded beside it, as before
+          const b = btn(r.label, `btn small ref${state.pane.dataset.ref === r.id ? ' active' : ''}`, () => {
+            window.ReferenceUI.open(state.pane, { api, reference: r.id, term: r.term, label: r.label, onClose: draw });
+            draw();
+            api('POST', `/card/${key}/lookup`, { reference: r.id }).then(reload).catch((e) => say(`The lookup was not recorded: ${e.message}`, true));
+          });
+          b.dataset.ref = r.id;
+          b.setAttribute('aria-pressed', String(state.pane.dataset.ref === r.id));
+          refs.append(b);
         }
-        box.append(refs);
+        add(refs);
       }
+      out = state.bottom;
       const more = el('div', 'grow-acts');
       more.append(btn('Branch a new card from here', 'btn small', () => branchFrom(key)));
       more.append(btn(state.cutting ? 'Choosing where to cut…' : 'Cut this card in two', 'btn small', () => { state.cutting = !state.cutting; state.asking = false; draw(); }));
-      box.append(more);
-      box.append(el('p', 'grow-msg' + (state.bad ? ' bad' : ''), state.msg));
+      add(more);
+      add(el('p', 'grow-msg' + (state.bad ? ' bad' : ''), state.msg));
 
       // the footer
       const f = v.footer, bits = [];
@@ -303,13 +313,13 @@
       bits.push(f.desks.length ? `on ${f.desks.length === 1 ? '1 desk' : `${f.desks.length} desks`}: ${f.desks.map((d) => d.name).join(', ')}` : 'on no desk');
       bits.push(`${f.branched === 1 ? '1 card' : `${f.branched} cards`} branched from it`);
       if (f.sheets) bits.push(`on ${f.sheets === 1 ? '1 sheet' : `${f.sheets} sheets`}`);
-      box.append(el('div', 'grow-foot', bits.join(' · ')));
+      add(el('div', 'grow-foot', bits.join(' · ')));
       for (const l of v.linked || []) {
         const ln = el('div', 'grow-foot linked-line');
         ln.append(document.createTextNode('you linked this to '));
         const w = el('span', '', l.label); w.dir = 'auto'; ln.append(w);
         ln.append(document.createTextNode(`: ${l.sentence}`));
-        box.append(ln);
+        add(ln);
       }
     }
 

@@ -182,7 +182,7 @@ try {
   const enc = encodeURIComponent('להמר');
   const expect = {
     morfix: `https://www.morfix.co.il/en/${enc}`, pealim: `https://www.pealim.com/search/?q=${enc}`, wiktionary: `https://he.wiktionary.org/w/index.php?search=${enc}`,
-    milog: `https://milog.co.il/${enc}`, academy: `https://hebrew-academy.org.il/?s=${enc}`, kizur: `https://www.kizur.co.il/search_word.php?abbr=${enc}`, sefaria: `https://www.sefaria.org/search?q=${enc}`,
+    milog: `https://milog.co.il/${enc}`, academy: `https://hebrew-academy.org.il/?s=${enc}`, kizur: `http://www.kizur.co.il/search_word.php?abbr=${enc}`, sefaria: `https://www.sefaria.org/search?q=${enc}`,
   };
   const got = {};
   for (const r of refs) got[r.id] = (await api('POST', `/card/${W}/lookup`, { reference: r.id })).body;

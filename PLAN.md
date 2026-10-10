@@ -1097,3 +1097,79 @@ Report: `docs/reports/hebrew-hunt-two-report.md`; PR #10, merge `4d0bf53`.
   `docs/guy-lessons/chat-guide-2026-06-15.md`; the reader has no conjugator.
 - **Checks:** `hunt-smoke.mjs` 39; `hunt-pages.mjs` checks both guide fixes at
   both widths and shoots `hunt-vocab-*`, `hunt-drill-*`.
+
+## hebrew-lookup-one (9 Oct 2026, the rented Linux machine, OpenRig team): the Look up page and the references inside the reader
+
+**Dan's screens changed.** A new page, **Look up** (`/lookup`, in the top
+navigation of every page beside Desk): one box; Enter shows the word's card,
+saves the word as his, and records the search on the card; under the card,
+seven tabs open the references inside the page when tapped; "Looked up" lists
+every word looked up there, newest first, with tick boxes and "Put on a
+desk". On a card at the desk, "Look up in" now opens the reference in a pane
+under the row (one at a time, with Close), never a new tab. At phone width
+the tabs stand as a list and a tab's pane opens under it.
+
+- **How a reference is shown** (`lib/references.js` `embed`, set from the
+  frame test `scripts/reference-frames.mjs`, results in `docs/REFERENCES.md`):
+  `frame` — the site's own page in a frame — for Wiktionary, Milog and
+  Sefaria (no X-Frame-Options, no frame-ancestors); `copy` for Morfix,
+  Pealim and the Academy (X-Frame-Options SAMEORIGIN) and Kizur (its https
+  certificate names another host, so its link is now **http**, which an https
+  page cannot frame). From this machine the copy works for Pealim and Kizur;
+  Morfix answers its bot check (202) and the Academy Cloudflare's (403), so
+  those two show "The site did not answer; open it directly" unless Fly's
+  address fares better.
+- **The fetched copy** (`lib/reference-pages.js`, `GET /reference/<id>?term=`):
+  fetched only on the tap (pull only), 20-second limit, only a 200 with text
+  is taken (a 202 bot check or an empty shell is a failure); scripts,
+  comments, frames, inline handlers, `javascript:` links and form controls
+  stripped (a `<form>` is unwrapped, so what it holds stays); links and
+  images made absolute, links opening the live site in a new tab; shown in an
+  `iframe` sandboxed with popups only, under "Shown from a copy fetched by the
+  reader; open the site for the live page". Kept in `reference_pages
+  (reference, term, html, fetched_at)` (new table, `CREATE TABLE IF NOT
+  EXISTS`) and served from there for **seven days**; a failure is never kept.
+  Two taps at once make one fetch. `REFERENCE_STANDIN` (local checks only)
+  points every fetch and frame at `scripts/mock-references.mjs`.
+- **One card, one truth** (`lib/lookup-page.js`). `POST /lookup` with
+  `{ surface, origin: 'lookup' }` finds the word's card in this order: the
+  word looked up before with no sentence (POST /lookup's own cache); the
+  newest card met as this word, pointed or not; the reader's own matching
+  (`HebrewTokenize.markFor`: a saved dictionary form or any form met, alone
+  or after one listed prefix); else the card is made as POST /lookup makes it
+  (the word, an empty sentence, one model call). A found card goes through
+  `lookup.lookup` with its own word and sentence (a cache hit: its touch is
+  recorded as for any open). POST /lookup without `origin` is unchanged: it
+  matches only the exact word and sentence, so a pointed or prefixed form
+  with no sentence asks the model. The card's record is never written.
+- **Saved at once**, through the reader's own save (`saveStatus`, which
+  `POST /spots/<id>` now calls too): a spot still `new` becomes `shaky` and
+  the mark goes to the spine; a word already shaky or solid keeps its status.
+- **The record.** `lookups.origin` (`ALTER TABLE … ADD COLUMN … DEFAULT
+  'desk'`, every existing row back-filled `desk`): `lookup` for the page's
+  search (reference `page`, shown as "looked up on the Look up page") and its
+  tabs. `POST /card/<key>/lookup` takes `origin` (default `desk`). "Looked up"
+  is `GET /lookups?limit=200&before=<time>` — every card with a page search,
+  newest search first, 200 a page with "Show more", each with key, headword,
+  gloss, day and the tabs opened (the row updates as a tab is recorded), with
+  `next`/`next_key` (`before`/`before_key`) so words searched in the same
+  millisecond are never skipped at a page's edge — read from the lookup layers and the cards;
+  no table of its own.
+- **Put on a desk** reuses how a line caught on the phone lands
+  (`/desks/catch` → `desk.place(…, { unplaced: true })` on the desk worked on
+  last): `GET /desks/current`, then `POST /desks/<id>/cards { card, unplaced:
+  true }` per ticked word; a word already there (`already`, the same word by
+  any card) is counted: "N cards put on tonight's desk, unplaced — place them
+  at the desk", "1 already there".
+- **Left as it was:** the reader's and the phone's card has no "Look up in"
+  row (only the desk's card view does), so nothing changed there; its "Ask
+  about this root" still opens Pealim and Wiktionary in two new tabs — hidden
+  on the Look up page only, whose tabs do the same inside. The phone page's
+  quick lookup is unchanged (it does not save or record).
+- **Checks:** `scripts/lookup-smoke.mjs` (58 checks, in `npm test`, not the
+  fast set: the 20-second limit is timed for real, about 25 s) and
+  `scripts/lookup-pages.mjs` (44 page checks, in `npm run screenshots`);
+  `grow-pages.mjs` checks the card's pane (copy, frame, failure; both widths,
+  light and dark) in place of the new tab. Playwright here is 1.63; its
+  browser (build 1243) was installed into `~/.cache/ms-playwright`. Totals:
+  499 server checks (from 441), 462 page checks; `npm run check` passes.

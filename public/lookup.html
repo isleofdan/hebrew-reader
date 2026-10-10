@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hebrew reader · Look up</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@400;500;700&family=Noto+Serif+Hebrew:wght@400;500;600&display=swap">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="/app.css">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon-192.png">
+<script src="/theme.js"></script>
+<script src="/install.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">Hebrew reader</a>
+  <nav><a href="/">Articles</a><a class="phone" href="/phone">phone</a><a href="/desk">Desk</a><a class="active" href="/lookup">Look up</a></nav>
+  <span class="spacer"></span>
+  <div class="theme" role="group" aria-label="Theme">
+    <button type="button" data-theme-choice="light">Light</button>
+    <button type="button" data-theme-choice="dark">Dark</button>
+    <button type="button" data-theme-choice="device">Device</button>
+  </div>
+  <a href="/logout" style="font-size:13px;color:var(--muted)">Sign out</a>
+</header>
+<main class="page lookup-page">
+
+  <section class="panel lookup-search">
+    <form id="search" autocomplete="off">
+      <label for="word" class="visually-hidden">A word to look up</label>
+      <input id="word" type="search" lang="he" dir="rtl" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="הקלידו או הדביקו מילה">
+      <button class="btn primary" id="go" type="submit">Look up</button>
+    </form>
+    <p class="msg" id="search-msg"></p>
+  </section>
+
+  <section class="panel lookup-entry hidden" id="entry">
+    <p class="saved-line" id="saved-line"></p>
+    <section class="card idle" id="card-lookup">
+      <div class="head"><div class="surface"></div><div class="status"></div></div>
+      <div class="line meaning"></div>
+      <div class="line grammar"></div>
+      <div class="chips"></div>
+      <div class="note"></div>
+      <div class="corrected"></div>
+      <div class="error"></div>
+      <div class="actions">
+        <button class="btn primary" data-act="shaky">Save to vocab</button>
+        <button class="btn" data-act="solid">Mark solid</button>
+        <button class="btn" data-act="ask">Ask about this root</button>
+      </div>
+      <div class="foot"></div>
+    </section>
+    <p class="looked-line" id="looked-line"></p>
+    <div class="lookup-tabs" id="tabs" role="group" aria-label="Look it up in"></div>
+    <div class="ref-pane hidden" id="pane"></div>
+  </section>
+
+  <section class="panel lookup-list" id="looked">
+    <div class="panel-head">
+      <h2>Looked up</h2>
+      <button class="btn small primary" id="put" type="button" disabled>Put on a desk</button>
+    </div>
+    <p class="msg" id="put-msg" role="status"></p>
+    <ol class="looked" id="looked-list"></ol>
+    <p class="empty" id="looked-empty">The words you look up here will be listed here, newest first.</p>
+    <button class="btn small" id="more" type="button" hidden>Show more</button>
+  </section>
+
+</main>
+<script src="/card-ui.js"></script>
+<script src="/reference-ui.js"></script>
+<script src="/lookup.js"></script>
+</body>
+</html>
