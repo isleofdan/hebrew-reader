@@ -141,6 +141,35 @@ try {
     JSON.stringify(await refCalls()) === JSON.stringify({ pealim: 4, academy: 2, kizur: 2, morfix: 3 }), JSON.stringify(await refCalls()));
   check('the server log names each copy fetched and each failure', /reference pealim "להמר": copy fetched in \d+ ms/.test(server.log) && /reference morfix "להמר": not fetched after \d+ ms: no answer in 20 s/.test(server.log));
 
+  // --- the redirect gate (hebrew-lookup-one follow-on): a copy is taken only from the reference's own site
+  {
+    const { sameSite } = createRequire(import.meta.url)(join(root, 'lib', 'reference-pages.js'));
+    const { byId } = createRequire(import.meta.url)(join(root, 'lib', 'references.js'));
+    const pe = byId('pealim'), kz = byId('kizur');
+    check('the gate, by itself: false-rejection — the reference\'s own site is accepted www and non-www, and Kizur over http with or without www',
+      sameSite(pe, 'https://www.pealim.com/search/?q=x') && sameSite(pe, 'https://pealim.com/search/?q=x') && sameSite(pe, 'http://pealim.com/')
+      && sameSite(kz, `http://www.kizur.co.il/search_word.php?abbr=${enc('צה"ל')}`) && sameSite(kz, 'http://kizur.co.il/search_word.php?abbr=x'));
+    check('the gate, by itself: another site, a look-alike host, another reference\'s site and a malformed address are refused',
+      !sameSite(pe, 'https://evil.example/pealim.com') && !sameSite(pe, 'https://pealim.com.evil.example/') && !sameSite(pe, 'https://notpealim.com/')
+      && !sameSite(pe, 'https://www.morfix.co.il/en/x') && !sameSite(pe, 'not an address') && !sameSite(kz, 'http://kizur.co.il.example/'));
+    // end to end: the stand-in redirects, the server follows and the gate reads where it ended
+    await control({ pealim: `redirect:/site/https/pealim.com/search/?q=${enc('להמר')}`, morfix: `redirect:/site/https/www.morfix.co.il/en/${enc('לזנק')}`, kizur: `redirect:/site/http/kizur.co.il/search_word.php?abbr=${enc('צה"ל')}` });
+    const toBare = await api('GET', `/reference/pealim?term=${enc('לגנוב')}`);
+    const toWww = await api('GET', `/reference/morfix?term=${enc('לגנוב')}`);
+    const toHttp = await api('GET', `/reference/kizur?term=${enc('צה"ל2')}`);
+    check('false-rejection: a redirect within the reference\'s own site still gives the copy — www.pealim.com -> pealim.com, to www.morfix.co.il, Kizur to http://kizur.co.il',
+      toBare.body.mode === 'copy' && toWww.body.mode === 'copy' && toHttp.body.mode === 'copy', JSON.stringify([toBare.body.reason, toWww.body.reason, toHttp.body.reason]));
+    check('…and the copy\'s links are made absolute on the address it was redirected to', toBare.body.html.includes('href="https://pealim.com/word/2"') && toHttp.body.html.includes('href="http://kizur.co.il/word/2"'));
+    await control({ academy: 'redirect:/site/https/evil.example/landing', pealim: 'redirect:/site/https/pealim.com.evil.example/search/' });
+    const away = await api('GET', `/reference/academy?term=${enc('לגנוב')}`);
+    const lookalike = await api('GET', `/reference/pealim?term=${enc('לסחוב')}`);
+    check('a redirect to another site is refused: { mode: failed } with the live link and the reason, the pane\'s failure line; nothing stored',
+      away.body.mode === 'failed' && away.body.url === `https://hebrew-academy.org.il/?s=${enc('לגנוב')}` && away.body.reason === 'it sent the request on to another site (evil.example)'
+      && !peek("SELECT * FROM reference_pages WHERE reference = 'academy' AND term = ?", 'לגנוב').length, JSON.stringify(away.body));
+    check('a redirect to a look-alike host (pealim.com.evil.example) is refused the same way', lookalike.body.mode === 'failed' && /another site \(pealim\.com\.evil\.example\)/.test(lookalike.body.reason), JSON.stringify(lookalike.body));
+    await control({ pealim: 'page', morfix: 'page', kizur: 'page', academy: 'page' });
+  }
+
   // --- step 4: the Look up page, its search and its tabs -------------------------------------
   const orCalls = async () => (await (await fetch(`http://127.0.0.1:${OR_PORT}/calls`)).json()).calls;
   const page = await fetch(`${base}/lookup`, { headers: { cookie } });

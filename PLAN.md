@@ -1173,3 +1173,8 @@ the tabs stand as a list and a tab's pane opens under it.
   light and dark) in place of the new tab. Playwright here is 1.63; its
   browser (build 1243) was installed into `~/.cache/ms-playwright`. Totals:
   499 server checks (from 441), 462 page checks; `npm run check` passes.
+- **Follow-on (10 Oct 2026):** the redirect gate (a copy only from the
+  reference's own site) is `sameSite(ref, url)` in `lib/reference-pages.js`,
+  unchanged in what it takes, and now runs under the stand-in too (its
+  `/site/<scheme>/<host>/…` addresses are read back as the sites they stand
+  for); `lookup-smoke.mjs` checks it, 64 checks (505 server in all).
