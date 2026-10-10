@@ -1,6 +1,10 @@
 # FIELD REPORT — hebrew-lookup-one — 2026-10-10
 
-MERGED and LIVE: pull request #12 (https://github.com/isleofdan/hebrew-reader/pull/12) was merged into `main` by this session on Dan's yes, at 11:32 JST, 10 Oct 2026 (02:32 UTC), as merge commit `b856ce7`. The deploy run 38017340068 is green. Only the signed-in live checks (Ask 1) are still to do, and they are Dan's.
+MERGED and LIVE: two pull requests, both merged into `main` by this session on Dan's yes, and both deploy runs green.
+
+- **#12** (https://github.com/isleofdan/hebrew-reader/pull/12), the Look up page: merged at 11:32 JST, 10 Oct 2026 (02:32 UTC), as `b856ce7`; deploy run 38017340068.
+- **#13** (https://github.com/isleofdan/hebrew-reader/pull/13), the follow-on adding the redirect gate's false-rejection checks: merged at 12:18 JST (03:18 UTC), as `7b3a8b6`; deploy run 38020091428.
+ Only the signed-in live checks (Ask 1) are still to do, and they are Dan's.
 
 Session hebrew-lookup-one, on the rented Linux machine agent-machine-dan, in auto mode. Brief: the latest "START HERE — hebrew-lookup-one" note on card `hebrew-satellite`, the copy that passed brief check `20261009-144122-d83f30`.
 
@@ -14,6 +18,10 @@ Session hebrew-lookup-one, on the rented Linux machine agent-machine-dan, in aut
     - check, round 2: `qitem-20261009162752-d7f91ebb`
     - verdict: `qitem-20261009162946-41eb9e4f` (done)
   - The checker's recorded verdict line, verbatim: "PASS for candidate f61db0262ad035802afa991698634278ad44710a."
+  - **Follow-on (pull request #13)**, done by the same team restored from its snapshot:
+    - builder's job: `qitem-20261010025330-1960ed1e`
+    - check: `qitem-20261010030127-e532197a`
+    - verdict: `qitem-20261010030312-ac69f49f`, verbatim: "PASS for candidate d1a5f675126f864d8fa84d8a2c2ed42adb65a26c."
   - This session did not change the team's code. It pushed the branch, opened the pull request, merged it on Dan's yes and watched the deploy.
 - **Look up page, live at https://hebrew-reader-dan.fly.dev/lookup:**
   - A search box. Enter shows the word's own card and saves the word as Dan's at once (a new word becomes "shaky", the same as pressing save in the reader). The search is recorded on the card as a lookup "looked up on the Look up page", with origin `lookup`.
@@ -39,6 +47,7 @@ Session hebrew-lookup-one, on the rented Linux machine agent-machine-dan, in aut
   - links absolute, opening the live site in a new tab
   - shown in a sandboxed frame under "Shown from a copy fetched by the reader; open the site for the live page"
   - kept seven days in the new table `reference_pages` (`CREATE TABLE IF NOT EXISTS`); a failure is never kept
+  - a redirect is followed only within the reference's own site: `sameSite(ref, url)`, made testable in #13 and exercised under the stand-in by 6 checks (www and non-www hosts and Kizur's http address accepted; another site and a look-alike host refused, nothing kept)
 - **The record:** `lookups.origin` was added by `ALTER TABLE … ADD COLUMN … DEFAULT 'desk'`, which back-fills every existing row as `desk`. `GET /lookups` is read from the lookup layers and the cards; there is no new table of looked-up words.
 - **Live, signed out** (this session's own `curl` against https://hebrew-reader-dan.fly.dev after the deploy):
   - `GET /lookup` → `303` to `/login`
@@ -87,7 +96,7 @@ Every file, function and route the brief named was present.
    - a stand-in that hangs returns `failed` within the limit
    - a 10-second stand-in still returns the copy
 
-   It passed in `npm test`, and the checker reran it in both rounds (commit `f4d394f`).
+   It passed in `npm test`, and the checker reran it in both rounds (commit `f4d394f`). The redirect gate's false-rejection and refusal checks were added in #13 (`d1a5f67`); the checker reran `lookup-smoke.mjs` there: 64 passed.
 3. **Step 3, card pane:** `grow-pages.mjs` checks copy, frame and failure panes at phone and computer widths, light and dark (66 checks, passed; commit `7e4125e`).
 4. **Step 4, Look up page:** `lookup-smoke.mjs` and `lookup-pages.mjs` check that:
    - the search saves the word
@@ -111,6 +120,7 @@ Every file, function and route the brief named was present.
    - merged on Dan's yes
    - deploy run 38017340068 succeeded
    - live signed-out responses as listed above
+   - follow-on #13: GitHub "checks" green (run 38019251919; run 38019254476 failed once on the known `paper-pages` flake, "1 paper page check(s) failed, 25 passed", and passed on re-run), merged on Dan's yes, deploy run 38020091428 succeeded, and the live signed-out responses are unchanged (`/lookup` 303, `/reference/morfix?term=x` 401)
 
 **Section 9, the local check:** `npm run check` on `f61db02` printed "check: all passed: syntax, tests, screenshots" (the builder's run, recorded on its queue row). The checker independently reran `npm test` (497 at `17165d9`), `lookup-smoke.mjs` (58), `lookup-pages.mjs` (44) and `grow-pages.mjs` (66). It did not rerun the full suite on `f61db02`.
 
@@ -144,7 +154,7 @@ Every file, function and route the brief named was present.
 ## Deliberate divergences
 
 1. **Kizur's link is now http** (`lib/references.js`), because its https certificate is for another host. The brief's out-of-scope list does not cover link shapes; the change is named here and in `docs/REFERENCES.md`.
-2. **One commit beyond the seven steps** (`f61db02`): the fixes for the checker's two findings, each with a regression check.
+2. **One commit beyond the seven steps** (`f61db02`): the fixes for the checker's two findings, each with a regression check. Plus the follow-on pull request #13 (`d1a5f67`), after the merge, for the result check's finding.
 3. **The reader's save now calls a shared function.** `POST /spots/<id>` now calls `saveStatus` in `lib/lookup-page.js`, so the Look up page and the reader save a word through the same code. Behaviour is unchanged, and the existing smoke checks pass.
 4. **"Ask about this root" is hidden on the Look up page only.** There its two new-tab buttons would duplicate the in-page tabs.
 5. **Old screenshots not recommitted.** `npm run check` re-shoots every existing screenshot; only the new `grow-ref-*` and `lookup-*` screenshots are committed.
@@ -164,8 +174,9 @@ Session fourteen's four asks remain open; this session left them alone, as the b
   - 61 from the builder: in-clone edits by `sed -i` and `python3` heredocs, reads, test runs, commits, the Playwright browser install, and the frame-test fetches.
   - 4 from the checker: the Codex update menu (answered "2. Skip"), and three runs of the repository's own checks outside Codex's sandbox (local ports and Chromium).
   - Two builder prompts came from the outward-send rule `Bash(curl *-d *)`. They were Sefaria search queries carrying only the brief's test words להמר and בראשית, so they were answered yes.
-- The team was stopped with a snapshot: `01M4HTMGFQRDX9D8HMPTGFMW2V` (`rig restore 01M4HTMGFQRDX9D8HMPTGFMW2V --rig 01M4GJC4D8THKXD6E3NXSJSS7D`, seats in `~/work/hebrew-lookup-one`).
-- `/data/home/dan/FACTS.md` was updated with the new team id and this snapshot.
+- The team was stopped with a snapshot after #12 (`01M4HTMGFQRDX9D8HMPTGFMW2V`), restored from it for the follow-on, and stopped again after it with the snapshot `01M4HWRB8BF4XT4FR907WV8X21` (`rig restore 01M4HWRB8BF4XT4FR907WV8X21 --rig 01M4GJC4D8THKXD6E3NXSJSS7D`, seats in `~/work/hebrew-lookup-one`).
+- Follow-on prompts: 10 more (8 builder, 2 checker, one of them the Codex update menu), all answered by this session; 75 in all.
+- `/data/home/dan/FACTS.md` was updated with the new team id and the latest snapshot.
 
 ## What the next session needs
 
@@ -176,7 +187,7 @@ Session fourteen's four asks remain open; this session left them alone, as the b
 - **What it needs to know:**
   - **Reference modes:** they live in `lib/references.js` (`embed`) and `docs/REFERENCES.md`. Rerun `node scripts/reference-frames.mjs` before changing any mode.
   - **Live fetches:** Dan's live check 2 says whether Morfix and the Academy fetch from Fly.
-  - **Team snapshot:** `01M4HTMGFQRDX9D8HMPTGFMW2V` is for continuing this job only; a new job starts the team fresh on its own clone.
+  - **Team snapshot:** `01M4HWRB8BF4XT4FR907WV8X21` is for continuing this job only; a new job starts the team fresh on its own clone.
   - **Known flake:** `paper-pages.mjs` fails about 1 run in 10, on `main` too.
   - **Fetched copies:** `reference_pages` keeps copies for seven days, so a sanitizer change shows only on words fetched after it (or after seven days).
 
@@ -201,7 +212,10 @@ Session fourteen's four asks remain open; this session left them alone, as the b
    - (2) there was no "What the next session needs" section. Changed: added, with the next work, its owner and what it needs to know.
 6. **Result check, round 2** (`20261010-024222-69f40e`, on report event 1239): **PASS**, 0 findings, 53 s.
 7. **Dan's correction after round 2:** the asks and closing message sent him to tell the Personal Shipyard chat the live check results, and the closing message ended with a paste block for that chat. Changed: Ask 1, "What the next session needs" and the closing message now have him answer in this session, which records the answers on the card for the chat to read; the paste block is removed.
-8. **Result check, round 3:** run on this corrected filing; its verdict on this final version is given in the closing message.
+8. **Result check, round 3** (`20261010-025105-9f77da`, on report event 1241): **FINDINGS**, 1: [step 2] the redirect gate had no false-rejection test (it was skipped under the stand-in). Changed: pull request #13, which makes the gate `sameSite(ref, url)`, runs it under the stand-in and adds 6 checks.
+9. **Team check on the follow-on** (`qitem-20261010030127-e532197a`, candidate `d1a5f67`): **PASS**, recorded on `qitem-20261010030312-ac69f49f`.
+10. **GitHub "checks" on pull request #13:** pass (run 38019251919; run 38019254476 passed on re-run after the known `paper-pages` flake).
+11. **Result check, round 4:** run on this corrected filing; its verdict on this final version is given in the closing message.
 
 ## Fly machine and OpenRig lessons
 
@@ -236,6 +250,15 @@ Session fourteen's four asks remain open; this session left them alone, as the b
    - What happened: the closing message and Ask 1 told Dan to tell the Personal Shipyard chat what the live checks showed, and the message ended with a paste block addressed to that chat. The brief's close-out forbade exactly this.
    - What it cost: Dan's correction, and a third filing and result check of the report.
    - What fixed it: the asks are answered in this session, which writes them to the card; the chat reads the card. The session memory that said the closing paste block is "usually the message to the chat that briefs the next session" was rewritten.
+
+9. **Write queue ids from the queue, never from memory.**
+   - What happened: pull request #13's first text gave two queue ids with the wrong timestamp digits.
+   - What it cost: an edit of the pull request text.
+   - What fixed it: reading the ids back with `rig queue list --json` before writing them.
+10. **A result check can pass and then find something new on a re-run.**
+    - What happened: round 2 passed the same code that round 3 then found the gate-test gap in.
+    - What it cost: a follow-on pull request and deploy.
+    - What fixed it: nothing to fix; the checker's rounds are independent reads, so every filing is checked again.
 
 ## Closing message to Dan
 
