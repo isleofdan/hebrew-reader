@@ -1,4 +1,4 @@
-# FIELD REPORT — hebrew-lookup-one
+# FIELD REPORT — hebrew-lookup-one — 2026-10-10
 
 MERGED and LIVE: pull request #12 (https://github.com/isleofdan/hebrew-reader/pull/12) was merged into `main` by this session on Dan's yes, at 11:32 JST, 10 Oct 2026 (02:32 UTC), as merge commit `b856ce7`. The deploy run 38017340068 is green. Only the signed-in live checks (Ask 1) are still to do, and they are Dan's.
 
@@ -167,6 +167,19 @@ Session fourteen's four asks remain open; this session left them alone, as the b
 - The team was stopped with a snapshot: `01M4HTMGFQRDX9D8HMPTGFMW2V` (`rig restore 01M4HTMGFQRDX9D8HMPTGFMW2V --rig 01M4GJC4D8THKXD6E3NXSJSS7D`, seats in `~/work/hebrew-lookup-one`).
 - `/data/home/dan/FACTS.md` was updated with the new team id and this snapshot.
 
+## What the next session needs
+
+- **Next work:** the Personal Shipyard chat reads this report and writes the next brief for card `hebrew-satellite`; Dan decides Asks 2 and 3 there. Then:
+  - If Ask 2 is yes, the next brief turns the reader and phone card's "Ask about this root" (`public/card-ui.js`) into the same in-page pane: `public/reference-ui.js` with `GET /reference/<id>?term=`.
+  - Still open from before: session fourteen's four asks, and session fifteen's Ask-box route change.
+- **Owner:** the Personal Shipyard chat writes the brief; a Claude Code session on the machine, with the OpenRig team, builds it.
+- **What it needs to know:**
+  - **Reference modes:** they live in `lib/references.js` (`embed`) and `docs/REFERENCES.md`. Rerun `node scripts/reference-frames.mjs` before changing any mode.
+  - **Live fetches:** Dan's live check 2 says whether Morfix and the Academy fetch from Fly.
+  - **Team snapshot:** `01M4HTMGFQRDX9D8HMPTGFMW2V` is for continuing this job only; a new job starts the team fresh on its own clone.
+  - **Known flake:** `paper-pages.mjs` fails about 1 run in 10, on `main` too.
+  - **Fetched copies:** `reference_pages` keeps copies for seven days, so a sanitizer change shows only on words fetched after it (or after seven days).
+
 ## Checks
 
 1. **Brief check, four rounds, all run by the composing chat before this session** (this session read the reviewer's records):
@@ -183,7 +196,10 @@ Session fourteen's four asks remain open; this session left them alone, as the b
    Both fixed in `f61db02`, with regression checks.
 3. **Team check, round 2** (`qitem-20261009162752-d7f91ebb`, candidate `f61db02`): **PASS**, recorded on `qitem-20261009162946-41eb9e4f`.
 4. **GitHub "checks" on pull request #12:** pass (runs 38004221967, 38004271455).
-5. **Result check:** run on this report's filing; its verdict on this final version is given in the closing message.
+5. **Result check, round 1** (`20261010-023950-fa40a1`, on report event 1237): **FINDINGS**, 2:
+   - (1) the first line had no date. Changed: it now reads "# FIELD REPORT — hebrew-lookup-one — 2026-10-10".
+   - (2) there was no "What the next session needs" section. Changed: added, with the next work, its owner and what it needs to know.
+6. **Result check, round 2:** run on this corrected filing; its verdict on this final version is given in the closing message.
 
 ## Fly machine and OpenRig lessons
 
