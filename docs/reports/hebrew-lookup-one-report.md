@@ -169,7 +169,13 @@ Session fourteen's four asks remain open; this session left them alone, as the b
 
 ## Checks
 
-1. **Brief check `20261009-144122-d83f30`: PASS** (0 findings, 63 s). The composing chat ran it before this session; this session read its record. The earlier round `20261009-143801-65c9b5` (FINDINGS, 1) was fixed by the composing chat before the handoff.
+1. **Brief check, four rounds, all run by the composing chat before this session** (this session read the reviewer's records):
+   - `20261009-142911-82468c`: FINDINGS, 12
+   - `20261009-143332-1e1672`: FINDINGS, 6
+   - `20261009-143801-65c9b5`: FINDINGS, 1
+   - `20261009-144122-d83f30`: **PASS**, 0 findings, 63 s
+
+   The composing chat changed the brief between rounds; what it changed is in its own check records on the card, not seen in detail by this session. The PASS round's brief is the copy this session ran.
 2. **Team check, round 1** (`qitem-20261009161330-38684625`, candidate `17165d9`): **FINDINGS**, 2, on `qitem-20261009161811-b1f04a48`:
    - (1) a "Looked up" row did not show tabs opened until a reload. Changed: `public/lookup.js` updates the row when the lookup is recorded.
    - (2) two words searched in the same millisecond could be skipped at a page edge. Changed: the cursor carries the card key (`next_key`/`before_key`) in `lib/db.js`, `lib/lookup-page.js`, `server.js` and `public/lookup.js`.
