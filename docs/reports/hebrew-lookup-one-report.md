@@ -4,7 +4,7 @@ MERGED and LIVE: two pull requests, both merged into `main` by this session on D
 
 - **#12** (https://github.com/isleofdan/hebrew-reader/pull/12), the Look up page: merged at 11:32 JST, 10 Oct 2026 (02:32 UTC), as `b856ce7`; deploy run 38017340068.
 - **#13** (https://github.com/isleofdan/hebrew-reader/pull/13), the follow-on adding the redirect gate's false-rejection checks: merged at 12:18 JST (03:18 UTC), as `7b3a8b6`; deploy run 38020091428.
- Only the signed-in live checks (Ask 1) are still to do, and they are Dan's.
+Only the signed-in live checks (Ask 1) are still to do, and they are Dan's.
 
 Session hebrew-lookup-one, on the rented Linux machine agent-machine-dan, in auto mode. Brief: the latest "START HERE — hebrew-lookup-one" note on card `hebrew-satellite`, the copy that passed brief check `20261009-144122-d83f30`.
 
