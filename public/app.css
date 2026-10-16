@@ -182,6 +182,56 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 .phone-page .caption { margin: 0; font-size: 13px; color: var(--muted); }
 .phone-page h2 label { font: inherit; color: inherit; }
 .topbar nav a.phone { text-transform: none; }
+
+/* Today (hebrew-today-one): one item at a time; the answer low, where the thumb rests */
+.today-page { max-width: 640px; }
+@media (min-width: 900px) { .today-page { max-width: 820px; } .today-sentence { font-size: 28px; } }
+.today-place { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+.today-bar { flex: 1; height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.today-bar span { display: block; height: 100%; background: var(--accent); }
+.today-note { margin: 0; font-size: 14px; color: var(--muted); }
+.today-page > .msg { margin: 0; }
+.today-item { display: flex; flex-direction: column; gap: 12px; min-height: calc(100vh - 170px); min-height: calc(100dvh - 170px); }
+.today-item .translation { font-size: 14px; color: var(--muted); line-height: 1.5; }
+.today-item .translation:empty, .today-item .form-line:empty, .today-sentence:empty { display: none; }
+.today-item[data-kind="spelling"] .translation { font-size: 18px; color: var(--text); }
+.today-sentence { direction: rtl; text-align: right; font-family: var(--serif); font-size: 24px; line-height: 1.75; }
+.today-sentence mark { color: inherit; }
+.today-sentence .gap { display: inline-block; min-width: 88px; border-bottom: 2px solid var(--amber-line); padding: 0 4px; border-radius: 4px; }
+.today-sentence .gap.right { background: var(--ok); color: var(--ok-ink); border-bottom-color: var(--ok-line); }
+.today-sentence .gap.shown { background: var(--panel); border-bottom-color: var(--line-strong); }
+.today-question { direction: rtl; text-align: right; font-family: var(--serif); font-size: 20px; font-weight: 500; }
+.today-item .form-line { font-size: 14px; color: var(--muted); }
+.today-item .form-line .he { direction: rtl; unicode-bidi: isolate; font-weight: 600; font-family: var(--serif); font-size: 16px; }
+.today-source { margin: 0; font-size: 13px; color: var(--muted); }
+.today-source .he, .today-flash .he { font-family: var(--serif); font-size: 1.1em; }
+.today-english { font-size: 15px; line-height: 1.5; border-left: 3px solid var(--line-strong); padding-left: 10px; }
+.today-answer { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+.today-answer .msg { margin: 0; }
+.today-typed { display: flex; flex-direction: column; gap: 8px; }
+.today-typed #answer { font-family: var(--serif); font-size: 20px; direction: rtl; height: 48px; }
+.today-typed #check { flex-grow: 1; }
+.today-choices { display: grid; grid-template-columns: repeat(var(--n, 3), 1fr); gap: 8px; }
+.today-choices[data-count="2"] { --n: 2; }
+.today-choices .choice { height: 56px; font-family: var(--serif); font-size: 21px; padding: 0 8px; }
+.today-choices .choice.right { background: var(--ok); color: var(--ok-ink); border-color: var(--ok-line); }
+.today-choices .choice.wrong { border-color: var(--danger); color: var(--danger); text-decoration: line-through; }
+.today-reveal .btn, .today-after #next { width: 100%; height: 52px; font-size: 16px; }
+.today-self { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.today-self .btn { height: 56px; font-size: 16px; }
+.today-flash { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line-strong); font-size: 16px; }
+.today-flash[data-result="right"] { background: var(--ok); color: var(--ok-ink); border-color: var(--ok-line); }
+.today-flash[data-result="wrong"] { background: var(--amber); color: var(--amber-ink); border-color: var(--amber-line); }
+.today-flash #flash-text { direction: ltr; }
+.today-after { display: flex; flex-direction: column; gap: 8px; }
+.today-item .card-under.idle { display: none; }
+.today-list { margin: 0; padding: 0 0 0 1.4em; display: flex; flex-direction: column; gap: 6px; }
+.today-list li { display: grid; grid-template-columns: minmax(5em, auto) 1fr auto; gap: 10px; align-items: baseline; }
+.today-list .he { direction: rtl; unicode-bidi: isolate; font-family: var(--serif); font-size: 18px; }
+.today-list .what { font-size: 13px; color: var(--muted); unicode-bidi: plaintext; }
+.today-list .res { font-size: 14px; font-weight: 600; }
+.today-list .result-right .res { color: var(--ok-line); }
+.today-list .result-wrong .res { color: var(--amber-line); }
 @media (max-width: 599px) {
   .topbar nav a.phone { order: -1; }
 }

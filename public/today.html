@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hebrew reader · Today</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@400;500;700&family=Noto+Serif+Hebrew:wght@400;500;600&display=swap">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="/app.css">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon-192.png">
+<script src="/theme.js"></script>
+<script src="/install.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">Hebrew reader</a>
+  <nav><a href="/">Articles</a><a class="phone" href="/phone">phone</a><a href="/desk">Desk</a><a href="/lookup">Look up</a><a class="active" href="/today">Today</a></nav>
+  <span class="spacer"></span>
+  <div class="theme" role="group" aria-label="Theme">
+    <button type="button" data-theme-choice="light">Light</button>
+    <button type="button" data-theme-choice="dark">Dark</button>
+    <button type="button" data-theme-choice="device">Device</button>
+  </div>
+  <a href="/logout" style="font-size:13px;color:var(--muted)">Sign out</a>
+</header>
+<main class="page today-page">
+
+  <div class="today-place hidden" id="place">
+    <span id="place-text"></span>
+    <div class="today-bar" aria-hidden="true"><span id="place-bar"></span></div>
+  </div>
+  <p class="msg" id="state">opening today’s set…</p>
+  <p class="today-note hidden" id="note"></p>
+
+  <section class="panel today-item hidden" id="item" aria-live="polite">
+    <h2 id="kind"></h2>
+    <div class="translation" id="translation"></div>
+    <div class="today-sentence" id="sentence" lang="he" dir="rtl"></div>
+    <div class="today-question hidden" id="question" lang="he" dir="rtl"></div>
+    <div class="form-line" id="hint"></div>
+    <p class="today-source" id="source"></p>
+    <div class="today-english hidden" id="english"></div>
+
+    <div class="today-answer" id="answer-zone">
+      <div class="today-typed hidden" id="typed">
+        <label for="answer">Your form</label>
+        <input id="answer" type="text" lang="he" dir="rtl" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="הקלידו את הצורה">
+        <div class="row">
+          <button class="btn primary" id="check" type="button">Check</button>
+          <button class="btn" id="show" type="button">Show</button>
+        </div>
+      </div>
+      <div class="today-choices hidden" id="choices" dir="rtl"></div>
+      <div class="today-reveal hidden" id="reveal">
+        <button class="btn" id="reveal-show" type="button">Show</button>
+      </div>
+      <div class="today-self hidden" id="self">
+        <button class="btn primary" id="had" type="button">I had it</button>
+        <button class="btn" id="missed" type="button">I missed it</button>
+      </div>
+      <p class="msg" id="answer-msg"></p>
+      <div class="today-flash hidden" id="flash" role="status">
+        <span id="flash-text"></span>
+        <button class="btn small" id="undo" type="button">Undo</button>
+      </div>
+      <div class="today-after hidden" id="after">
+        <button class="btn hidden" id="english-show" type="button">Show the English</button>
+        <button class="btn primary" id="next" type="button">Next</button>
+      </div>
+    </div>
+
+    <section class="card idle card-under" id="card-today">
+      <div class="head"><div class="surface"></div><div class="status"></div></div>
+      <div class="line meaning"></div>
+      <div class="line grammar"></div>
+      <div class="chips"></div>
+      <div class="note"></div>
+      <div class="corrected"></div>
+      <div class="error"></div>
+      <div class="actions">
+        <button class="btn primary" data-act="shaky">Save to vocab</button>
+        <button class="btn" data-act="solid">Mark solid</button>
+        <button class="btn" data-act="ask">Ask about this root</button>
+      </div>
+      <div class="foot"></div>
+    </section>
+  </section>
+
+  <section class="panel today-done hidden" id="done">
+    <h2>Done for today</h2>
+    <ol class="today-list" id="done-list"></ol>
+  </section>
+
+</main>
+<script src="/tokenize.js"></script>
+<script src="/card-ui.js"></script>
+<script src="/today.js"></script>
+</body>
+</html>
