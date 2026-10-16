@@ -1,5 +1,7 @@
 // A stand-in for the spine's /api/marks routes for local checks: the same
-// bearer rule, the same allowed keys, an in-memory table.
+// bearer rule, the same allowed keys, an in-memory table. As the spine's own
+// setMark does, due_on and interval_days sent as null clear the value; a key
+// left out keeps it.
 //   node scripts/mock-spine.mjs [port] [token]
 import http from 'node:http';
 
@@ -8,12 +10,14 @@ const token = process.argv[3] || 'test-spine-token';
 const ALLOWED = ['status', 'due_on', 'interval_days', 'last_seen_at', 'fields'];
 const marks = new Map();
 const puts = {}; // item_id -> number of PUTs, so a check can count one per touch
+const bodies = {}; // item_id -> every PUT body, in order, so a check can read what was sent
 
 http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
   const json = (status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
   if (url.pathname === '/api/health') return json(200, { ok: true, marks: marks.size });
   if (url.pathname === '/puts') return json(200, { puts });
+  if (url.pathname === '/bodies') return json(200, { bodies: bodies[url.searchParams.get('item')] || [] });
   if ((req.headers.authorization || '') !== `Bearer ${token}`) return json(401, { error: 'Unauthorized. Send Authorization: Bearer <SPINE_TOKEN>.' });
   const m = /^\/api\/marks\/([^/]+)\/(.+)$/.exec(url.pathname);
   if (url.pathname === '/api/marks' && req.method === 'GET') {
@@ -31,9 +35,10 @@ http.createServer((req, res) => {
       const key = `${app}\n${item_id}`;
       const prev = marks.get(key);
       if (!prev && !body.status) return json(400, { error: '"status" is required.' });
-      const mark = { app, item_id, status: body.status ?? prev.status, due_on: body.due_on ?? prev?.due_on ?? null, interval_days: body.interval_days ?? prev?.interval_days ?? null, last_seen_at: body.last_seen_at ?? prev?.last_seen_at ?? null, fields: body.fields ?? prev?.fields ?? {}, updated_at: new Date().toISOString() };
+      const mark = { app, item_id, status: body.status ?? prev.status, due_on: 'due_on' in body ? body.due_on : prev?.due_on ?? null, interval_days: 'interval_days' in body ? body.interval_days : prev?.interval_days ?? null, last_seen_at: body.last_seen_at ?? prev?.last_seen_at ?? null, fields: body.fields ?? prev?.fields ?? {}, updated_at: new Date().toISOString() };
       marks.set(key, mark);
       puts[item_id] = (puts[item_id] || 0) + 1;
+      (bodies[item_id] = bodies[item_id] || []).push(body);
       json(200, mark);
     });
     return;

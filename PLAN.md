@@ -1178,3 +1178,122 @@ the tabs stand as a list and a tab's pane opens under it.
   unchanged in what it takes, and now runs under the stand-in too (its
   `/site/<scheme>/<host>/…` addresses are read back as the sites they stand
   for); `lookup-smoke.mjs` checks it, 64 checks (505 server in all).
+
+## hebrew-today-one (16 Oct 2026, the rented Linux machine, OpenRig team): Today
+
+**Dan's screens changed.** A new page, **Today** (`/today`, in the top
+navigation of every page beside Look up): the day's drills, phone first, one
+item at a time. A thin "3 of 10" line at the top (a place in today's set,
+never a streak); the sentence large; the answer box or the two or three choice
+buttons low on the screen; Check and Show as on the phone page; after each
+answer a flash naming the word and the result ("נאלצה — right; next due in 3
+days") with one Undo, and Next under it; at the end "Done for today" and the
+day's words with their results. Nothing due: "Nothing is due today".
+
+- **Why** (Dan): after a lesson or an article "usually nothing happens with
+  it over the next few days"; the material should come back to him. Lesson
+  words lead: everything from Guy's lessons has a context for him, and
+  article material is thin at present.
+- **Pull-only, with Dan's one exception.** The server makes the day's set
+  ahead of time so the page opens at once; an unfinished set simply stays.
+  No message, reminder, count of days or "you missed yesterday".
+- **The record** (in `migrate()`, nothing dropped or moved):
+  `spots.due_on TEXT` (an ISO date in Tokyo; null: never drilled, due now),
+  `spots.interval_days INTEGER NOT NULL DEFAULT 0`, `spots.right_run INTEGER
+  NOT NULL DEFAULT 0` (right answers in a row), by `ALTER TABLE … ADD COLUMN`
+  (every existing word starts never drilled); and two new tables,
+  `drill_sets (id, for_day UNIQUE, built_at, items_json, note)` — one per
+  Tokyo day, the items as they were made, and the plain line the page shows
+  when fewer than two passages could be made — and `drill_answers (id,
+  set_id, item_index, spot_id, kind, result right|wrong|shown, answer, at,
+  before_json)`. `note` and `before_json` are two columns the brief did not
+  list: `before_json` holds the word's status and three scheduling fields
+  before the answer, which is what Undo puts back.
+- **Choosing the set** (`lib/today.js`, `build`): ten items. (a) one solid
+  word whose due day has come, the longest overdue first; (b) lesson words
+  (a touch carrying `lesson_id`), shaky or new, due or never drilled, never
+  drilled before drilled, then the least recently touched first — up to six,
+  five when (a) filled its slot; (c) article words (an article touch and no
+  lesson), the same rule, up to two; slots (b) leaves go to (c) and back. (d)
+  two fresh passages; one the model could not make leaves its slot to (b),
+  then (c), and the page says "No fresh passages today; the model did not
+  answer." Shown as lesson words, article words, the solid word, passages.
+  Nothing at all: `{ state: 'no data', reason }`, and no set is stored.
+- **The exercise for a word**, by its categories, first match wins:
+  `conjugation` → Give the form (the demand's gapping and `formMatches`;
+  the sentence is a lesson item of several words holding the word, else the
+  article's sentence, else one the model writes, marked "a made-up
+  sentence"); `preposition-government` → Which preposition (the card's
+  `governs` blanked in the word after it — a whole word, or the one-letter
+  prefix — or "<word> …" when the sentence does not hold it; three choices
+  from a fixed list); `letter-order` or `homophonous-spelling` → Which
+  spelling (the dictionary form and one misspelling: the model's, kept only
+  when it is the same length, not the word and not a word Dan has; else one
+  made by the same rule here); otherwise Do you know it (Show opens the
+  word's own card, then "I had it" / "I missed it"). An exercise that cannot
+  be made for a word passes to the next rule. A lesson's single-word item is
+  the word alone, so it holds no sentence to gap.
+- **Fresh passages**: one model call each through `lookup.chat` with
+  `GUIDE_MODEL` and a JSON schema (`today_passage`), made when the set is
+  made, never on a tap. Subjects in turn (energy and electricity markets,
+  business and markets, aviation, Israeli politics and society,
+  twentieth-century history), counted over every passage made so far; the
+  question alternates (a verb blanked, a comprehension question in Hebrew with
+  three choices). The model is given four to six shaky words with the forms
+  each may take (its dictionary form and every form Dan met it as); the
+  server keeps a passage only when at least three are words of the text,
+  nikud stripped, alone or after one prefix. At most two new words, tinted
+  light blue and tappable to the reader's own card; the English shown after
+  the answer.
+- **When the set is made** (`ensureSet`): only when there is no unfinished
+  set at all — an unfinished set from an earlier day keeps being served, and
+  its unanswered words stay due — and a finished set is followed by the next
+  day's, never a second the same day. Two calls at once share one build.
+  `server.js` starts one scheduler at boot: the next 05:00 Tokyo (Japan keeps
+  no summer time, so always 20:00 UTC), a `setTimeout`, the build, armed
+  again — a chain, so a slow build never overlaps. `GET /today` and
+  `GET /today/set` call `ensureSet` too, so the set is there on the day's
+  first open even if the scheduled build failed. The day is the calendar day
+  in Tokyo: a set finished at 23:00 is followed by a new one opened after
+  midnight. No build runs at boot itself (the checks start many servers);
+  nothing runs on the machine, only in the app's own process on Fly.
+- **The intervals** (`answer`): right → `right_run` + 1 and `interval_days`
+  up the ladder 1 → 3 → 7 → 14 → 30 (the first right after none or after a
+  wrong is 1), due that many days on; a shaky word whose run is three or more,
+  with its rights on three different days, becomes solid. Wrong → run 0,
+  interval 1, due tomorrow; a solid or new word becomes shaky. A new word
+  answered right stays new (the brief makes only shaky words solid). A typed
+  form or a chosen answer is judged by the server; Do you know it, and an
+  item after Show, take Dan's own tap.
+- **Marks.** A status change goes through `saveStatus` (the spot, then the
+  mark). `recordMark`'s body now carries `due_on` and `interval_days` at the
+  top level on every mark, both null for a word never drilled: the spine's
+  `setMark` (read in its repository, `lib/db.js`) clears a key sent as null
+  and keeps one left out, so a null is what puts the spine back when Undo
+  returns a word to "never drilled". A word whose status stays but
+  whose due day moved gets its mark again when the spine already has it (the
+  touch rule of 22 Sep 2026). The stand-in spine already allowed both keys;
+  it now clears them on a null as the spine does, and answers
+  `GET /bodies?item=` with every PUT body, for the checks.
+- **Undo** (`POST /today/undo`): only the newest answer of all, in a set no
+  newer set has followed — an older page (another tab, the phone left open)
+  is refused with a 409 before anything is written, so it never undoes what
+  came after or opens an old set again. Its row goes and the word's status
+  and three fields are put back from `before_json`, the status through
+  `saveStatus`, and the mark sent again.
+- **The line under an item** names where its sentence is: the older lesson
+  that holds it, or the article for a lesson word whose only sentence is
+  there. A made-up sentence, a spelling, or a word with no sentence names
+  where the word was last met.
+- **Routes.** `GET /today` is a page route (not in `isApiPath`): signed out it
+  answers 303 to `/login`. Its data is under `/today/` (`GET /today/set`,
+  `POST /today/answer { set_id, item_index, result, answer }`, `POST
+  /today/show`, `POST /today/undo`), which signed out answers 401 in JSON.
+- **Checks:** `scripts/today-smoke.mjs` (82, in `npm test`, about 3 s) and
+  `scripts/today-pages.mjs` (55, in `npm run screenshots`; screenshots
+  `docs/screenshots/today-*.png`), with `scripts/today-fixture.mjs` writing
+  two lessons and an article into the database. The OpenRouter stand-in
+  answers passages, made-up sentences and misspellings. `lookup-smoke.mjs`'s
+  table count and `lookup-pages.mjs`'s navigation check now allow the Today
+  tables and link. Totals: 587 server checks (from 505), 517 page checks
+  (from 462); `npm run check` passes.

@@ -24,6 +24,7 @@ const caught = require('./lib/catch');
 const hunt = require('./lib/hunt');
 const referencePages = require('./lib/reference-pages');
 const lookupPage = require('./lib/lookup-page');
+const today = require('./lib/today');
 const { CATEGORIES } = require('./lib/categories');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, readFile, serveStatic } = require('./lib/http');
@@ -410,6 +411,19 @@ route('POST', new RegExp(`^/card/${CARD}/cut$`), async (req, res, { key }) => {
 route('GET', /^\/lookups$/, (req, res, g, url) => sendJson(res, 200, lookupPage.list({ limit: url.searchParams.get('limit'), before: url.searchParams.get('before'), before_key: url.searchParams.get('before_key') })));
 route('GET', /^\/reference\/(?<id>[a-z]+)$/, async (req, res, { id }, url) => sendJson(res, 200, await referencePages.pane(id, url.searchParams.get('term'))));
 
+// --- Today (hebrew-today-one) --------------------------------------------------
+// The day's drills. GET /today is the page (a page route: signed out, it
+// redirects to /login); its data is here, under /today/.
+// -> the set being served (made first when there is none): { state, set,
+// items, position, done, ... } or { state: "no data", reason }
+route('GET', /^\/today\/set$/, async (req, res) => sendJson(res, 200, await today.current()));
+// { set_id, item_index, result: right | wrong, answer? } -> { result, flash, spot, spine, view }
+route('POST', /^\/today\/answer$/, async (req, res) => sendJson(res, 200, await today.answer(await readJson(req))));
+// { set_id, item_index } -> what Show reveals; the show is recorded
+route('POST', /^\/today\/show$/, async (req, res) => sendJson(res, 200, await today.show(await readJson(req))));
+// { set_id, answer_id? } -> the set's last answer undone, its word put back
+route('POST', /^\/today\/undo$/, async (req, res) => sendJson(res, 200, await today.undo(await readJson(req))));
+
 const GUIDE_TEMPLATE =fs.readFileSync(path.join(PUBLIC, 'guide.html'), 'utf8');
 function guidePage(res, id) {
   let article;
@@ -437,8 +451,9 @@ async function handle(req, res) {
     return serveStatic(res, PUBLIC, p) || sendJson(res, 404, { error: `${p} is missing.` });
   }
 
-  // GET /lookup is the Look up page; POST /lookup the card
-  const apiPath = isApiPath(p) && !(p === '/lookup' && req.method === 'GET');
+  // GET /lookup is the Look up page; POST /lookup the card. /today is a
+  // page; what is under it (/today/set, …) is its data
+  const apiPath = (isApiPath(p) && !(p === '/lookup' && req.method === 'GET')) || p.startsWith('/today/');
   if (!CONFIGURED) return apiPath ? sendJson(res, 503, { error: NOT_CONFIGURED }) : loginPage(res, 503, NOT_CONFIGURED);
   if (!auth.cookieOk(req, COOKIE_SECRET)) {
     if (p === '/share' || p === '/share/confirm') {
@@ -466,6 +481,12 @@ async function handle(req, res) {
   if (p === '/login.html') return redirect(res, '/login');
   if (p === '/phone') return serveStatic(res, PUBLIC, '/phone.html') || sendJson(res, 404, { error: 'phone.html is missing.' });
   if (p === '/lookup') return serveStatic(res, PUBLIC, '/lookup.html') || sendJson(res, 404, { error: 'lookup.html is missing.' });
+  if (p === '/today') {
+    // the day's set is made now if it is not there yet; the page's own
+    // GET /today/set waits for the same build
+    today.ensureSet().catch((e) => console.error(`today: the day's set could not be made: ${e.message}`));
+    return serveStatic(res, PUBLIC, '/today.html') || sendJson(res, 404, { error: 'today.html is missing.' });
+  }
   // /share is where the installed app receives what another app shares; the
   // desk page saves it (a GET here writes nothing)
   if (p === '/share' && fromAnotherSite(req)) return redirect(res, `/share/confirm${url.search}`);
@@ -495,5 +516,8 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => console.log(`hebrew-reader listening on ${PORT}${CONFIGURED ? '' : ' (NOT CONFIGURED)'}`));
+// Today's set is made at 05:00 Tokyo by this process (a timeout chain, never
+// a cron on the machine), so the page opens at once
+if (CONFIGURED) today.startScheduler();
 
 module.exports = { api };
