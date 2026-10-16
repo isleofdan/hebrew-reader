@@ -1311,6 +1311,38 @@ day's words with their results. Nothing due: "Nothing is due today".
   breaks); the stand-in now writes five, and one of eight is refused with
   "No fresh passages today; the passages written were not three to five
   sentences." On the page the gap fills with the right answer after a
-  preposition or a spelling too. Checks: `today-smoke.mjs` 89 (each
-  preposition path, the spelling fallback, the length rule),
-  `today-pages.mjs` 57; totals 594 server checks and 519 page checks.
+  preposition or a spelling too.
+- **Answers with niqud** (Dan, 16 Oct 2026). Wherever the page reveals or
+  confirms an answer — the flash, Show, the filled gap of Give the form, the
+  right preposition, the right spelling, the day's list — the word carries
+  its niqud from its card as it stands when the set is served
+  (`word_pointed`, `answer_pointed`): the pointed word when the card is for
+  that very form, else the pointed dictionary form, else the word plain. A
+  preposition's niqud comes from a fixed table beside the list of
+  prepositions (a card holds none for it). The questions and the choices to
+  tap stay plain, so niqud gives nothing away.
+- **Better judgment in choosing words** (Dan, after his first real use:
+  "ראשון and צבעי were too easy"). Every single-word item of a lesson lands
+  on the map as new, ordinals and colours included, so: shaky words now come
+  before new ones among lesson and among article words; each new word is
+  judged once by the model — would an advanced reader of Israeli news know
+  it cold? — in one call per set build (up to 40 words not yet judged: the
+  card's word, meaning and categories), and the judgment is kept in
+  `spots.easy` (`ALTER TABLE … ADD COLUMN`; null until judged, 1 easy, 0
+  worth drilling); a word judged easy is not drilled; when the model does
+  not answer nothing is kept and the set is chosen as before. A passage's
+  blanked verb is one of Dan's given shaky verbs wherever the passage has
+  one (the server picks it, whatever the model named); else the model's
+  verb, refused — and the passage not kept — when it is a basic verb (a
+  fixed list of dictionary forms and their commonest forms). "Too easy", a
+  small link on every word item, marks the word solid through `saveStatus`
+  (so the spine has it) and leaves its schedule as it was; it is one
+  `drill_answers` row with result `right` and kind `too-easy` (the table's
+  check allows only right, wrong and shown, and a table holding Dan's
+  answers is not rebuilt), with the word's fields before it, so Undo
+  reverses it like any answer; the day's list says "too easy".
+- **Checks** after these: `today-smoke.mjs` 108 (each preposition path, the
+  spelling fallback, the length rule, niqud on the answer fields, shaky
+  before new, the one judgment and the model down, the passage verb both
+  ways, "Too easy" and its Undo), `today-pages.mjs` 67; totals 613 server
+  checks and 529 page checks.

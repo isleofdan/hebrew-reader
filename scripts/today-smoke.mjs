@@ -122,8 +122,12 @@ try {
     p1.kind === 'passage' && p2.kind === 'passage' && p1.words_used.length >= 3 && p2.words_used.length >= 3 && calls1.passage_calls === 2
     && calls1.last_passage_ask.model === 'anthropic/claude-opus-4.6' && calls1.last_passage_ask.schema_name === 'today_passage', JSON.stringify(calls1.last_passage_ask && calls1.last_passage_ask.model));
   check('…the subjects in turn, the questions alternating (a verb blanked, then a comprehension question with three choices)',
-    p1.subject.startsWith('energy') && p2.subject === 'business and markets' && p1.question.type === 'form' && p1.question.answer === 'החליטה' && p1.question.text.includes('…')
+    p1.subject.startsWith('energy') && p2.subject === 'business and markets' && p1.question.type === 'form' && p1.question.text.includes('…')
     && p2.question.type === 'choice' && p2.question.choices.length === 3 && p2.question.answer === 'על החלטה של הממשלה');
+  const ownVerbs = p1.words_used.filter((w) => w.spot_id.startsWith('v:')).map((w) => w.surface);
+  check('the verb blanked in a passage is one of Dan\'s given shaky verbs where it has one (not the model\'s החליטה)',
+    ownVerbs.length > 0 && p1.question.answer === ownVerbs[0] && p1.question.answer !== 'החליטה', JSON.stringify([p1.question.answer, ownVerbs]));
+  check('…and words already saved (shaky) are never sent to be judged: no judging call for this set', (await orCalls()).difficulty_calls === 0);
   check('…at most two new words, each a word of the passage', p1.new_words.length === 1 && p1.new_words[0].surface === 'המכרז' && p1.text.includes('המכרז'));
   const counts = [p1, p2].map((p) => p.text.split(/[.!?]+/).filter((s) => /[א-ת]/.test(s)).length);
   check('…each passage kept is three to five sentences', counts.every((n) => n >= 3 && n <= 5), counts.join());
@@ -181,10 +185,28 @@ try {
   check('"I had it" moves the word by Dan\'s own answer: run 1, interval 1, due tomorrow', had.body.result === 'right' && sp4.right_run === 1 && sp4.interval_days === 1 && sp4.due_on === tokyo(1));
   const prep = await api('POST', '/today/answer', { set_id: set.set.id, item_index: 2, answer: 'עם', result: 'wrong' });
   check('a chosen preposition is judged by the server (עם is right even when the page says wrong)', prep.body.result === 'right');
-  const pas = await api('POST', '/today/answer', { set_id: set.set.id, item_index: 8, answer: 'החליטה' });
+  const pas = await api('POST', '/today/answer', { set_id: set.set.id, item_index: 8, answer: p1.question.answer });
   check('a passage\'s answer is one row with no spot', pas.body.result === 'right' && peek('SELECT spot_id FROM drill_answers WHERE set_id = ? AND item_index = 8', set.set.id)[0].spot_id === null);
   const passShow = await api('POST', '/today/show', { set_id: set.set.id, item_index: 8 });
   check('Show on an answered passage gives its English and records nothing more', /government/.test(passShow.body.english) && peek('SELECT COUNT(*) AS n FROM drill_answers WHERE item_index = 8')[0].n === 1);
+
+  // "Too easy": the word marked solid through the save (the spine has it); Undo puts it back
+  const W5 = A.spots['הסלמה'];
+  const before5 = (await api('GET', `/spots/${enc(W5)}`)).body;
+  const easy = await api('POST', '/today/easy', { set_id: set.set.id, item_index: 5 });
+  const sp5 = (await api('GET', `/spots/${enc(W5)}`)).body;
+  const b5 = (await spineBodies(W5)).at(-1) || {};
+  check('"Too easy" marks the word solid, through the save: the spine receives solid; its schedule is left as it was',
+    easy.status === 200 && sp5.status === 'solid' && b5.status === 'solid' && easy.body.spine === 'recorded' && sp5.due_on === before5.due_on && sp5.interval_days === before5.interval_days, JSON.stringify([easy.body.error, sp5.status, b5.status]));
+  check('…the flash says so plainly ("הסלמה — too easy; marked solid"), and the item counts as answered, too easy',
+    easy.body.flash.text === 'הסלמה — too easy; marked solid' && easy.body.view.items[5].answered.too_easy === true, easy.body.flash && easy.body.flash.text);
+  const easyAgain = await api('POST', '/today/easy', { set_id: set.set.id, item_index: 5 });
+  const easyPassage = await api('POST', '/today/easy', { set_id: set.set.id, item_index: 9 });
+  check('"Too easy" twice on one item: 409; on a passage (no word): 400', easyAgain.status === 409 && easyPassage.status === 400, `${easyAgain.status} ${easyPassage.status}`);
+  const easyUndo = await api('POST', '/today/undo', { set_id: set.set.id });
+  const sp5b = (await api('GET', `/spots/${enc(W5)}`)).body;
+  check('Undo reverses "Too easy" like any answer: shaky again, the spine told shaky, the item open again',
+    easyUndo.status === 200 && sp5b.status === 'shaky' && (await spineBodies(W5)).at(-1).status === 'shaky' && easyUndo.body.view.items[5].answered === null, JSON.stringify([easyUndo.body.error, sp5b.status]));
 
   // ================= part two: lib/today.js in this process, with a seeded clock =================
   quiet();
@@ -253,6 +275,44 @@ try {
     !long.items.some((it) => it.kind === 'passage') && long.items.length === 10 && long.note === 'No fresh passages today; the passages written were not three to five sentences.', JSON.stringify([long.items.length, long.note]));
   check('the sentence count: two sentences and six are out, three and five in (a line break ends one too)',
     t.sentenceCount('א ב. ג ד.') === 2 && t.sentenceCount('א. ב. ג. ד. ה. ו.') === 6 && t.sentenceCount('אחת. שתיים!\nשלוש') === 3 && t.sentenceCount('א. ב? ג. ד. ה.') === 5 && t.SENTENCES.min === 3 && t.SENTENCES.max === 5);
+
+  // shaky words before new ones; new words judged once by the model, the easy ones not drilled
+  const K = fresh('shaky-first', { only: ['נאלצה', 'ייקבעו', 'להתמודד', 'הממסד', 'מגמה'] });
+  K.raw.prepare("UPDATE spots SET status = 'new' WHERE id IN (?, ?)").run(K.spots['נאלצה'], K.spots['הממסד']);
+  const ks = (await t.build(D)).items.filter((it) => it.spot_id).map((it) => it.word);
+  check('shaky words before new ones: נאלצה (new, touched first) after the shaky lesson words; the new article word הממסד after the shaky מגמה',
+    ks.join() === 'ייקבעו,להתמודד,נאלצה,מגמה,הממסד', ks.join());
+  const J = fresh('judged', { only: ['רפורמה', 'הסלמה', 'שוטטות', 'שביתה'], status: 'new' });
+  J.raw.prepare("UPDATE spots SET status = 'shaky' WHERE id = ?").run(J.spots['שביתה']);
+  await orControl({ easy_lemmas: ['רפורמה'] });
+  const dc0 = (await orCalls()).difficulty_calls;
+  const j1 = await t.build(D);
+  const asked = (await orCalls()).last_difficulty_ask || '';
+  const easyRows = Object.fromEntries(J.raw.prepare('SELECT lemma, easy FROM spots').all().map((r) => [r.lemma, r.easy]));
+  check('new words are judged in one call, with each card\'s word, meaning and categories; a shaky word is not sent',
+    (await orCalls()).difficulty_calls === dc0 + 1 && /"word":"רפורמה","meaning":"a reform","categories":\[\]/.test(asked) && /"categories":\["sound-pattern-deviation"\]/.test(asked) && !asked.includes('שביתה'), asked.slice(0, 300));
+  check('the judgment is kept on the word (spots.easy: רפורמה 1, the other new words 0, the shaky word not judged)',
+    easyRows['רפורמה'] === 1 && easyRows['הסלמה'] === 0 && easyRows['שוטטות'] === 0 && easyRows['שביתה'] === null, JSON.stringify(easyRows));
+  check('a word judged easy is not drilled', !j1.items.some((it) => it.spot_id === J.spots['רפורמה']) && j1.items.some((it) => it.spot_id === J.spots['הסלמה']));
+  await t.build(D);
+  check('a word is judged only once: the next build asks the model nothing', (await orCalls()).difficulty_calls === dc0 + 1);
+  await orControl({ easy_lemmas: [] });
+  const J2 = fresh('judge-down', { only: ['רפורמה', 'הסלמה'], status: 'new' });
+  await orControl({ difficulty_fail: true });
+  const j2 = await t.build(D);
+  await orControl({ difficulty_fail: false });
+  check('the model not answering: the set is built as before (both new words drilled) and nothing is kept, to be judged next time',
+    j2.items.filter((it) => it.spot_id).length === 2 && J2.raw.prepare('SELECT COUNT(*) AS n FROM spots WHERE easy IS NOT NULL').get().n === 0);
+
+  // the verb blanked in a passage with none of Dan's verbs: the model's, never a basic one
+  fresh('nouns', { only: ['רפורמה', 'הסלמה', 'שוטטות', 'שביתה', 'מגמה'] });
+  const nv = (await t.build(D)).items.find((it) => it.kind === 'passage');
+  check('a passage with none of Dan\'s verbs: the model\'s verb is blanked (החליטה, not a basic verb)', nv && nv.question.type === 'form' && nv.question.answer === 'החליטה', JSON.stringify(nv && nv.question));
+  await orControl({ passage_basic: true });
+  const bv = await t.build(D);
+  await orControl({ passage_basic: false });
+  check('…a passage whose verb to blank is a basic one (הייתה, of היה) is not kept, and the set says why',
+    !bv.items.some((it) => it.kind === 'passage' && it.question.type === 'form') && /came without a usable question/.test(bv.note || ''), JSON.stringify([bv.note, bv.items.filter((it) => it.kind === 'passage').map((p) => p.question.type)]));
 
   // Which preposition with no read sentence: a made-up sentence; the plain fallback only when the model gives none
   const P = fresh('prep', { only: ['להמר'] });

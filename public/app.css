@@ -206,6 +206,7 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 .today-item .form-line { font-size: 14px; color: var(--muted); }
 .today-item .form-line .he { direction: rtl; unicode-bidi: isolate; font-weight: 600; font-family: var(--serif); font-size: 16px; }
 .today-source { margin: 0; font-size: 13px; color: var(--muted); }
+.today-easy { align-self: flex-start; font-size: 13px; padding: 4px 0; }
 .today-source .he, .today-flash .he { font-family: var(--serif); font-size: 1.1em; }
 .today-english { font-size: 15px; line-height: 1.5; border-left: 3px solid var(--line-strong); padding-left: 10px; }
 .today-answer { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }

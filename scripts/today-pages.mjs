@@ -207,6 +207,16 @@ try {
     await page.locator('#flash:not(.hidden)').waitFor();
     await next();
 
+    // "Too easy" on a word item (the next is הסלמה, Do you know it)
+    check(`${name}: a word item offers a small "Too easy"`, (await kind()) === 'know' && (await page.locator('#easy').isVisible()) && (await page.locator('#easy').innerText()) === 'Too easy');
+    await page.locator('#easy').click();
+    await page.locator('#flash:not(.hidden)').waitFor();
+    const easyFlash = await page.locator('#flash-text').innerText();
+    check(`${name}: "Too easy": the flash says "הסלמה — too easy; marked solid", with Undo; "Too easy" is gone`,
+      easyFlash === 'הסלמה — too easy; marked solid' && (await page.locator('#undo').isVisible()) && (await page.locator('#easy').isHidden()), easyFlash);
+    await both(page, `too-easy-${name}`);
+    await next();
+
     // the rest of the words, quickly
     for (let guard = 0; guard < 4 && (await kind()) !== 'passage'; guard++) {
       const k = await kind();
@@ -225,7 +235,7 @@ try {
     await page.locator('#sentence .w.new').click();
     await page.locator('#card-today:not(.idle) .meaning').waitFor({ timeout: 8000 });
     check(`${name}: tapping the new word opens its card, which can be saved`, (await page.locator('#card-today [data-act=shaky]').isVisible()));
-    await page.fill('#answer', 'החליטה');
+    await page.fill('#answer', await page.evaluate(() => window.Today.view.items[window.Today.at].question.answer));
     await page.locator('#check').click();
     await page.locator('#flash[data-result="right"]').waitFor();
     await page.locator('#english-show').click();
@@ -244,6 +254,7 @@ try {
     const rows = await page.locator('#done-list li').count();
     const firstRow = await page.locator('#done-list li .he').first().innerText();
     check(`${name}: the day's list shows the words with niqud where their cards have it (נֶאֶלְצָה)`, firstRow === 'נֶאֶלְצָה', firstRow);
+    check(`${name}: …and a word tapped "Too easy" as too easy`, (await page.locator('#done-list li').nth(5).locator('.res').innerText()) === 'too easy');
     check(`${name}: "Done for today" and the day's ten items with their results; "10 of 10"`, rows === 10 && (await page.locator('#done h2').textContent()) === 'Done for today' && (await place()) === '10 of 10', String(rows));
     await both(page, `done-${name}`);
     await page.reload();
