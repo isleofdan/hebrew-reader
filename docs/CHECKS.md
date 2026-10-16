@@ -10,8 +10,8 @@ screenshot scripts, unchanged.
 | Check | What it proves |
 | - | - |
 | syntax | Every `.js`, `.mjs` and `.cjs` file outside `node_modules` parses (`node --check`, file by file). |
-| tests | `npm test` = `npm run smoke`: `scripts/smoke.mjs` (255 checks), `scripts/grow-smoke.mjs` (66), `scripts/paper-smoke.mjs` (81), `scripts/hunt-smoke.mjs` (39, "Find an article" against local news pages) and `scripts/lookup-smoke.mjs` (64, the Look up page and the references shown inside the reader, its redirect gate included, against local reference pages; about 25 s, because the 20-second fetch limit is timed for real), each against a real server with local stand-ins for OpenRouter, the spine and the reference sites (`scripts/mock-openrouter.mjs`, `scripts/mock-spine.mjs`, `scripts/mock-references.mjs`). 505 in all (10 Oct 2026). |
-| screenshots | `npm run screenshots`: `scripts/screenshots.mjs` (229), `desk-pages.mjs` (47), `grow-pages.mjs` (66), `paper-pages.mjs` (53), `hunt-pages.mjs` (23), `lookup-pages.mjs` (44) — every screen at phone and computer size, signing in through the form; 462 in all (9 Oct 2026). Needs Playwright's browser. The Checks run keeps the hunt's screenshots as the artifact `hunt-screenshots`. |
+| tests | `npm test` = `npm run smoke`: `scripts/smoke.mjs` (255 checks), `scripts/grow-smoke.mjs` (66), `scripts/paper-smoke.mjs` (81), `scripts/hunt-smoke.mjs` (39, "Find an article" against local news pages) and `scripts/lookup-smoke.mjs` (64, the Look up page and the references shown inside the reader, its redirect gate included, against local reference pages; about 25 s, because the 20-second fetch limit is timed for real) and `scripts/today-smoke.mjs` (75, the Today page's daily set: choosing the words, each word's exercise, fresh passages, when a set is made, the 05:00 Tokyo scheduler, answers, Show and Undo; about 3 s; its day-dependent rules call `lib/today.js` in the check's own process with a seeded clock), each against a real server with local stand-ins for OpenRouter, the spine and the reference sites (`scripts/mock-openrouter.mjs`, `scripts/mock-spine.mjs`, `scripts/mock-references.mjs`). 580 in all (16 Oct 2026). |
+| screenshots | `npm run screenshots`: `scripts/screenshots.mjs` (229), `desk-pages.mjs` (47), `grow-pages.mjs` (66), `paper-pages.mjs` (53), `hunt-pages.mjs` (23), `lookup-pages.mjs` (44), `today-pages.mjs` (55) — every screen at phone and computer size, signing in through the form; 517 in all (16 Oct 2026). Needs Playwright's browser. The Checks run keeps the hunt's screenshots as the artifact `hunt-screenshots`. |
 | (by hand) the frame test | `node scripts/reference-frames.mjs`: asks the seven live reference sites whether they can be framed. Not in `npm run check` (it reaches the live sites); its last result is in `docs/REFERENCES.md`. |
 
 The fast tests, `npm run test:fast`, are grow, paper and hunt only:
@@ -52,6 +52,8 @@ On the rented Linux machine (`agent-machine-dan`, Node 24.21.0), 3 Oct
 | `npm run check` (screenshots skipped here) | 40.74 s, 40.04 s, 40.59 s | by hand |
 | `npm run screenshots` | not run here: this machine has no Playwright browser | workflow only |
 | `npm run check`, everything (9 Oct 2026, hebrew-lookup-one, Playwright 1.63 with its browser installed in the session's own cache) | syntax 3.22 s, tests 68.16 s, screenshots 196.21 s | by hand |
+| `npm run check`, everything (16 Oct 2026, hebrew-today-one, the Today checks added) | syntax 2.90 s, tests 76.71 s, screenshots 241.65 s | by hand |
+| `scripts/today-smoke.mjs` alone (16 Oct 2026) | 3.05 s | workflow (and full run) |
 
 Known flaky (9 Oct 2026, hebrew-lookup-one): `paper-pages.mjs` fails about
 1 run in 10 on this machine, on `main` as well (2 of 20 runs there): "Back

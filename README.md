@@ -51,6 +51,20 @@ page; one that does not is shown from a cleaned copy the reader fetches on
 the tap and keeps seven days (`docs/REFERENCES.md` says which is which, and
 why).
 
+The Today page (`/today`, "Today" in the top navigation) brings his material
+back to him, phone first, one item at a time: each day a set of ten, made by
+the server at 05:00 Tokyo time so the page opens at once. Eight are his own
+words that are due — lesson words from Guy first, the least recently seen
+first, then words from articles, then one solid word coming due — each drilled
+by its weakness: give the form of a verb in a sentence he read, pick the
+preposition a word takes, pick the right spelling, or "Do you know it" with
+"I had it" / "I missed it". Two are fresh passages the model writes around his
+shaky words, with one question each. A right answer brings the word back after
+1, then 3, 7, 14 and 30 days; three right answers on three different days make
+a shaky word solid; a wrong one brings it back tomorrow and makes it shaky.
+Each answer shows the word and when it is next due, with Undo. A set not
+finished stays until it is; nothing reminds him or counts days.
+
 ## Running it
 
 ```
@@ -64,8 +78,8 @@ the environment variables, and how the app talks to the spine.
 ## Layout
 
 - `server.js` — one plain Node server: the passphrase gate, the JSON routes, static files.
-- `lib/` — database, auth, rate limit, article extraction, the word card (OpenRouter), the spine client, the category list, the demand, the ask surface and its reference list, the lesson sheet, the lesson guide and its rule checks (`guide-checks.js`), the desk and a card's layers (`desk.js`), the two web-search calls that grow a card (`grow.js`), the sheet's writing prompts (`sheet.js`), a caught link's title (`catch.js`), the Look up page (`lookup-page.js`) and a reference shown inside the reader (`reference-pages.js`).
-- `public/` — the pages: `index.html` (articles + add form), `lookup.html` (the Look up page; `reference-ui.js` is the reference pane it shares with the desk), `read.html?id=…` (the reader), `phone.html` (the demand and quick lookup), `sheet.html` (the print sheet; `?lesson=` for a lesson's guide), `lesson.html?id=…` (a lesson from Guy and its study guide), `cards.html?lesson=…` (its flashcards), `login.html`; `card-ui.js` is the card shared by the reader, the lesson page and the phone page, `guide-ui.js` the study guide shared by the lesson page and its print sheet; `desk.html` the desk, with `grow-ui.js` for a card's layers and `ink-ui.js` for drawing; `desk-sheet.html` the sheet for the reMarkable; `manifest.webmanifest`, `sw.js` and `install.js` make the site installable with a share target.
+- `lib/` — database, auth, rate limit, article extraction, the word card (OpenRouter), the spine client, the category list, the demand, the ask surface and its reference list, the lesson sheet, the lesson guide and its rule checks (`guide-checks.js`), the desk and a card's layers (`desk.js`), the two web-search calls that grow a card (`grow.js`), the sheet's writing prompts (`sheet.js`), a caught link's title (`catch.js`), the Look up page (`lookup-page.js`), a reference shown inside the reader (`reference-pages.js`), and Today's daily drills (`today.js`).
+- `public/` — the pages: `index.html` (articles + add form), `today.html` (Today's drills), `lookup.html` (the Look up page; `reference-ui.js` is the reference pane it shares with the desk), `read.html?id=…` (the reader), `phone.html` (the demand and quick lookup), `sheet.html` (the print sheet; `?lesson=` for a lesson's guide), `lesson.html?id=…` (a lesson from Guy and its study guide), `cards.html?lesson=…` (its flashcards), `login.html`; `card-ui.js` is the card shared by the reader, the lesson page and the phone page, `guide-ui.js` the study guide shared by the lesson page and its print sheet; `desk.html` the desk, with `grow-ui.js` for a card's layers and `ink-ui.js` for drawing; `desk-sheet.html` the sheet for the reMarkable; `manifest.webmanifest`, `sw.js` and `install.js` make the site installable with a share target.
 - `scripts/import-lessons.js` — bulk import of Guy's PDFs from a folder into the site (see `PLAN.md`).
 - `scripts/` — local checks: smoke test, screenshots, mock servers for OpenRouter and the spine; sample lesson PDFs in `scripts/fixtures/`, made by `make-fixtures.mjs`.
 - `docs/` — screenshots and session reports.
