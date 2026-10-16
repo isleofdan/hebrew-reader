@@ -112,8 +112,11 @@ try {
   const POINTS = /[ְ-ׇ]/;
   check('niqud on answers: Give the form carries the word\'s pointed form from its card (answer_pointed נֶאֶלְצָה)',
     byWord['נאלצה'].answer_pointed === 'נֶאֶלְצָה' && byWord['נאלצה'].word_pointed === 'נֶאֶלְצָה', JSON.stringify([byWord['נאלצה'].answer_pointed, byWord['נאלצה'].word_pointed]));
-  check('…a card with only its dictionary form pointed gives that (להתבייש -> הִתְבַּיֵּשׁ); a card with none gives null, and the page shows the word plain (ייקבעו)',
-    byWord['להתבייש'].answer_pointed === 'הִתְבַּיֵּשׁ' && byWord['ייקבעו'].answer_pointed === null && byWord['ייקבעו'].word_pointed === null);
+  check('…a card with only its dictionary form pointed: the word is named with it (word_pointed הִתְבַּיֵּשׁ), but the gap keeps the answer itself plain (answer_pointed null: להתבייש is not התבייש); a card with none gives null (ייקבעו)',
+    byWord['להתבייש'].word_pointed === 'הִתְבַּיֵּשׁ' && byWord['להתבייש'].answer_pointed === null && byWord['ייקבעו'].answer_pointed === null && byWord['ייקבעו'].word_pointed === null, JSON.stringify([byWord['להתבייש'].word_pointed, byWord['להתבייש'].answer_pointed]));
+  const unpoint = (s) => String(s).replace(/[֑-ׇ]/g, '');
+  check('…every pointed answer is the answer itself with its points: niqud stripped, it is the expected answer',
+    items.filter((it) => it.answer_pointed).length >= 2 && items.filter((it) => it.answer_pointed).every((it) => unpoint(it.answer_pointed) === it.answer), JSON.stringify(items.filter((it) => it.answer_pointed).map((it) => [it.answer, it.answer_pointed])));
   check('…the right preposition pointed (עִם), the word pointed where its card has it (רֵפוֹרְמָה)', byWord['להתמודד'].answer_pointed === 'עִם' && byWord['רפורמה'].word_pointed === 'רֵפוֹרְמָה');
   check('…while the questions and the choices to tap carry no niqud', items.slice(0, 8).every((it) => !POINTS.test(it.sentence) && !(it.choices || []).some((c) => POINTS.test(c)) && !POINTS.test(it.answer || '')));
   const [p1, p2] = items.slice(8);
@@ -177,8 +180,7 @@ try {
   check('Show on Do you know it records the show and reveals the word\'s card', shown.status === 200 && shown.body.card.meaning_en === 'a reform'
     && peek("SELECT result FROM drill_answers WHERE item_index = 4 AND set_id = ?", set.set.id).map((r) => r.result).join() === 'shown');
   const showSpell = await api('POST', '/today/show', { set_id: set.set.id, item_index: 3 });
-  check('Show reveals the answer with its niqud (answer_pointed), the card with it', showSpell.body.answer === 'להתבייש' && showSpell.body.answer_pointed === 'הִתְבַּיֵּשׁ' && showSpell.body.card.pointed.lemma === 'הִתְבַּיֵּשׁ', JSON.stringify([showSpell.body.answer, showSpell.body.answer_pointed]));
-  const view4 = (await api('GET', '/today/set')).body.items[4];
+  check('Show reveals the answer (plain where the card has no pointed form of that very word), and the card with its niqud', showSpell.body.answer === 'להתבייש' && showSpell.body.answer_pointed === null && showSpell.body.card.pointed.lemma === 'הִתְבַּיֵּשׁ', JSON.stringify([showSpell.body.answer, showSpell.body.answer_pointed]));  const view4 = (await api('GET', '/today/set')).body.items[4];
   check('…the item then waits for the tap: shown, not answered', view4.shown === true && view4.answered === null);
   const had = await api('POST', '/today/answer', { set_id: set.set.id, item_index: 4, result: 'right' });
   const sp4 = (await api('GET', `/spots/${enc(A.spots['רפורמה'])}`)).body;
@@ -303,6 +305,16 @@ try {
   await orControl({ difficulty_fail: false });
   check('the model not answering: the set is built as before (both new words drilled) and nothing is kept, to be judged next time',
     j2.items.filter((it) => it.spot_id).length === 2 && J2.raw.prepare('SELECT COUNT(*) AS n FROM spots WHERE easy IS NOT NULL').get().n === 0);
+
+  // a word judged easy while new, then saved by Dan (shaky): drilled again, and not judged again
+  const S2 = fresh('easy-then-saved', { only: ['רפורמה', 'הסלמה'], status: 'new' });
+  db.setEasy(S2.spots['רפורמה'], true);
+  db.setSpotStatus(S2.spots['רפורמה'], 'shaky');
+  const dcS = (await orCalls()).difficulty_calls;
+  const sv = await t.chooseWords('2026-10-20');
+  const chosenS = [...sv.b, ...sv.c].map((it) => it.spot_id);
+  check('a word judged easy while new and then saved (shaky) is drilled: Dan\'s save overrides the judgment', chosenS.includes(S2.spots['רפורמה']), JSON.stringify(chosenS));
+  check('…and it is not sent to be judged again (only the other new word is)', !((await orCalls()).last_difficulty_ask || '').includes('רפורמה') && (await orCalls()).difficulty_calls === dcS + 1);
 
   // the verb blanked in a passage with none of Dan's verbs: the model's, never a basic one
   fresh('nouns', { only: ['רפורמה', 'הסלמה', 'שוטטות', 'שביתה', 'מגמה'] });

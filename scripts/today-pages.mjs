@@ -192,8 +192,9 @@ try {
     await both(page, `spelling-${name}`);
     await page.locator('#choices .choice', { hasText: /^לתהבייש$/ }).click();
     await page.locator('#flash[data-result="wrong"]').waitFor();
-    check(`${name}: a wrong spelling: the gap shows the right one with niqud (its card has only the dictionary form pointed: הִתְבַּיֵּשׁ); the choices stay plain`,
-      (await page.locator('#sentence .gap.shown').innerText()) === 'הִתְבַּיֵּשׁ' && !(await page.locator('#choices').innerText()).match(/[ְ-ׇ]/));
+    const spellGap = await page.locator('#sentence .gap.shown').innerText();
+    check(`${name}: a wrong spelling: the gap shows the right one, the word itself (its card points only the dictionary form הִתְבַּיֵּשׁ, another form: so plain); the choices stay plain`,
+      spellGap === 'להתבייש' && !(await page.locator('#choices').innerText()).match(/[ְ-ׇ]/), spellGap);
     await next();
 
     // Do you know it

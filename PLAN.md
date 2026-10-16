@@ -1317,7 +1317,11 @@ day's words with their results. Nothing due: "Nothing is due today".
   right preposition, the right spelling, the day's list — the word carries
   its niqud from its card as it stands when the set is served
   (`word_pointed`, `answer_pointed`): the pointed word when the card is for
-  that very form, else the pointed dictionary form, else the word plain. A
+  that very form, else the pointed dictionary form, else the word plain —
+  except in a sentence's gap, which takes a pointed form only when it is the
+  answer's own letters (a dictionary form of an inflected answer would
+  change the answer: `להתבייש` is never filled as `הִתְבַּיֵּשׁ`), else the
+  answer plain. A
   preposition's niqud comes from a fixed table beside the list of
   prepositions (a card holds none for it). The questions and the choices to
   tap stay plain, so niqud gives nothing away.
@@ -1329,7 +1333,8 @@ day's words with their results. Nothing due: "Nothing is due today".
   it cold? — in one call per set build (up to 40 words not yet judged: the
   card's word, meaning and categories), and the judgment is kept in
   `spots.easy` (`ALTER TABLE … ADD COLUMN`; null until judged, 1 easy, 0
-  worth drilling); a word judged easy is not drilled; when the model does
+  worth drilling); a word judged easy is not drilled while it is new — once
+  Dan saves it (shaky) it is drilled whatever the judgment; when the model does
   not answer nothing is kept and the set is chosen as before. A passage's
   blanked verb is one of Dan's given shaky verbs wherever the passage has
   one (the server picks it, whatever the model named); else the model's
@@ -1341,8 +1346,9 @@ day's words with their results. Nothing due: "Nothing is due today".
   check allows only right, wrong and shown, and a table holding Dan's
   answers is not rebuilt), with the word's fields before it, so Undo
   reverses it like any answer; the day's list says "too easy".
-- **Checks** after these: `today-smoke.mjs` 108 (each preposition path, the
-  spelling fallback, the length rule, niqud on the answer fields, shaky
-  before new, the one judgment and the model down, the passage verb both
-  ways, "Too easy" and its Undo), `today-pages.mjs` 67; totals 613 server
-  checks and 529 page checks.
+- **Checks** after these: `today-smoke.mjs` 111 (each preposition path, the
+  spelling fallback, the length rule, niqud on the answer fields and every
+  pointed answer the answer itself, shaky before new, the one judgment and
+  the model down, an easy word saved shaky drilled again, the passage verb
+  both ways, "Too easy" and its Undo), `today-pages.mjs` 67; totals 616
+  server checks and 529 page checks.
