@@ -80,7 +80,7 @@ let lastGuideModel = null;
 // misspell_fail, misspellings — see the Passage, Sentence and Misspelling
 // requests below.
 let passageCalls = 0, sentenceCalls = 0, misspellCalls = 0, lastPassageAsk = null;
-const control = { passage_use: null, passage_fail: null, sentence_fail: false, misspell_fail: false, misspellings: {}, judge_same: false, judge_truncated: 0, article_guide_faults: [], unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false, verb_fixes: {}, verb_extra: [], verb_decline: false, guide_silent: [], refresh_fail: false, review_verdicts: {}, review_verdict_extra: [], examples: null };
+const control = { passage_use: null, passage_fail: null, passage_long: false, sentence_fail: false, misspell_fail: false, misspellings: {}, judge_same: false, judge_truncated: 0, article_guide_faults: [], unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false, verb_fixes: {}, verb_extra: [], verb_decline: false, guide_silent: [], refresh_fail: false, review_verdicts: {}, review_verdict_extra: [], examples: null };
 // verb_fixes: word -> { root?, binyan?, why }, the verb-card check's fix for
 // that card (every other card answered "correct"); verb_extra: answers added
 // after the cards'; verb_decline: the check answers {"error"}.
@@ -263,17 +263,20 @@ http.createServer((req, res) => {
     const followUp = body.messages.length > 2;
     let answer, format = 'clean';
     if (user.startsWith('Passage request\n')) {
-      // Today's fresh passage (hebrew-today-one): one sentence per word given,
-      // in its first form, for control.passage_use words (default all); one
-      // new word (המכרז) and the verb החליטה. passage_fail: 'down' drops the
-      // socket, 'decline' answers {"error"}.
+      // Today's fresh passage (hebrew-today-one): the words given, in their
+      // first form, two to a sentence, for control.passage_use words (default
+      // all), between an opening and a closing sentence: three to five
+      // sentences; one new word (המכרז) and the verb החליטה. passage_long: one
+      // sentence per word, eight for six words (too long to keep).
+      // passage_fail: 'down' drops the socket, 'decline' answers {"error"}.
       passageCalls++;
       lastPassageAsk = { model: body.model, schema_name: body.response_format && body.response_format.json_schema ? body.response_format.json_schema.name : null, user };
       if (control.passage_fail === 'down') { req.socket.destroy(); return; }
       const words = [...user.matchAll(/^- (\S+): (.+)$/gm)].map((m) => ({ word: m[1], form: m[2].split(', ')[0] }));
       const use = words.slice(0, control.passage_use ?? words.length);
       const kind = /Question kind: (\S+)/.exec(user)[1];
-      const hebrew = ['הממשלה החליטה לפעול מהר.', ...use.map((w) => `בדיון דובר על ${w.form} בהרחבה.`), 'המכרז נפתח השבוע.'].join(' ');
+      const pairs = control.passage_long ? use.map((w) => [w]) : use.reduce((acc, w, i) => (i % 2 ? acc[acc.length - 1].push(w) : acc.push([w]), acc), []);
+      const hebrew = ['הממשלה החליטה לפעול מהר.', ...pairs.map((p) => `בדיון דובר על ${p.map((w) => w.form).join(' ועל ')} בהרחבה.`), 'המכרז נפתח השבוע.'].join(' ');
       answer = control.passage_fail === 'decline' ? { error: 'the passage writer declines in this mock' } : {
         hebrew, english: 'The government decided to act quickly. The words were discussed at length. The tender opened this week.',
         used: use.map((w) => ({ word: w.word, form: w.form })), new_words: [{ surface: 'המכרז', meaning_en: 'the tender' }],
@@ -281,10 +284,14 @@ http.createServer((req, res) => {
         choices: kind === 'verb' ? ['', '', ''] : ['על החלטה של הממשלה', 'על משחק כדורגל', 'על מזג האוויר'], answer_index: 0,
       };
     } else if (user.startsWith('Sentence request\n')) {
-      // a made-up sentence holding the word as given; sentence_fail declines
+      // a made-up sentence holding the word as given, and when a preposition
+      // is asked for, the preposition right after it (a one-letter one as the
+      // next word's first letter); sentence_fail declines
       sentenceCalls++;
       const word = /Word: (\S+)/.exec(user)[1];
-      answer = control.sentence_fail ? { error: 'the sentence writer declines in this mock' } : { sentence: `בישיבה אתמול ${word} השר להסביר את עמדתו.` };
+      const prep = ((/Preposition: (\S+)/.exec(user) || [])[1] || '').replace('-', '');
+      const after = !prep ? '' : prep.length === 1 ? ` ${prep}דחות את ההחלטה` : ` ${prep} התוכנית החדשה`;
+      answer = control.sentence_fail ? { error: 'the sentence writer declines in this mock' } : { sentence: prep ? `בישיבה אתמול ביקשו ${word}${after}.` : `בישיבה אתמול ${word} השר להסביר את עמדתו.` };
     } else if (user.startsWith('Misspelling request\n')) {
       // control.misspellings: word -> what to answer; else the second and third letters swapped
       misspellCalls++;

@@ -123,7 +123,6 @@ function drawItem(it) {
   $('#translation').textContent = it.kind === 'form' ? it.translation_en || '' : it.kind === 'spelling' ? it.meaning_en || '' : '';
   const s = $('#sentence');
   if (it.kind === 'passage') drawPassage(s, it, it.question.type === 'form' ? it.question.text : it.text);
-  else if (it.kind === 'spelling') { s.innerHTML = ''; }
   else if (it.kind === 'know') {
     s.innerHTML = '';
     const sentence = it.sentence || it.word;
@@ -145,6 +144,7 @@ function drawItem(it) {
     bits.forEach((b, i) => { if (i) hint.append(document.createTextNode(' · ')); for (const x of b) hint.append(typeof x === 'string' ? document.createTextNode(x) : x); });
   }
   if (it.kind === 'preposition' && !it.in_sentence) hint.textContent = 'the preposition this word takes';
+  if ((it.kind === 'preposition' || it.kind === 'spelling') && it.made_up) hint.textContent = 'a made-up sentence';
   mixed($('#source'), it.source || '');
   $('#english').textContent = it.english || '';
   if (it.answered) return drawAnswered(it);
@@ -226,7 +226,7 @@ async function send(body, button) {
     const data = await api('POST', '/today/answer', { set_id: view.set.id, item_index: it.index, ...body });
     view = data.view;
     hideAll();
-    if (it.kind === 'form' || (it.kind === 'passage' && it.question.type === 'form')) setGap(data.result === 'right' ? 'right' : 'shown', it.kind === 'passage' ? it.question.answer : it.answer);
+    if (it.kind === 'form' || it.kind === 'preposition' || it.kind === 'spelling' || (it.kind === 'passage' && it.question.type === 'form')) setGap(data.result === 'right' ? 'right' : 'shown', it.kind === 'passage' ? it.question.answer : it.kind === 'preposition' ? it.answer.replace(/-$/, '') : it.answer);
     for (const b of document.querySelectorAll('#choices .choice')) {
       const right = b.textContent === (it.kind === 'passage' ? it.question.answer : it.answer);
       b.classList.toggle('right', right);

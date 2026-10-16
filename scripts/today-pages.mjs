@@ -183,12 +183,14 @@ try {
     await next();
 
     // Which spelling
-    check(`${name}: "Which spelling": the meaning, and two spellings side by side`, (await kind()) === 'spelling' && (await page.locator('#choices .choice').count()) === 2 && (await page.locator('#translation').innerText()) === 'to be ashamed');
+    check(`${name}: "Which spelling": the meaning, a sentence with the word blanked ("a made-up sentence"), and two spellings side by side`, (await kind()) === 'spelling' && (await page.locator('#choices .choice').count()) === 2 && (await page.locator('#translation').innerText()) === 'to be ashamed'
+      && (await page.locator('#sentence .gap').count()) === 1 && (await page.locator('#hint').innerText()) === 'a made-up sentence');
     const twoRow = await page.locator('#choices .choice').evaluateAll((bs) => bs.map((b) => Math.round(b.getBoundingClientRect().top)));
     check(`${name}: …on one row`, twoRow[0] === twoRow[1], JSON.stringify(twoRow));
     await both(page, `spelling-${name}`);
-    await page.locator('#choices .choice', { hasText: /^הבתייש$/ }).click();
+    await page.locator('#choices .choice', { hasText: /^לתהבייש$/ }).click();
     await page.locator('#flash[data-result="wrong"]').waitFor();
+    check(`${name}: a wrong spelling: the gap shows the right one`, (await page.locator('#sentence .gap.shown').innerText()) === 'להתבייש');
     await next();
 
     // Do you know it

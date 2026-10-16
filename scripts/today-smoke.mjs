@@ -100,13 +100,15 @@ try {
   check('conjugation in an article -> the article\'s sentence, blanked', byWord['אישרה'].kind === 'form' && byWord['אישרה'].sentence === 'בסוף השבוע הוועדה … את התוכנית.');
   check('preposition-government -> Which preposition: עם blanked in the sentence, three choices with the right one',
     byWord['להתמודד'].kind === 'preposition' && byWord['להתמודד'].sentence === 'החברה תצטרך להתמודד … המשבר' && byWord['להתמודד'].choices.length === 3 && byWord['להתמודד'].choices.includes('עם') && byWord['להתמודד'].answer === 'עם', JSON.stringify(byWord['להתמודד']));
-  check('letter-order -> Which spelling: the word and the model\'s misspelling, two choices',
-    byWord['התבייש'].kind === 'spelling' && byWord['התבייש'].choices.length === 2 && byWord['התבייש'].choices.includes('התבייש') && byWord['התבייש'].choices.includes('הבתייש'));
-  check('homophonous-spelling -> Which spelling (the article\'s ממסד)', byWord['ממסד'].kind === 'spelling' && byWord['ממסד'].choices.includes('ממסד'));
+  check('letter-order -> Which spelling: the word blanked in a made-up sentence (the lesson holds it alone), the word and the model\'s misspelling, two choices',
+    byWord['להתבייש'].kind === 'spelling' && byWord['להתבייש'].made_up === true && byWord['להתבייש'].sentence === 'בישיבה אתמול … השר להסביר את עמדתו.'
+    && byWord['להתבייש'].choices.length === 2 && byWord['להתבייש'].choices.includes('להתבייש') && byWord['להתבייש'].choices.includes('לתהבייש'), JSON.stringify(byWord['להתבייש']));
+  check('homophonous-spelling -> Which spelling: the article\'s own sentence with הממסד blanked',
+    byWord['הממסד'].kind === 'spelling' && byWord['הממסד'].made_up === false && byWord['הממסד'].sentence === '… הפוליטי התנגד לשינוי במשך שנים.' && byWord['הממסד'].choices.includes('הממסד'), JSON.stringify(byWord['הממסד']));
   check('sound-pattern-deviation -> Do you know it, the word in its sentence', byWord['הסלמה'].kind === 'know');
   check('no category -> Do you know it', byWord['רפורמה'].kind === 'know');
   check('every word item carries the spot id, the kind, the sentence, the answer or choices, and the source',
-    items.slice(0, 8).every((it) => it.spot_id && it.kind && (it.sentence || it.kind === 'spelling') && (it.answer || it.kind === 'know') && it.source));
+    items.slice(0, 8).every((it) => it.spot_id && it.kind && it.sentence && (it.answer || it.kind === 'know') && it.source), JSON.stringify(items.slice(0, 8).filter((it) => !it.sentence).map((it) => it.word)));
   const [p1, p2] = items.slice(8);
   const calls1 = await orCalls();
   check('fresh passages: two, made with the guide model and a JSON schema, each using at least three of the words given',
@@ -116,6 +118,8 @@ try {
     p1.subject.startsWith('energy') && p2.subject === 'business and markets' && p1.question.type === 'form' && p1.question.answer === 'החליטה' && p1.question.text.includes('…')
     && p2.question.type === 'choice' && p2.question.choices.length === 3 && p2.question.answer === 'על החלטה של הממשלה');
   check('…at most two new words, each a word of the passage', p1.new_words.length === 1 && p1.new_words[0].surface === 'המכרז' && p1.text.includes('המכרז'));
+  const counts = [p1, p2].map((p) => p.text.split(/[.!?]+/).filter((s) => /[א-ת]/.test(s)).length);
+  check('…each passage kept is three to five sentences', counts.every((n) => n >= 3 && n <= 5), counts.join());
   check('…the passage items record no spot', p1.spot_id === null && p2.spot_id === null);
   const again = (await api('GET', '/today/set')).body;
   check('the set is made once: a second GET serves the same set and asks the model nothing', again.set.id === set.set.id && (await orCalls()).passage_calls === 2 && peek('SELECT COUNT(*) AS n FROM drill_sets')[0].n === 1);
@@ -233,6 +237,29 @@ try {
     down.note === 'No fresh passages today; the model did not answer.' && down.items.length === 10 && down.items.filter((it) => it.group === 'lesson').length === 8, JSON.stringify([down.items.length, down.note]));
   const kept = t.wordsFound('בדיון דובר על הנאלץ ועל נאלצה, ועל קידום.', [{ spot_id: 'a', lemma: 'נאלץ', forms: ['נאלץ', 'נאלצה'] }, { spot_id: 'b', lemma: 'קידם', forms: ['קידם', 'מקדם'] }]);
   check('the word count reads a form after a prefix (הנאלץ), and not a different word of the same root (קידום)', kept.map((k) => k.spot_id).join() === 'a');
+  await orControl({ passage_long: true });
+  const long = await t.build(D);
+  await orControl({ passage_long: false });
+  check('a passage of eight sentences (one per word) is not kept: no passages, the set says why, and the slots go to words',
+    !long.items.some((it) => it.kind === 'passage') && long.items.length === 10 && long.note === 'No fresh passages today; the passages written were not three to five sentences.', JSON.stringify([long.items.length, long.note]));
+  check('the sentence count: two sentences and six are out, three and five in (a line break ends one too)',
+    t.sentenceCount('א ב. ג ד.') === 2 && t.sentenceCount('א. ב. ג. ד. ה. ו.') === 6 && t.sentenceCount('אחת. שתיים!\nשלוש') === 3 && t.sentenceCount('א. ב? ג. ד. ה.') === 5 && t.SENTENCES.min === 3 && t.SENTENCES.max === 5);
+
+  // Which preposition with no read sentence: a made-up sentence; the plain fallback only when the model gives none
+  const P = fresh('prep', { only: ['להמר'] });
+  const madePrep = await t.itemFor(db.getSpot(P.spots['להמר']), 'lesson');
+  check('Which preposition, no read sentence: the model writes one with the word and its preposition, blanked, marked a made-up sentence',
+    madePrep.kind === 'preposition' && madePrep.made_up === true && madePrep.in_sentence === true && madePrep.sentence === 'בישיבה אתמול ביקשו להמר … התוכנית החדשה.' && madePrep.answer === 'על', JSON.stringify(madePrep));
+  await orControl({ sentence_fail: true });
+  const plainPrep = await t.itemFor(db.getSpot(P.spots['להמר']), 'lesson');
+  const P2 = fresh('spell-down', { only: ['להתבייש'] });
+  const spellDown = await t.itemFor(db.getSpot(P2.spots['להתבייש']), 'lesson');
+  await orControl({ sentence_fail: false });
+  check('…the model not answering: the plain fallback, the word and a blank, not marked made up',
+    plainPrep.kind === 'preposition' && plainPrep.made_up === false && plainPrep.in_sentence === false && plainPrep.sentence === 'להמר …', JSON.stringify(plainPrep));
+  check('Which spelling with no read sentence and the model not answering: no spelling item without a sentence; Do you know it instead', spellDown.kind === 'know', spellDown.kind);
+  const prefixPrep = await (async () => { const Q = fresh('prep-prefix', { only: ['נאלצה'] }); Q.raw.prepare("UPDATE spots SET categories_json = '[\"preposition-government\"]' WHERE id = ?").run(Q.spots['נאלצה']); return t.itemFor(db.getSpot(Q.spots['נאלצה']), 'lesson'); })();
+  check('a one-letter preposition in the lesson\'s own sentence: its letter blanked in the word after (…דחות)', prefixPrep.kind === 'preposition' && prefixPrep.sentence === 'הממשלה נאלצה …דחות את ההצבעה' && prefixPrep.made_up === false, JSON.stringify(prefixPrep.sentence));
 
   // ensureSet twice at once (verify 5)
   const E = fresh('ensure');

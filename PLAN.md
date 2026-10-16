@@ -1297,3 +1297,20 @@ day's words with their results. Nothing due: "Nothing is due today".
   table count and `lookup-pages.mjs`'s navigation check now allow the Today
   tables and link. Totals: 587 server checks (from 505), 517 page checks
   (from 462); `npm run check` passes.
+- **Fixes after the result check (16 Oct 2026, after PR #14's merge;
+  branch `claude/hebrew-today-one-fixes`).** Three gaps against steps 3 and
+  4, closed. Which spelling now always has a sentence: the word blanked in a
+  sentence Dan read, else one the model writes ("a made-up sentence"); the
+  choices are the word as it stands there and its misspelling, and with no
+  sentence at all the word gets Do you know it instead. Which preposition
+  with no read sentence holding the preposition asks the model for one
+  sentence with the word and its preposition right after it ("a made-up
+  sentence", the preposition blanked); the word alone with a blank after it
+  is left only for when the model gives no usable sentence. A passage is
+  kept only with three to five sentences (counted between . ! ? and line
+  breaks); the stand-in now writes five, and one of eight is refused with
+  "No fresh passages today; the passages written were not three to five
+  sentences." On the page the gap fills with the right answer after a
+  preposition or a spelling too. Checks: `today-smoke.mjs` 89 (each
+  preposition path, the spelling fallback, the length rule),
+  `today-pages.mjs` 57; totals 594 server checks and 519 page checks.
