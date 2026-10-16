@@ -19,10 +19,10 @@ export const LESSON1 = {
   title: 'שיעור עם גיא — 1 בספטמבר', lesson_date: '2026-09-01',
   sentences: ['הממשלה נאלצה לדחות את ההצבעה', 'החברה תצטרך להתמודד עם המשבר'],
   words: [
-    card({ surface: 'נאלצה', lemma: 'נאלץ', pos: 'verb', root: 'א.ל.צ', binyan: 'nifal', tense: 'past', person_gender_number: '3fs', meaning_en: 'was forced to', governs: 'ל-', categories: ['conjugation', 'preposition-government'] }),
+    card({ surface: 'נאלצה', lemma: 'נאלץ', pos: 'verb', root: 'א.ל.צ', binyan: 'nifal', tense: 'past', person_gender_number: '3fs', meaning_en: 'was forced to', governs: 'ל-', categories: ['conjugation', 'preposition-government'], pointed: { lemma: 'נֶאֱלַץ', surface: 'נֶאֶלְצָה' } }),
     card({ surface: 'ייקבעו', lemma: 'נקבע', pos: 'verb', root: 'ק.ב.ע', binyan: 'nifal', tense: 'future', person_gender_number: '3p', meaning_en: 'will be set', categories: ['conjugation'] }),
     card({ surface: 'להתמודד', lemma: 'התמודד', pos: 'verb', root: 'מ.ד.ד', binyan: 'hitpael', tense: 'infinitive', meaning_en: 'to cope, to deal with', governs: 'עם', categories: ['preposition-government'] }),
-    card({ surface: 'להתבייש', lemma: 'התבייש', pos: 'verb', root: 'ב.ו.ש', binyan: 'hitpael', tense: 'infinitive', meaning_en: 'to be ashamed', governs: 'ב-', categories: ['letter-order'] }),
+    card({ surface: 'להתבייש', lemma: 'התבייש', pos: 'verb', root: 'ב.ו.ש', binyan: 'hitpael', tense: 'infinitive', meaning_en: 'to be ashamed', governs: 'ב-', categories: ['letter-order'], pointed: { lemma: 'הִתְבַּיֵּשׁ', surface: null } }),
     card({ surface: 'רפורמה', lemma: 'רפורמה', meaning_en: 'a reform', pointed: { lemma: 'רֵפוֹרְמָה', surface: 'רֵפוֹרְמָה' } }),
     card({ surface: 'הסלמה', lemma: 'הסלמה', root: 'ס.ל.מ', meaning_en: 'escalation', categories: ['sound-pattern-deviation'] }),
   ],

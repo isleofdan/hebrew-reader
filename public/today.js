@@ -56,6 +56,15 @@ function drawGapped(box, text) {
   });
 }
 
+// The answer as it fills the gap once revealed: with its niqud where the
+// word's card has it (the server's answer_pointed); a preposition without
+// its hyphen.
+function revealedAnswer(it) {
+  if (it.kind === 'passage') return it.question.answer;
+  const a = it.answer_pointed || it.answer;
+  return it.kind === 'preposition' ? a.replace(/-$/, '') : a;
+}
+
 function setGap(mode, text) {
   const gap = $('#sentence .gap');
   if (!gap) return;
@@ -187,7 +196,7 @@ function drawAnswered(it) {
 async function revealed(it, data) {
   $('#typed').classList.add('hidden');
   $('#reveal').classList.add('hidden');
-  if (it.kind === 'form' || (it.kind === 'passage' && it.question.type === 'form')) setGap('shown', it.kind === 'passage' ? it.question.answer : it.answer);
+  if (it.kind === 'form' || (it.kind === 'passage' && it.question.type === 'form')) setGap('shown', revealedAnswer(it));
   $('#self').classList.remove('hidden');
   place();
   try {
@@ -226,7 +235,7 @@ async function send(body, button) {
     const data = await api('POST', '/today/answer', { set_id: view.set.id, item_index: it.index, ...body });
     view = data.view;
     hideAll();
-    if (it.kind === 'form' || it.kind === 'preposition' || it.kind === 'spelling' || (it.kind === 'passage' && it.question.type === 'form')) setGap(data.result === 'right' ? 'right' : 'shown', it.kind === 'passage' ? it.question.answer : it.kind === 'preposition' ? it.answer.replace(/-$/, '') : it.answer);
+    if (it.kind === 'form' || it.kind === 'preposition' || it.kind === 'spelling' || (it.kind === 'passage' && it.question.type === 'form')) setGap(data.result === 'right' ? 'right' : 'shown', revealedAnswer(it));
     for (const b of document.querySelectorAll('#choices .choice')) {
       const right = b.textContent === (it.kind === 'passage' ? it.question.answer : it.answer);
       b.classList.toggle('right', right);
@@ -274,7 +283,7 @@ async function undoLast() {
     view = data.view;
     const it = view.items[data.undone.item_index];
     drawItem(it);
-    flash(`${data.undone.word || 'the passage'} — undone`, 'undone', false);
+    flash(`${data.undone.word_pointed || data.undone.word || 'the passage'} — undone`, 'undone', false);
   } catch (e) {
     $('#answer-msg').className = 'msg error'; $('#answer-msg').textContent = e.message;
   } finally {
@@ -295,7 +304,7 @@ function drawDone() {
   list.innerHTML = '';
   for (const it of view.items) {
     const li = el('li', 'result-' + (it.answered ? it.answered.result : 'none'));
-    li.append(el('span', 'he', it.kind === 'passage' ? '' : it.word || ''), el('span', 'what', it.kind === 'passage' ? it.source : KIND[it.kind]), el('span', 'res', it.answered ? it.answered.result : ''));
+    li.append(el('span', 'he', it.kind === 'passage' ? '' : it.word_pointed || it.word || ''), el('span', 'what', it.kind === 'passage' ? it.source : KIND[it.kind]), el('span', 'res', it.answered ? it.answered.result : ''));
     list.append(li);
   }
   $('#done').classList.remove('hidden');

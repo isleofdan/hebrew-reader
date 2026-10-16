@@ -109,6 +109,13 @@ try {
   check('no category -> Do you know it', byWord['רפורמה'].kind === 'know');
   check('every word item carries the spot id, the kind, the sentence, the answer or choices, and the source',
     items.slice(0, 8).every((it) => it.spot_id && it.kind && it.sentence && (it.answer || it.kind === 'know') && it.source), JSON.stringify(items.slice(0, 8).filter((it) => !it.sentence).map((it) => it.word)));
+  const POINTS = /[ְ-ׇ]/;
+  check('niqud on answers: Give the form carries the word\'s pointed form from its card (answer_pointed נֶאֶלְצָה)',
+    byWord['נאלצה'].answer_pointed === 'נֶאֶלְצָה' && byWord['נאלצה'].word_pointed === 'נֶאֶלְצָה', JSON.stringify([byWord['נאלצה'].answer_pointed, byWord['נאלצה'].word_pointed]));
+  check('…a card with only its dictionary form pointed gives that (להתבייש -> הִתְבַּיֵּשׁ); a card with none gives null, and the page shows the word plain (ייקבעו)',
+    byWord['להתבייש'].answer_pointed === 'הִתְבַּיֵּשׁ' && byWord['ייקבעו'].answer_pointed === null && byWord['ייקבעו'].word_pointed === null);
+  check('…the right preposition pointed (עִם), the word pointed where its card has it (רֵפוֹרְמָה)', byWord['להתמודד'].answer_pointed === 'עִם' && byWord['רפורמה'].word_pointed === 'רֵפוֹרְמָה');
+  check('…while the questions and the choices to tap carry no niqud', items.slice(0, 8).every((it) => !POINTS.test(it.sentence) && !(it.choices || []).some((c) => POINTS.test(c)) && !POINTS.test(it.answer || '')));
   const [p1, p2] = items.slice(8);
   const calls1 = await orCalls();
   check('fresh passages: two, made with the guide model and a JSON schema, each using at least three of the words given',
@@ -137,7 +144,7 @@ try {
   const lastBody = bodies.at(-1) || {};
   check('verify 2: the spine received a PUT whose body carries status, due_on and interval_days at the top level',
     bodies.length === n0 + 1 && lastBody.status === 'shaky' && lastBody.due_on === tokyo(1) && lastBody.interval_days === 1, JSON.stringify(lastBody));
-  check('the flash names the word and the result', wrong.body.flash.text === 'נאלצה — wrong; next due tomorrow', wrong.body.flash.text);
+  check('the flash names the word with its niqud, and the result', wrong.body.flash.text === 'נֶאֶלְצָה — wrong; next due tomorrow' && wrong.body.flash.word_pointed === 'נֶאֶלְצָה', wrong.body.flash.text);
   const after = (await api('GET', '/today/set')).body;
   check('an answered item is recorded and the set goes on from the next one after a reload', after.items[0].answered.result === 'wrong' && after.position === 1);
   const twice = await api('POST', '/today/answer', { set_id: set.set.id, item_index: 0, result: 'right' });
@@ -165,6 +172,8 @@ try {
   const shown = await api('POST', '/today/show', { set_id: set.set.id, item_index: 4 });
   check('Show on Do you know it records the show and reveals the word\'s card', shown.status === 200 && shown.body.card.meaning_en === 'a reform'
     && peek("SELECT result FROM drill_answers WHERE item_index = 4 AND set_id = ?", set.set.id).map((r) => r.result).join() === 'shown');
+  const showSpell = await api('POST', '/today/show', { set_id: set.set.id, item_index: 3 });
+  check('Show reveals the answer with its niqud (answer_pointed), the card with it', showSpell.body.answer === 'להתבייש' && showSpell.body.answer_pointed === 'הִתְבַּיֵּשׁ' && showSpell.body.card.pointed.lemma === 'הִתְבַּיֵּשׁ', JSON.stringify([showSpell.body.answer, showSpell.body.answer_pointed]));
   const view4 = (await api('GET', '/today/set')).body.items[4];
   check('…the item then waits for the tap: shown, not answered', view4.shown === true && view4.answered === null);
   const had = await api('POST', '/today/answer', { set_id: set.set.id, item_index: 4, result: 'right' });
