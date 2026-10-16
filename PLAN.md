@@ -1267,24 +1267,33 @@ day's words with their results. Nothing due: "Nothing is due today".
   item after Show, take Dan's own tap.
 - **Marks.** A status change goes through `saveStatus` (the spot, then the
   mark). `recordMark`'s body now carries `due_on` and `interval_days` at the
-  top level when the word has been drilled (a word never drilled sends
-  neither, so the spine is never sent a null). A word whose status stays but
+  top level on every mark, both null for a word never drilled: the spine's
+  `setMark` (read in its repository, `lib/db.js`) clears a key sent as null
+  and keeps one left out, so a null is what puts the spine back when Undo
+  returns a word to "never drilled". A word whose status stays but
   whose due day moved gets its mark again when the spine already has it (the
   touch rule of 22 Sep 2026). The stand-in spine already allowed both keys;
-  it now also answers `GET /bodies?item=` with every PUT body, for the checks.
-- **Undo** (`POST /today/undo`): only the set's last answer; its row goes and
-  the word's status and three fields are put back from `before_json`, the
-  status through `saveStatus`. A word put back to "never drilled" sends no
-  `due_on`, so the spine keeps the due day it was last sent.
+  it now clears them on a null as the spine does, and answers
+  `GET /bodies?item=` with every PUT body, for the checks.
+- **Undo** (`POST /today/undo`): only the newest answer of all, in a set no
+  newer set has followed — an older page (another tab, the phone left open)
+  is refused with a 409 before anything is written, so it never undoes what
+  came after or opens an old set again. Its row goes and the word's status
+  and three fields are put back from `before_json`, the status through
+  `saveStatus`, and the mark sent again.
+- **The line under an item** names where its sentence is: the older lesson
+  that holds it, or the article for a lesson word whose only sentence is
+  there. A made-up sentence, a spelling, or a word with no sentence names
+  where the word was last met.
 - **Routes.** `GET /today` is a page route (not in `isApiPath`): signed out it
   answers 303 to `/login`. Its data is under `/today/` (`GET /today/set`,
   `POST /today/answer { set_id, item_index, result, answer }`, `POST
   /today/show`, `POST /today/undo`), which signed out answers 401 in JSON.
-- **Checks:** `scripts/today-smoke.mjs` (75, in `npm test`, about 3 s) and
+- **Checks:** `scripts/today-smoke.mjs` (82, in `npm test`, about 3 s) and
   `scripts/today-pages.mjs` (55, in `npm run screenshots`; screenshots
   `docs/screenshots/today-*.png`), with `scripts/today-fixture.mjs` writing
   two lessons and an article into the database. The OpenRouter stand-in
   answers passages, made-up sentences and misspellings. `lookup-smoke.mjs`'s
   table count and `lookup-pages.mjs`'s navigation check now allow the Today
-  tables and link. Totals: 580 server checks (from 505), 517 page checks
+  tables and link. Totals: 587 server checks (from 505), 517 page checks
   (from 462); `npm run check` passes.

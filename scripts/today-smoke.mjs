@@ -146,6 +146,11 @@ try {
   check('verify 4: …and the word\'s four fields are as before the answer (due_on null, interval 0, run 0, shaky)',
     sp2.due_on === null && sp2.interval_days === 0 && sp2.right_run === 0 && sp2.status === 'shaky', JSON.stringify({ due_on: sp2.due_on, interval_days: sp2.interval_days, right_run: sp2.right_run, status: sp2.status }));
   check('…the item can be answered again', (await api('GET', '/today/set')).body.items[0].answered === null);
+  const undoBody = (await spineBodies(A.spots['נאלצה'])).at(-1) || {};
+  const marks = await (await fetch(`http://127.0.0.1:${SPINE_PORT}/api/marks?app=hebrew-reader`, { headers: { authorization: 'Bearer test-spine-token' } })).json();
+  const stored = marks.items.find((m) => m.item_id === A.spots['נאלצה']) || {};
+  check('Undo of a word\'s first answer clears its schedule on the spine too: the mark sends due_on and interval_days as null, and the stored mark holds null',
+    'due_on' in undoBody && undoBody.due_on === null && 'interval_days' in undoBody && undoBody.interval_days === null && stored.due_on === null && stored.interval_days === null, JSON.stringify({ undoBody, stored }));
   const undoNone = await api('POST', '/today/undo', { set_id: set.set.id });
   check('Undo with nothing to undo answers 409', undoNone.status === 409);
   const bad = await api('POST', '/today/answer', { set_id: set.set.id, item_index: 4, result: 'maybe' });
@@ -289,6 +294,46 @@ try {
   check('a solid word answered wrong becomes shaky (through the save: the spine has it)', row().status === 'shaky' && (await spineBodies(W)).at(-1).status === 'shaky');
   await t.undo({ set_id: s4.id });
   check('Undo of that puts back solid and the spine is told solid again', row().status === 'solid' && (await spineBodies(W)).at(-1).status === 'solid');
+
+  // an older page's Undo after later answers is refused, and changes nothing
+  const G = fresh('stale', { only: ['רפורמה'] });
+  const GW = G.spots['רפורמה'];
+  const gRow = () => JSON.stringify(G.raw.prepare('SELECT status, due_on, interval_days, right_run FROM spots WHERE id = ?').get(GW));
+  const gCount = () => G.raw.prepare('SELECT COUNT(*) AS n FROM drill_answers').get().n;
+  const g1 = (await t.ensureSet(D)).set;
+  const a1 = await answerAt(D, g1.id, 0, { result: 'right' });
+  const g2 = (await t.ensureSet(t.addDays(D, 1))).set;
+  const newerSetBefore = [gRow(), gCount()];
+  let refusedNewerSet = null;
+  try { await t.undo({ set_id: g1.id, answer_id: a1.answer_id }); } catch (e) { refusedNewerSet = e; }
+  check('Undo in a finished set once the next day\'s set is made: refused (409), nothing changed',
+    refusedNewerSet && refusedNewerSet.status === 409 && JSON.stringify([gRow(), gCount()]) === JSON.stringify(newerSetBefore), refusedNewerSet ? refusedNewerSet.message : 'not refused');
+  await answerAt(t.addDays(D, 1), g2.id, 0, { result: 'right' });
+  const staleBefore = [gRow(), gCount()];
+  let refusedStale = null;
+  try { await t.undo({ set_id: g1.id, answer_id: a1.answer_id }); } catch (e) { refusedStale = e; }
+  let refusedStale2 = null;
+  try { await t.undo({ set_id: g1.id }); } catch (e) { refusedStale2 = e; }
+  check('an older page\'s Undo after a later answer (another set): refused (409), the answers and the word\'s schedule as they were (interval 3, run 2)',
+    refusedStale && refusedStale.status === 409 && refusedStale2 && refusedStale2.status === 409 && JSON.stringify([gRow(), gCount()]) === JSON.stringify(staleBefore) && JSON.parse(staleBefore[0]).interval_days === 3 && JSON.parse(staleBefore[0]).right_run === 2,
+    `${refusedStale && refusedStale.message} ${staleBefore[0]}`);
+  const served = await t.current({ now: noon(t.addDays(D, 1)) });
+  check('…and no old set is opened again: today\'s set is served, done', served.set.id === g2.id && served.done === true, JSON.stringify(served.set));
+  const ok = await t.undo({ set_id: g2.id });
+  check('…while the newest answer itself can still be undone', ok.undone.answer_id > a1.answer_id && JSON.parse(gRow()).interval_days === 1);
+
+  // the line under an item names where its sentence is
+  const R = fresh('source', { only: ['נאלצה', 'אישרה'] });
+  const later = db.addLesson({ title: 'שיעור מאוחר יותר', lesson_date: '2026-10-01', source_name: 'later.pdf', text: 'נאלצה', items: ['נאלצה'] });
+  db.addTouch({ spotId: R.spots['נאלצה'], lessonId: later.id, surface: 'נאלצה' });
+  const repeat = await t.itemFor(db.getSpot(R.spots['נאלצה']), 'lesson');
+  check('a word met again in a newer lesson that holds it alone: the sentence is the older lesson\'s, and the line names that lesson',
+    repeat.sentence === 'הממשלה … לדחות את ההצבעה' && repeat.source === "From Guy's lesson שיעור עם גיא — 1 בספטמבר" && repeat.lesson_id !== later.id, JSON.stringify({ source: repeat.source, lesson_id: repeat.lesson_id }));
+  const solo = db.addLesson({ title: 'שיעור עם המילה לבדה', lesson_date: '2026-10-02', source_name: 'solo.pdf', text: 'אישרה', items: ['אישרה'] });
+  db.addTouch({ spotId: R.spots['אישרה'], lessonId: solo.id, surface: 'אישרה' });
+  const fromArticle = await t.itemFor(db.getSpot(R.spots['אישרה']), 'lesson');
+  check('a lesson word whose only sentence is in an article: the article\'s sentence, and the line names the article',
+    fromArticle.group === 'lesson' && fromArticle.sentence === 'בסוף השבוע הוועדה … את התוכנית.' && fromArticle.source === 'From רפורמה במשק החשמל' && fromArticle.lesson_id === null, JSON.stringify({ source: fromArticle.source, sentence: fromArticle.sentence }));
 
   // three rights on one day do not make a word solid
   const O = fresh('oneday', { only: ['הסלמה'] });
