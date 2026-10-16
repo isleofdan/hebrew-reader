@@ -74,7 +74,11 @@ let lastGuideModel = null;
 // JSON at all). review_format_again: the same for the answer to the one
 // follow-up ask. schema_refused: structured output answered 404, as OpenRouter
 // does when no provider of the model takes the parameters asked for.
-const control = { judge_same: false, judge_truncated: 0, article_guide_faults: [], unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false, verb_fixes: {}, verb_extra: [], verb_decline: false, guide_silent: [], refresh_fail: false, review_verdicts: {}, review_verdict_extra: [], examples: null };
+// Today (hebrew-today-one): passage_use, passage_fail, sentence_fail,
+// misspell_fail, misspellings — see the Passage, Sentence and Misspelling
+// requests below.
+let passageCalls = 0, sentenceCalls = 0, misspellCalls = 0, lastPassageAsk = null;
+const control = { passage_use: null, passage_fail: null, sentence_fail: false, misspell_fail: false, misspellings: {}, judge_same: false, judge_truncated: 0, article_guide_faults: [], unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false, verb_fixes: {}, verb_extra: [], verb_decline: false, guide_silent: [], refresh_fail: false, review_verdicts: {}, review_verdict_extra: [], examples: null };
 // verb_fixes: word -> { root?, binyan?, why }, the verb-card check's fix for
 // that card (every other card answered "correct"); verb_extra: answers added
 // after the cards'; verb_decline: the check answers {"error"}.
@@ -238,7 +242,7 @@ function mockArticleGuide(user, fault) {
 }
 
 http.createServer((req, res) => {
-  if (req.url === '/calls') { res.end(JSON.stringify({ judge_calls: judgeCalls, last_judge_max_tokens: lastJudgeMaxTokens, article_guides: articleGuides, last_article_guide_model: lastArticleGuideModel, sheet_calls: sheetCalls, sheet_asks: sheetAsks, search_calls: searchCalls, search_asks: searchAsks, calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
+  if (req.url === '/calls') { res.end(JSON.stringify({ passage_calls: passageCalls, sentence_calls: sentenceCalls, misspell_calls: misspellCalls, last_passage_ask: lastPassageAsk, judge_calls: judgeCalls, last_judge_max_tokens: lastJudgeMaxTokens, article_guides: articleGuides, last_article_guide_model: lastArticleGuideModel, sheet_calls: sheetCalls, sheet_asks: sheetAsks, search_calls: searchCalls, search_asks: searchAsks, calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
   let raw = '';
   req.on('data', (c) => raw += c);
   req.on('end', () => {
@@ -256,7 +260,35 @@ http.createServer((req, res) => {
     if (Array.isArray(body.tools) && body.tools.length) return webSearch(res, body, user);
     const followUp = body.messages.length > 2;
     let answer, format = 'clean';
-    if (user.startsWith('The group:\n')) {
+    if (user.startsWith('Passage request\n')) {
+      // Today's fresh passage (hebrew-today-one): one sentence per word given,
+      // in its first form, for control.passage_use words (default all); one
+      // new word (המכרז) and the verb החליטה. passage_fail: 'down' drops the
+      // socket, 'decline' answers {"error"}.
+      passageCalls++;
+      lastPassageAsk = { model: body.model, schema_name: body.response_format && body.response_format.json_schema ? body.response_format.json_schema.name : null, user };
+      if (control.passage_fail === 'down') { req.socket.destroy(); return; }
+      const words = [...user.matchAll(/^- (\S+): (.+)$/gm)].map((m) => ({ word: m[1], form: m[2].split(', ')[0] }));
+      const use = words.slice(0, control.passage_use ?? words.length);
+      const kind = /Question kind: (\S+)/.exec(user)[1];
+      const hebrew = ['הממשלה החליטה לפעול מהר.', ...use.map((w) => `בדיון דובר על ${w.form} בהרחבה.`), 'המכרז נפתח השבוע.'].join(' ');
+      answer = control.passage_fail === 'decline' ? { error: 'the passage writer declines in this mock' } : {
+        hebrew, english: 'The government decided to act quickly. The words were discussed at length. The tender opened this week.',
+        used: use.map((w) => ({ word: w.word, form: w.form })), new_words: [{ surface: 'המכרז', meaning_en: 'the tender' }],
+        verb: kind === 'verb' ? 'החליטה' : '', question_he: kind === 'verb' ? '' : 'על מה מדובר בקטע?',
+        choices: kind === 'verb' ? ['', '', ''] : ['על החלטה של הממשלה', 'על משחק כדורגל', 'על מזג האוויר'], answer_index: 0,
+      };
+    } else if (user.startsWith('Sentence request\n')) {
+      // a made-up sentence holding the word as given; sentence_fail declines
+      sentenceCalls++;
+      const word = /Word: (\S+)/.exec(user)[1];
+      answer = control.sentence_fail ? { error: 'the sentence writer declines in this mock' } : { sentence: `בישיבה אתמול ${word} השר להסביר את עמדתו.` };
+    } else if (user.startsWith('Misspelling request\n')) {
+      // control.misspellings: word -> what to answer; else the second and third letters swapped
+      misspellCalls++;
+      const word = /Word: (\S+)/.exec(user)[1];
+      answer = control.misspell_fail ? { error: 'declines in this mock' } : { misspelling: control.misspellings[word] ?? (word[0] + word[2] + word[1] + word.slice(3)) };
+    } else if (user.startsWith('The group:\n')) {
       // the sheet's writing prompts (session fourteen): control.sheet_prompts
       // when set; control.sheet_fail declines; else five prompts from the
       // group's own words, one of which names לנדוד (not on the sheet: the
