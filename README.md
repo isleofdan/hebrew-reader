@@ -65,6 +65,14 @@ a shaky word solid; a wrong one brings it back tomorrow and makes it shaky.
 Each answer shows the word and when it is next due, with Undo. A set not
 finished stays until it is; nothing reminds him or counts days.
 
+He can do as many sets a day as he likes: a finished set ends on "Done" with
+the results and an "Another set" button, which makes a new set and opens it
+at item 1. A new set never repeats a word from a set still unfinished, and it
+never runs dry: when the words due are used up it draws on his shaky words
+not yet due, then his solid ones, earliest due first, and its note says so
+("Nothing more is due; this set draws on words not yet due."). On the phone
+the answer choices stand one under another, each fully readable.
+
 ## Running it
 
 ```
