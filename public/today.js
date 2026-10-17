@@ -56,6 +56,15 @@ function drawGapped(box, text) {
   });
 }
 
+// The answer as it fills the gap once revealed: with its niqud where the
+// word's card has it (the server's answer_pointed); a preposition without
+// its hyphen.
+function revealedAnswer(it) {
+  if (it.kind === 'passage') return it.question.answer;
+  const a = it.answer_pointed || it.answer;
+  return it.kind === 'preposition' ? a.replace(/-$/, '') : a;
+}
+
 function setGap(mode, text) {
   const gap = $('#sentence .gap');
   if (!gap) return;
@@ -107,7 +116,7 @@ function place() {
 }
 
 function hideAll() {
-  for (const id of ['typed', 'choices', 'reveal', 'self', 'flash', 'after', 'english', 'question', 'english-show']) $('#' + id).classList.add('hidden');
+  for (const id of ['typed', 'choices', 'reveal', 'self', 'flash', 'after', 'english', 'question', 'english-show', 'easy']) $('#' + id).classList.add('hidden');
   $('#answer-msg').textContent = '';
   $('#answer-msg').className = 'msg';
 }
@@ -123,7 +132,6 @@ function drawItem(it) {
   $('#translation').textContent = it.kind === 'form' ? it.translation_en || '' : it.kind === 'spelling' ? it.meaning_en || '' : '';
   const s = $('#sentence');
   if (it.kind === 'passage') drawPassage(s, it, it.question.type === 'form' ? it.question.text : it.text);
-  else if (it.kind === 'spelling') { s.innerHTML = ''; }
   else if (it.kind === 'know') {
     s.innerHTML = '';
     const sentence = it.sentence || it.word;
@@ -145,9 +153,12 @@ function drawItem(it) {
     bits.forEach((b, i) => { if (i) hint.append(document.createTextNode(' · ')); for (const x of b) hint.append(typeof x === 'string' ? document.createTextNode(x) : x); });
   }
   if (it.kind === 'preposition' && !it.in_sentence) hint.textContent = 'the preposition this word takes';
+  if ((it.kind === 'preposition' || it.kind === 'spelling') && it.made_up) hint.textContent = 'a made-up sentence';
   mixed($('#source'), it.source || '');
   $('#english').textContent = it.english || '';
   if (it.answered) return drawAnswered(it);
+  // "Too easy": a word Dan knows cold is marked solid and leaves the drills
+  $('#easy').classList.toggle('hidden', !it.spot_id);
   if (it.kind === 'form' || (it.kind === 'passage' && it.question.type === 'form')) {
     $('#typed').classList.remove('hidden');
     $('#answer').value = '';
@@ -187,7 +198,7 @@ function drawAnswered(it) {
 async function revealed(it, data) {
   $('#typed').classList.add('hidden');
   $('#reveal').classList.add('hidden');
-  if (it.kind === 'form' || (it.kind === 'passage' && it.question.type === 'form')) setGap('shown', it.kind === 'passage' ? it.question.answer : it.answer);
+  if (it.kind === 'form' || (it.kind === 'passage' && it.question.type === 'form')) setGap('shown', revealedAnswer(it));
   $('#self').classList.remove('hidden');
   place();
   try {
@@ -217,16 +228,16 @@ async function showNow() {
 
 // One answer: a typed form, a choice, or Dan's own tap. The flash names the
 // word and the result, with Undo; Next goes on.
-async function send(body, button) {
+async function send(body, button, path = '/today/answer') {
   const it = view.items[at];
   const msg = $('#answer-msg');
   msg.className = 'msg'; msg.textContent = '';
-  for (const b of document.querySelectorAll('#answer-zone button')) b.disabled = true;
+  for (const b of document.querySelectorAll('#answer-zone button, #easy')) b.disabled = true;
   try {
-    const data = await api('POST', '/today/answer', { set_id: view.set.id, item_index: it.index, ...body });
+    const data = await api('POST', path, { set_id: view.set.id, item_index: it.index, ...body });
     view = data.view;
     hideAll();
-    if (it.kind === 'form' || (it.kind === 'passage' && it.question.type === 'form')) setGap(data.result === 'right' ? 'right' : 'shown', it.kind === 'passage' ? it.question.answer : it.answer);
+    if (it.kind === 'form' || it.kind === 'preposition' || it.kind === 'spelling' || (it.kind === 'passage' && it.question.type === 'form')) setGap(data.result === 'right' ? 'right' : 'shown', revealedAnswer(it));
     for (const b of document.querySelectorAll('#choices .choice')) {
       const right = b.textContent === (it.kind === 'passage' ? it.question.answer : it.answer);
       b.classList.toggle('right', right);
@@ -245,7 +256,7 @@ async function send(body, button) {
   } catch (e) {
     msg.className = 'msg error'; msg.textContent = e.message;
   } finally {
-    for (const b of document.querySelectorAll('#answer-zone button')) b.disabled = false;
+    for (const b of document.querySelectorAll('#answer-zone button, #easy')) b.disabled = false;
   }
 }
 
@@ -274,7 +285,7 @@ async function undoLast() {
     view = data.view;
     const it = view.items[data.undone.item_index];
     drawItem(it);
-    flash(`${data.undone.word || 'the passage'} — undone`, 'undone', false);
+    flash(`${data.undone.word_pointed || data.undone.word || 'the passage'} — undone`, 'undone', false);
   } catch (e) {
     $('#answer-msg').className = 'msg error'; $('#answer-msg').textContent = e.message;
   } finally {
@@ -295,7 +306,7 @@ function drawDone() {
   list.innerHTML = '';
   for (const it of view.items) {
     const li = el('li', 'result-' + (it.answered ? it.answered.result : 'none'));
-    li.append(el('span', 'he', it.kind === 'passage' ? '' : it.word || ''), el('span', 'what', it.kind === 'passage' ? it.source : KIND[it.kind]), el('span', 'res', it.answered ? it.answered.result : ''));
+    li.append(el('span', 'he', it.kind === 'passage' ? '' : it.word_pointed || it.word || ''), el('span', 'what', it.kind === 'passage' ? it.source : KIND[it.kind]), el('span', 'res', it.answered ? (it.answered.too_easy ? 'too easy' : it.answered.result) : ''));
     list.append(li);
   }
   $('#done').classList.remove('hidden');
@@ -335,6 +346,7 @@ $('#reveal-show').addEventListener('click', showNow);
 $('#had').addEventListener('click', () => send({ result: 'right' }));
 $('#missed').addEventListener('click', () => send({ result: 'wrong' }));
 $('#undo').addEventListener('click', undoLast);
+$('#easy').addEventListener('click', () => send({}, null, '/today/easy'));
 $('#next').addEventListener('click', next);
 $('#english-show').addEventListener('click', async () => {
   const it = view.items[at];

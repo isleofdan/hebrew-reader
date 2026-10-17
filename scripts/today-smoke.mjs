@@ -100,22 +100,40 @@ try {
   check('conjugation in an article -> the article\'s sentence, blanked', byWord['אישרה'].kind === 'form' && byWord['אישרה'].sentence === 'בסוף השבוע הוועדה … את התוכנית.');
   check('preposition-government -> Which preposition: עם blanked in the sentence, three choices with the right one',
     byWord['להתמודד'].kind === 'preposition' && byWord['להתמודד'].sentence === 'החברה תצטרך להתמודד … המשבר' && byWord['להתמודד'].choices.length === 3 && byWord['להתמודד'].choices.includes('עם') && byWord['להתמודד'].answer === 'עם', JSON.stringify(byWord['להתמודד']));
-  check('letter-order -> Which spelling: the word and the model\'s misspelling, two choices',
-    byWord['התבייש'].kind === 'spelling' && byWord['התבייש'].choices.length === 2 && byWord['התבייש'].choices.includes('התבייש') && byWord['התבייש'].choices.includes('הבתייש'));
-  check('homophonous-spelling -> Which spelling (the article\'s ממסד)', byWord['ממסד'].kind === 'spelling' && byWord['ממסד'].choices.includes('ממסד'));
+  check('letter-order -> Which spelling: the word blanked in a made-up sentence (the lesson holds it alone), the word and the model\'s misspelling, two choices',
+    byWord['להתבייש'].kind === 'spelling' && byWord['להתבייש'].made_up === true && byWord['להתבייש'].sentence === 'בישיבה אתמול … השר להסביר את עמדתו.'
+    && byWord['להתבייש'].choices.length === 2 && byWord['להתבייש'].choices.includes('להתבייש') && byWord['להתבייש'].choices.includes('לתהבייש'), JSON.stringify(byWord['להתבייש']));
+  check('homophonous-spelling -> Which spelling: the article\'s own sentence with הממסד blanked',
+    byWord['הממסד'].kind === 'spelling' && byWord['הממסד'].made_up === false && byWord['הממסד'].sentence === '… הפוליטי התנגד לשינוי במשך שנים.' && byWord['הממסד'].choices.includes('הממסד'), JSON.stringify(byWord['הממסד']));
   check('sound-pattern-deviation -> Do you know it, the word in its sentence', byWord['הסלמה'].kind === 'know');
   check('no category -> Do you know it', byWord['רפורמה'].kind === 'know');
   check('every word item carries the spot id, the kind, the sentence, the answer or choices, and the source',
-    items.slice(0, 8).every((it) => it.spot_id && it.kind && (it.sentence || it.kind === 'spelling') && (it.answer || it.kind === 'know') && it.source));
+    items.slice(0, 8).every((it) => it.spot_id && it.kind && it.sentence && (it.answer || it.kind === 'know') && it.source), JSON.stringify(items.slice(0, 8).filter((it) => !it.sentence).map((it) => it.word)));
+  const POINTS = /[ְ-ׇ]/;
+  check('niqud on answers: Give the form carries the word\'s pointed form from its card (answer_pointed נֶאֶלְצָה)',
+    byWord['נאלצה'].answer_pointed === 'נֶאֶלְצָה' && byWord['נאלצה'].word_pointed === 'נֶאֶלְצָה', JSON.stringify([byWord['נאלצה'].answer_pointed, byWord['נאלצה'].word_pointed]));
+  check('…a card with only its dictionary form pointed: the word is named with it (word_pointed הִתְבַּיֵּשׁ), but the gap keeps the answer itself plain (answer_pointed null: להתבייש is not התבייש); a card with none gives null (ייקבעו)',
+    byWord['להתבייש'].word_pointed === 'הִתְבַּיֵּשׁ' && byWord['להתבייש'].answer_pointed === null && byWord['ייקבעו'].answer_pointed === null && byWord['ייקבעו'].word_pointed === null, JSON.stringify([byWord['להתבייש'].word_pointed, byWord['להתבייש'].answer_pointed]));
+  const unpoint = (s) => String(s).replace(/[֑-ׇ]/g, '');
+  check('…every pointed answer is the answer itself with its points: niqud stripped, it is the expected answer',
+    items.filter((it) => it.answer_pointed).length >= 2 && items.filter((it) => it.answer_pointed).every((it) => unpoint(it.answer_pointed) === it.answer), JSON.stringify(items.filter((it) => it.answer_pointed).map((it) => [it.answer, it.answer_pointed])));
+  check('…the right preposition pointed (עִם), the word pointed where its card has it (רֵפוֹרְמָה)', byWord['להתמודד'].answer_pointed === 'עִם' && byWord['רפורמה'].word_pointed === 'רֵפוֹרְמָה');
+  check('…while the questions and the choices to tap carry no niqud', items.slice(0, 8).every((it) => !POINTS.test(it.sentence) && !(it.choices || []).some((c) => POINTS.test(c)) && !POINTS.test(it.answer || '')));
   const [p1, p2] = items.slice(8);
   const calls1 = await orCalls();
   check('fresh passages: two, made with the guide model and a JSON schema, each using at least three of the words given',
     p1.kind === 'passage' && p2.kind === 'passage' && p1.words_used.length >= 3 && p2.words_used.length >= 3 && calls1.passage_calls === 2
     && calls1.last_passage_ask.model === 'anthropic/claude-opus-4.6' && calls1.last_passage_ask.schema_name === 'today_passage', JSON.stringify(calls1.last_passage_ask && calls1.last_passage_ask.model));
   check('…the subjects in turn, the questions alternating (a verb blanked, then a comprehension question with three choices)',
-    p1.subject.startsWith('energy') && p2.subject === 'business and markets' && p1.question.type === 'form' && p1.question.answer === 'החליטה' && p1.question.text.includes('…')
+    p1.subject.startsWith('energy') && p2.subject === 'business and markets' && p1.question.type === 'form' && p1.question.text.includes('…')
     && p2.question.type === 'choice' && p2.question.choices.length === 3 && p2.question.answer === 'על החלטה של הממשלה');
+  const ownVerbs = p1.words_used.filter((w) => w.spot_id.startsWith('v:')).map((w) => w.surface);
+  check('the verb blanked in a passage is one of Dan\'s given shaky verbs where it has one (not the model\'s החליטה)',
+    ownVerbs.length > 0 && p1.question.answer === ownVerbs[0] && p1.question.answer !== 'החליטה', JSON.stringify([p1.question.answer, ownVerbs]));
+  check('…and words already saved (shaky) are never sent to be judged: no judging call for this set', (await orCalls()).difficulty_calls === 0);
   check('…at most two new words, each a word of the passage', p1.new_words.length === 1 && p1.new_words[0].surface === 'המכרז' && p1.text.includes('המכרז'));
+  const counts = [p1, p2].map((p) => p.text.split(/[.!?]+/).filter((s) => /[א-ת]/.test(s)).length);
+  check('…each passage kept is three to five sentences', counts.every((n) => n >= 3 && n <= 5), counts.join());
   check('…the passage items record no spot', p1.spot_id === null && p2.spot_id === null);
   const again = (await api('GET', '/today/set')).body;
   check('the set is made once: a second GET serves the same set and asks the model nothing', again.set.id === set.set.id && (await orCalls()).passage_calls === 2 && peek('SELECT COUNT(*) AS n FROM drill_sets')[0].n === 1);
@@ -133,7 +151,7 @@ try {
   const lastBody = bodies.at(-1) || {};
   check('verify 2: the spine received a PUT whose body carries status, due_on and interval_days at the top level',
     bodies.length === n0 + 1 && lastBody.status === 'shaky' && lastBody.due_on === tokyo(1) && lastBody.interval_days === 1, JSON.stringify(lastBody));
-  check('the flash names the word and the result', wrong.body.flash.text === 'נאלצה — wrong; next due tomorrow', wrong.body.flash.text);
+  check('the flash names the word with its niqud, and the result', wrong.body.flash.text === 'נֶאֶלְצָה — wrong; next due tomorrow' && wrong.body.flash.word_pointed === 'נֶאֶלְצָה', wrong.body.flash.text);
   const after = (await api('GET', '/today/set')).body;
   check('an answered item is recorded and the set goes on from the next one after a reload', after.items[0].answered.result === 'wrong' && after.position === 1);
   const twice = await api('POST', '/today/answer', { set_id: set.set.id, item_index: 0, result: 'right' });
@@ -161,17 +179,36 @@ try {
   const shown = await api('POST', '/today/show', { set_id: set.set.id, item_index: 4 });
   check('Show on Do you know it records the show and reveals the word\'s card', shown.status === 200 && shown.body.card.meaning_en === 'a reform'
     && peek("SELECT result FROM drill_answers WHERE item_index = 4 AND set_id = ?", set.set.id).map((r) => r.result).join() === 'shown');
-  const view4 = (await api('GET', '/today/set')).body.items[4];
+  const showSpell = await api('POST', '/today/show', { set_id: set.set.id, item_index: 3 });
+  check('Show reveals the answer (plain where the card has no pointed form of that very word), and the card with its niqud', showSpell.body.answer === 'להתבייש' && showSpell.body.answer_pointed === null && showSpell.body.card.pointed.lemma === 'הִתְבַּיֵּשׁ', JSON.stringify([showSpell.body.answer, showSpell.body.answer_pointed]));  const view4 = (await api('GET', '/today/set')).body.items[4];
   check('…the item then waits for the tap: shown, not answered', view4.shown === true && view4.answered === null);
   const had = await api('POST', '/today/answer', { set_id: set.set.id, item_index: 4, result: 'right' });
   const sp4 = (await api('GET', `/spots/${enc(A.spots['רפורמה'])}`)).body;
   check('"I had it" moves the word by Dan\'s own answer: run 1, interval 1, due tomorrow', had.body.result === 'right' && sp4.right_run === 1 && sp4.interval_days === 1 && sp4.due_on === tokyo(1));
   const prep = await api('POST', '/today/answer', { set_id: set.set.id, item_index: 2, answer: 'עם', result: 'wrong' });
   check('a chosen preposition is judged by the server (עם is right even when the page says wrong)', prep.body.result === 'right');
-  const pas = await api('POST', '/today/answer', { set_id: set.set.id, item_index: 8, answer: 'החליטה' });
+  const pas = await api('POST', '/today/answer', { set_id: set.set.id, item_index: 8, answer: p1.question.answer });
   check('a passage\'s answer is one row with no spot', pas.body.result === 'right' && peek('SELECT spot_id FROM drill_answers WHERE set_id = ? AND item_index = 8', set.set.id)[0].spot_id === null);
   const passShow = await api('POST', '/today/show', { set_id: set.set.id, item_index: 8 });
   check('Show on an answered passage gives its English and records nothing more', /government/.test(passShow.body.english) && peek('SELECT COUNT(*) AS n FROM drill_answers WHERE item_index = 8')[0].n === 1);
+
+  // "Too easy": the word marked solid through the save (the spine has it); Undo puts it back
+  const W5 = A.spots['הסלמה'];
+  const before5 = (await api('GET', `/spots/${enc(W5)}`)).body;
+  const easy = await api('POST', '/today/easy', { set_id: set.set.id, item_index: 5 });
+  const sp5 = (await api('GET', `/spots/${enc(W5)}`)).body;
+  const b5 = (await spineBodies(W5)).at(-1) || {};
+  check('"Too easy" marks the word solid, through the save: the spine receives solid; its schedule is left as it was',
+    easy.status === 200 && sp5.status === 'solid' && b5.status === 'solid' && easy.body.spine === 'recorded' && sp5.due_on === before5.due_on && sp5.interval_days === before5.interval_days, JSON.stringify([easy.body.error, sp5.status, b5.status]));
+  check('…the flash says so plainly ("הסלמה — too easy; marked solid"), and the item counts as answered, too easy',
+    easy.body.flash.text === 'הסלמה — too easy; marked solid' && easy.body.view.items[5].answered.too_easy === true, easy.body.flash && easy.body.flash.text);
+  const easyAgain = await api('POST', '/today/easy', { set_id: set.set.id, item_index: 5 });
+  const easyPassage = await api('POST', '/today/easy', { set_id: set.set.id, item_index: 9 });
+  check('"Too easy" twice on one item: 409; on a passage (no word): 400', easyAgain.status === 409 && easyPassage.status === 400, `${easyAgain.status} ${easyPassage.status}`);
+  const easyUndo = await api('POST', '/today/undo', { set_id: set.set.id });
+  const sp5b = (await api('GET', `/spots/${enc(W5)}`)).body;
+  check('Undo reverses "Too easy" like any answer: shaky again, the spine told shaky, the item open again',
+    easyUndo.status === 200 && sp5b.status === 'shaky' && (await spineBodies(W5)).at(-1).status === 'shaky' && easyUndo.body.view.items[5].answered === null, JSON.stringify([easyUndo.body.error, sp5b.status]));
 
   // ================= part two: lib/today.js in this process, with a seeded clock =================
   quiet();
@@ -233,6 +270,77 @@ try {
     down.note === 'No fresh passages today; the model did not answer.' && down.items.length === 10 && down.items.filter((it) => it.group === 'lesson').length === 8, JSON.stringify([down.items.length, down.note]));
   const kept = t.wordsFound('בדיון דובר על הנאלץ ועל נאלצה, ועל קידום.', [{ spot_id: 'a', lemma: 'נאלץ', forms: ['נאלץ', 'נאלצה'] }, { spot_id: 'b', lemma: 'קידם', forms: ['קידם', 'מקדם'] }]);
   check('the word count reads a form after a prefix (הנאלץ), and not a different word of the same root (קידום)', kept.map((k) => k.spot_id).join() === 'a');
+  await orControl({ passage_long: true });
+  const long = await t.build(D);
+  await orControl({ passage_long: false });
+  check('a passage of eight sentences (one per word) is not kept: no passages, the set says why, and the slots go to words',
+    !long.items.some((it) => it.kind === 'passage') && long.items.length === 10 && long.note === 'No fresh passages today; the passages written were not three to five sentences.', JSON.stringify([long.items.length, long.note]));
+  check('the sentence count: two sentences and six are out, three and five in (a line break ends one too)',
+    t.sentenceCount('א ב. ג ד.') === 2 && t.sentenceCount('א. ב. ג. ד. ה. ו.') === 6 && t.sentenceCount('אחת. שתיים!\nשלוש') === 3 && t.sentenceCount('א. ב? ג. ד. ה.') === 5 && t.SENTENCES.min === 3 && t.SENTENCES.max === 5);
+
+  // shaky words before new ones; new words judged once by the model, the easy ones not drilled
+  const K = fresh('shaky-first', { only: ['נאלצה', 'ייקבעו', 'להתמודד', 'הממסד', 'מגמה'] });
+  K.raw.prepare("UPDATE spots SET status = 'new' WHERE id IN (?, ?)").run(K.spots['נאלצה'], K.spots['הממסד']);
+  const ks = (await t.build(D)).items.filter((it) => it.spot_id).map((it) => it.word);
+  check('shaky words before new ones: נאלצה (new, touched first) after the shaky lesson words; the new article word הממסד after the shaky מגמה',
+    ks.join() === 'ייקבעו,להתמודד,נאלצה,מגמה,הממסד', ks.join());
+  const J = fresh('judged', { only: ['רפורמה', 'הסלמה', 'שוטטות', 'שביתה'], status: 'new' });
+  J.raw.prepare("UPDATE spots SET status = 'shaky' WHERE id = ?").run(J.spots['שביתה']);
+  await orControl({ easy_lemmas: ['רפורמה'] });
+  const dc0 = (await orCalls()).difficulty_calls;
+  const j1 = await t.build(D);
+  const asked = (await orCalls()).last_difficulty_ask || '';
+  const easyRows = Object.fromEntries(J.raw.prepare('SELECT lemma, easy FROM spots').all().map((r) => [r.lemma, r.easy]));
+  check('new words are judged in one call, with each card\'s word, meaning and categories; a shaky word is not sent',
+    (await orCalls()).difficulty_calls === dc0 + 1 && /"word":"רפורמה","meaning":"a reform","categories":\[\]/.test(asked) && /"categories":\["sound-pattern-deviation"\]/.test(asked) && !asked.includes('שביתה'), asked.slice(0, 300));
+  check('the judgment is kept on the word (spots.easy: רפורמה 1, the other new words 0, the shaky word not judged)',
+    easyRows['רפורמה'] === 1 && easyRows['הסלמה'] === 0 && easyRows['שוטטות'] === 0 && easyRows['שביתה'] === null, JSON.stringify(easyRows));
+  check('a word judged easy is not drilled', !j1.items.some((it) => it.spot_id === J.spots['רפורמה']) && j1.items.some((it) => it.spot_id === J.spots['הסלמה']));
+  await t.build(D);
+  check('a word is judged only once: the next build asks the model nothing', (await orCalls()).difficulty_calls === dc0 + 1);
+  await orControl({ easy_lemmas: [] });
+  const J2 = fresh('judge-down', { only: ['רפורמה', 'הסלמה'], status: 'new' });
+  await orControl({ difficulty_fail: true });
+  const j2 = await t.build(D);
+  await orControl({ difficulty_fail: false });
+  check('the model not answering: the set is built as before (both new words drilled) and nothing is kept, to be judged next time',
+    j2.items.filter((it) => it.spot_id).length === 2 && J2.raw.prepare('SELECT COUNT(*) AS n FROM spots WHERE easy IS NOT NULL').get().n === 0);
+
+  // a word judged easy while new, then saved by Dan (shaky): drilled again, and not judged again
+  const S2 = fresh('easy-then-saved', { only: ['רפורמה', 'הסלמה'], status: 'new' });
+  db.setEasy(S2.spots['רפורמה'], true);
+  db.setSpotStatus(S2.spots['רפורמה'], 'shaky');
+  const dcS = (await orCalls()).difficulty_calls;
+  const sv = await t.chooseWords('2026-10-20');
+  const chosenS = [...sv.b, ...sv.c].map((it) => it.spot_id);
+  check('a word judged easy while new and then saved (shaky) is drilled: Dan\'s save overrides the judgment', chosenS.includes(S2.spots['רפורמה']), JSON.stringify(chosenS));
+  check('…and it is not sent to be judged again (only the other new word is)', !((await orCalls()).last_difficulty_ask || '').includes('רפורמה') && (await orCalls()).difficulty_calls === dcS + 1);
+
+  // the verb blanked in a passage with none of Dan's verbs: the model's, never a basic one
+  fresh('nouns', { only: ['רפורמה', 'הסלמה', 'שוטטות', 'שביתה', 'מגמה'] });
+  const nv = (await t.build(D)).items.find((it) => it.kind === 'passage');
+  check('a passage with none of Dan\'s verbs: the model\'s verb is blanked (החליטה, not a basic verb)', nv && nv.question.type === 'form' && nv.question.answer === 'החליטה', JSON.stringify(nv && nv.question));
+  await orControl({ passage_basic: true });
+  const bv = await t.build(D);
+  await orControl({ passage_basic: false });
+  check('…a passage whose verb to blank is a basic one (הייתה, of היה) is not kept, and the set says why',
+    !bv.items.some((it) => it.kind === 'passage' && it.question.type === 'form') && /came without a usable question/.test(bv.note || ''), JSON.stringify([bv.note, bv.items.filter((it) => it.kind === 'passage').map((p) => p.question.type)]));
+
+  // Which preposition with no read sentence: a made-up sentence; the plain fallback only when the model gives none
+  const P = fresh('prep', { only: ['להמר'] });
+  const madePrep = await t.itemFor(db.getSpot(P.spots['להמר']), 'lesson');
+  check('Which preposition, no read sentence: the model writes one with the word and its preposition, blanked, marked a made-up sentence',
+    madePrep.kind === 'preposition' && madePrep.made_up === true && madePrep.in_sentence === true && madePrep.sentence === 'בישיבה אתמול ביקשו להמר … התוכנית החדשה.' && madePrep.answer === 'על', JSON.stringify(madePrep));
+  await orControl({ sentence_fail: true });
+  const plainPrep = await t.itemFor(db.getSpot(P.spots['להמר']), 'lesson');
+  const P2 = fresh('spell-down', { only: ['להתבייש'] });
+  const spellDown = await t.itemFor(db.getSpot(P2.spots['להתבייש']), 'lesson');
+  await orControl({ sentence_fail: false });
+  check('…the model not answering: the plain fallback, the word and a blank, not marked made up',
+    plainPrep.kind === 'preposition' && plainPrep.made_up === false && plainPrep.in_sentence === false && plainPrep.sentence === 'להמר …', JSON.stringify(plainPrep));
+  check('Which spelling with no read sentence and the model not answering: no spelling item without a sentence; Do you know it instead', spellDown.kind === 'know', spellDown.kind);
+  const prefixPrep = await (async () => { const Q = fresh('prep-prefix', { only: ['נאלצה'] }); Q.raw.prepare("UPDATE spots SET categories_json = '[\"preposition-government\"]' WHERE id = ?").run(Q.spots['נאלצה']); return t.itemFor(db.getSpot(Q.spots['נאלצה']), 'lesson'); })();
+  check('a one-letter preposition in the lesson\'s own sentence: its letter blanked in the word after (…דחות)', prefixPrep.kind === 'preposition' && prefixPrep.sentence === 'הממשלה נאלצה …דחות את ההצבעה' && prefixPrep.made_up === false, JSON.stringify(prefixPrep.sentence));
 
   // ensureSet twice at once (verify 5)
   const E = fresh('ensure');

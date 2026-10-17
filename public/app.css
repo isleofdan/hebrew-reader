@@ -200,10 +200,13 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 .today-sentence .gap { display: inline-block; min-width: 88px; border-bottom: 2px solid var(--amber-line); padding: 0 4px; border-radius: 4px; }
 .today-sentence .gap.right { background: var(--ok); color: var(--ok-ink); border-bottom-color: var(--ok-line); }
 .today-sentence .gap.shown { background: var(--panel); border-bottom-color: var(--line-strong); }
+/* an answer revealed carries niqud: the face that places the points well */
+.today-sentence .gap.right, .today-sentence .gap.shown, .today-list .he, .today-flash .he { font-family: var(--pointed); }
 .today-question { direction: rtl; text-align: right; font-family: var(--serif); font-size: 20px; font-weight: 500; }
 .today-item .form-line { font-size: 14px; color: var(--muted); }
 .today-item .form-line .he { direction: rtl; unicode-bidi: isolate; font-weight: 600; font-family: var(--serif); font-size: 16px; }
 .today-source { margin: 0; font-size: 13px; color: var(--muted); }
+.today-easy { align-self: flex-start; font-size: 13px; padding: 4px 0; }
 .today-source .he, .today-flash .he { font-family: var(--serif); font-size: 1.1em; }
 .today-english { font-size: 15px; line-height: 1.5; border-left: 3px solid var(--line-strong); padding-left: 10px; }
 .today-answer { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }

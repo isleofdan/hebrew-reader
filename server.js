@@ -421,6 +421,8 @@ route('GET', /^\/today\/set$/, async (req, res) => sendJson(res, 200, await toda
 route('POST', /^\/today\/answer$/, async (req, res) => sendJson(res, 200, await today.answer(await readJson(req))));
 // { set_id, item_index } -> what Show reveals; the show is recorded
 route('POST', /^\/today\/show$/, async (req, res) => sendJson(res, 200, await today.show(await readJson(req))));
+// "Too easy": { set_id, item_index } -> the word marked solid (through the save), the tap recorded like an answer
+route('POST', /^\/today\/easy$/, async (req, res) => sendJson(res, 200, await today.tooEasy(await readJson(req))));
 // { set_id, answer_id? } -> the set's last answer undone, its word put back
 route('POST', /^\/today\/undo$/, async (req, res) => sendJson(res, 200, await today.undo(await readJson(req))));
 

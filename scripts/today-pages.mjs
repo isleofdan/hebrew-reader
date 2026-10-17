@@ -140,8 +140,9 @@ try {
     await page.locator('#check').click();
     await page.locator('#flash:not(.hidden)').waitFor({ timeout: 8000 });
     const flashWrong = await page.locator('#flash-text').innerText();
-    check(`${name}: a wrong form: the flash says "נאלצה — wrong; next due tomorrow", with Undo and Next under it`,
-      flashWrong === 'נאלצה — wrong; next due tomorrow' && (await page.locator('#undo').isVisible()) && (await page.locator('#next').isVisible()), flashWrong);
+    check(`${name}: a wrong form: the flash names the word with its niqud, "נֶאֶלְצָה — wrong; next due tomorrow", with Undo and Next under it`,
+      flashWrong === 'נֶאֶלְצָה — wrong; next due tomorrow' && (await page.locator('#undo').isVisible()) && (await page.locator('#next').isVisible()), flashWrong);
+    check(`${name}: …while the question itself stays without niqud`, !/[ְ-ׇ]/.test(await page.locator('#sentence').innerText().then((t) => t.replace(/נֶאֶלְצָה/, ''))));
     const bidi = await page.locator('#flash-text').evaluate((t) => { const b = t.querySelector('bdi'); return b ? Math.round(b.getBoundingClientRect().left - t.getBoundingClientRect().left) : null; });
     check(`${name}: the flash reads left to right: the Hebrew word first, then "— wrong; …"`, bidi === 0, String(bidi));
     check(`${name}: the flash is legible`, contrast(await paint(page.locator('#flash-text'), 'color'), await ground(page.locator('#flash'))) >= 4.5);
@@ -152,13 +153,13 @@ try {
     await page.locator('#undo').click();
     await page.locator('#flash-text', { hasText: 'undone' }).waitFor({ timeout: 8000 });
     const back = (await api('GET', `/spots/${encodeURIComponent('v:א.ל.צ:nifal')}`)).body;
-    check(`${name}: Undo: the flash says "נאלצה — undone", the item can be answered again, and the word is as it was`,
-      (await page.locator('#flash-text').innerText()) === 'נאלצה — undone' && (await page.locator('#typed').isVisible()) && back.due_on === null && back.interval_days === 0 && back.status === 'shaky', JSON.stringify(back));
+    check(`${name}: Undo: the flash says "נֶאֶלְצָה — undone", the item can be answered again, and the word is as it was`,
+      (await page.locator('#flash-text').innerText()) === 'נֶאֶלְצָה — undone' && (await page.locator('#typed').isVisible()) && back.due_on === null && back.interval_days === 0 && back.status === 'shaky', JSON.stringify(back));
     await page.fill('#answer', 'נאלצה');
     await page.locator('#check').click();
     await page.locator('#flash[data-result="right"]').waitFor({ timeout: 8000 });
-    check(`${name}: a right form: the gap filled, the flash "נאלצה — right; next due tomorrow", the word's card under it`,
-      (await page.locator('#flash-text').innerText()) === 'נאלצה — right; next due tomorrow' && (await page.locator('#sentence .gap.right').innerText()) === 'נאלצה'
+    check(`${name}: a right form: the gap filled with the word's niqud (נֶאֶלְצָה), the flash "נֶאֶלְצָה — right; next due tomorrow", the word's card under it`,
+      (await page.locator('#flash-text').innerText()) === 'נֶאֶלְצָה — right; next due tomorrow' && (await page.locator('#sentence .gap.right').innerText()) === 'נֶאֶלְצָה'
       && (await page.locator('#card-today:not(.idle)').count()) === 1, await page.locator('#flash-text').innerText());
     await both(page, `right-${name}`);
     await next();
@@ -168,7 +169,7 @@ try {
     await page.locator('#show').click();
     await page.locator('#self:not(.hidden)').waitFor({ timeout: 8000 });
     check(`${name}: Show reveals the form and offers "I had it" / "I missed it" side by side`,
-      (await page.locator('#sentence .gap.shown').innerText()) === 'ייקבעו' && (await page.locator('#had').innerText()) === 'I had it' && (await page.locator('#missed').innerText()) === 'I missed it');
+      (await page.locator('#sentence .gap.shown').innerText()) === 'ייקבעו' /* its card has no niqud: plain */ && (await page.locator('#had').innerText()) === 'I had it' && (await page.locator('#missed').innerText()) === 'I missed it');
     await page.locator('#had').click();
     await page.locator('#flash:not(.hidden)').waitFor();
     await next();
@@ -179,16 +180,21 @@ try {
     await both(page, `preposition-${name}`);
     await page.locator('#choices .choice', { hasText: /^עם$/ }).click();
     await page.locator('#flash[data-result="right"]').waitFor();
-    check(`${name}: the right preposition turns green`, (await page.locator('#choices .choice.right').innerText()) === 'עם');
+    check(`${name}: the right preposition turns green (the choices stay without niqud), and fills the gap with it: עִם`,
+      (await page.locator('#choices .choice.right').innerText()) === 'עם' && (await page.locator('#sentence .gap.right').innerText()) === 'עִם');
     await next();
 
     // Which spelling
-    check(`${name}: "Which spelling": the meaning, and two spellings side by side`, (await kind()) === 'spelling' && (await page.locator('#choices .choice').count()) === 2 && (await page.locator('#translation').innerText()) === 'to be ashamed');
+    check(`${name}: "Which spelling": the meaning, a sentence with the word blanked ("a made-up sentence"), and two spellings side by side`, (await kind()) === 'spelling' && (await page.locator('#choices .choice').count()) === 2 && (await page.locator('#translation').innerText()) === 'to be ashamed'
+      && (await page.locator('#sentence .gap').count()) === 1 && (await page.locator('#hint').innerText()) === 'a made-up sentence');
     const twoRow = await page.locator('#choices .choice').evaluateAll((bs) => bs.map((b) => Math.round(b.getBoundingClientRect().top)));
     check(`${name}: …on one row`, twoRow[0] === twoRow[1], JSON.stringify(twoRow));
     await both(page, `spelling-${name}`);
-    await page.locator('#choices .choice', { hasText: /^הבתייש$/ }).click();
+    await page.locator('#choices .choice', { hasText: /^לתהבייש$/ }).click();
     await page.locator('#flash[data-result="wrong"]').waitFor();
+    const spellGap = await page.locator('#sentence .gap.shown').innerText();
+    check(`${name}: a wrong spelling: the gap shows the right one, the word itself (its card points only the dictionary form הִתְבַּיֵּשׁ, another form: so plain); the choices stay plain`,
+      spellGap === 'להתבייש' && !(await page.locator('#choices').innerText()).match(/[ְ-ׇ]/), spellGap);
     await next();
 
     // Do you know it
@@ -200,6 +206,16 @@ try {
     await both(page, `know-shown-${name}`);
     await page.locator('#missed').click();
     await page.locator('#flash:not(.hidden)').waitFor();
+    await next();
+
+    // "Too easy" on a word item (the next is הסלמה, Do you know it)
+    check(`${name}: a word item offers a small "Too easy"`, (await kind()) === 'know' && (await page.locator('#easy').isVisible()) && (await page.locator('#easy').innerText()) === 'Too easy');
+    await page.locator('#easy').click();
+    await page.locator('#flash:not(.hidden)').waitFor();
+    const easyFlash = await page.locator('#flash-text').innerText();
+    check(`${name}: "Too easy": the flash says "הסלמה — too easy; marked solid", with Undo; "Too easy" is gone`,
+      easyFlash === 'הסלמה — too easy; marked solid' && (await page.locator('#undo').isVisible()) && (await page.locator('#easy').isHidden()), easyFlash);
+    await both(page, `too-easy-${name}`);
     await next();
 
     // the rest of the words, quickly
@@ -220,7 +236,7 @@ try {
     await page.locator('#sentence .w.new').click();
     await page.locator('#card-today:not(.idle) .meaning').waitFor({ timeout: 8000 });
     check(`${name}: tapping the new word opens its card, which can be saved`, (await page.locator('#card-today [data-act=shaky]').isVisible()));
-    await page.fill('#answer', 'החליטה');
+    await page.fill('#answer', await page.evaluate(() => window.Today.view.items[window.Today.at].question.answer));
     await page.locator('#check').click();
     await page.locator('#flash[data-result="right"]').waitFor();
     await page.locator('#english-show').click();
@@ -237,6 +253,9 @@ try {
     // done for today
     await page.locator('#done:not(.hidden)').waitFor();
     const rows = await page.locator('#done-list li').count();
+    const firstRow = await page.locator('#done-list li .he').first().innerText();
+    check(`${name}: the day's list shows the words with niqud where their cards have it (נֶאֶלְצָה)`, firstRow === 'נֶאֶלְצָה', firstRow);
+    check(`${name}: …and a word tapped "Too easy" as too easy`, (await page.locator('#done-list li').nth(5).locator('.res').innerText()) === 'too easy');
     check(`${name}: "Done for today" and the day's ten items with their results; "10 of 10"`, rows === 10 && (await page.locator('#done h2').textContent()) === 'Done for today' && (await place()) === '10 of 10', String(rows));
     await both(page, `done-${name}`);
     await page.reload();
