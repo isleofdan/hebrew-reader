@@ -185,10 +185,10 @@ try {
     await next();
 
     // Which spelling
-    check(`${name}: "Which spelling": the meaning, a sentence with the word blanked ("a made-up sentence"), and two spellings side by side`, (await kind()) === 'spelling' && (await page.locator('#choices .choice').count()) === 2 && (await page.locator('#translation').innerText()) === 'to be ashamed'
+    check(`${name}: "Which spelling": the meaning, a sentence with the word blanked ("a made-up sentence"), and two spellings to choose`, (await kind()) === 'spelling' && (await page.locator('#choices .choice').count()) === 2 && (await page.locator('#translation').innerText()) === 'to be ashamed'
       && (await page.locator('#sentence .gap').count()) === 1 && (await page.locator('#hint').innerText()) === 'a made-up sentence');
     const twoRow = await page.locator('#choices .choice').evaluateAll((bs) => bs.map((b) => Math.round(b.getBoundingClientRect().top)));
-    check(`${name}: …on one row`, twoRow[0] === twoRow[1], JSON.stringify(twoRow));
+    check(`${name}: …${mobile ? 'one under the other, at phone width' : 'side by side, on one row'}`, mobile ? twoRow[1] > twoRow[0] : twoRow[0] === twoRow[1], JSON.stringify(twoRow));
     await both(page, `spelling-${name}`);
     await page.locator('#choices .choice', { hasText: /^לתהבייש$/ }).click();
     await page.locator('#flash[data-result="wrong"]').waitFor();
@@ -245,6 +245,20 @@ try {
 
     // a comprehension question
     check(`${name}: the second passage asks a question in Hebrew with three choices`, (await kind()) === 'passage' && (await page.locator('#question').innerText()) === 'על מה מדובר בקטע?' && (await page.locator('#choices .choice').count()) === 3);
+    // hebrew-today-two: the choices' layout. Each choice's text (the box its
+    // letters fill, measured with a Range) must lie inside its own button; at
+    // phone width the three stand one under another, full width.
+    const boxes = await page.locator('#choices .choice').evaluateAll((bs) => bs.map((b) => {
+      const r = document.createRange(); r.selectNodeContents(b);
+      const t = r.getBoundingClientRect(), o = b.getBoundingClientRect();
+      return { text: b.textContent, inside: t.left >= o.left - 1 && t.right <= o.right + 1 && t.top >= o.top - 1 && t.bottom <= o.bottom + 1, left: Math.round(o.left), top: Math.round(o.top), width: Math.round(o.width) };
+    }));
+    const zone = await page.locator('#choices').boundingBox();
+    check(`${name}: the passage question's choices, the long third one included ("${boxes[2] && boxes[2].text}"): every choice's text inside its own button`,
+      boxes.length === 3 && boxes[2].text.length > 30 && boxes.every((b) => b.inside), JSON.stringify(boxes));
+    check(`${name}: …${mobile ? 'stacked one under another, each the full width' : 'on one row, each button growing with its text'}`,
+      mobile ? boxes.every((b, i) => (i === 0 || b.top > boxes[i - 1].top) && Math.abs(b.width - zone.width) <= 1)
+        : boxes.every((b) => b.top === boxes[0].top), JSON.stringify([boxes, zone]));
     await both(page, `passage-question-${name}`);
     await page.locator('#choices .choice').first().click();
     await page.locator('#flash:not(.hidden)').waitFor();
@@ -256,11 +270,42 @@ try {
     const firstRow = await page.locator('#done-list li .he').first().innerText();
     check(`${name}: the day's list shows the words with niqud where their cards have it (נֶאֶלְצָה)`, firstRow === 'נֶאֶלְצָה', firstRow);
     check(`${name}: …and a word tapped "Too easy" as too easy`, (await page.locator('#done-list li').nth(5).locator('.res').innerText()) === 'too easy');
-    check(`${name}: "Done for today" and the day's ten items with their results; "10 of 10"`, rows === 10 && (await page.locator('#done h2').textContent()) === 'Done for today' && (await place()) === '10 of 10', String(rows));
+    check(`${name}: "Done" and the set's ten items with their results; "10 of 10"`, rows === 10 && (await page.locator('#done h2').textContent()) === 'Done' && (await place()) === '10 of 10', String(rows));
+    // hebrew-today-two: "Another set", a large button under the list
+    const listBox = await page.locator('#done-list').boundingBox();
+    const anotherBox = await page.locator('#another').boundingBox();
+    const doneBox = await page.locator('#done').boundingBox();
+    check(`${name}: the "Done" screen has a large "Another set" button under the results list, the panel's width${mobile ? ', within the first screen, where the thumb reaches' : ''}`,
+      (await page.locator('#another').innerText()) === 'Another set' && anotherBox.y >= listBox.y + listBox.height && anotherBox.height >= 52 && anotherBox.width >= doneBox.width - 40
+      && (!mobile || anotherBox.y + anotherBox.height <= viewport.height), JSON.stringify([listBox, anotherBox, doneBox]));
+    check(`${name}: …and nothing counts the sets: no number of sets on the screen`, !/\b(sets? (done|today)|\d+ sets?)\b/i.test(await page.locator('main').innerText()));
     await both(page, `done-${name}`);
     await page.reload();
     await page.locator('#done:not(.hidden)').waitFor();
     check(`${name}: a reload keeps it done: answered items do not come back`, (await page.locator('#done-list li').count()) === 10);
+    // the tap: "Building…" while the set is made (held back a moment here, so
+    // it can be seen), a second tap meanwhile makes nothing, then item 1
+    const seqBefore = await page.evaluate(() => window.Today.view.set.seq);
+    let release;
+    const held = new Promise((r) => { release = r; });
+    await page.route('**/today/another', async (route) => { await held; await route.continue(); });
+    await page.locator('#another').click();
+    await page.locator('#another', { hasText: 'Building…' }).waitFor({ timeout: 4000 });
+    const building = { text: await page.locator('#another').innerText(), disabled: await page.locator('#another').isDisabled() };
+    await page.locator('#another').click({ force: true }).catch(() => {});
+    check(`${name}: while it builds the button says "Building…" and is disabled`, building.text === 'Building…' && building.disabled, JSON.stringify(building));
+    await both(page, `building-${name}`);
+    release();
+    await page.locator('#item:not(.hidden)').waitFor({ timeout: 15000 });
+    await page.unroute('**/today/another');
+    const opened = await page.evaluate(() => ({ seq: window.Today.view.set.seq, position: window.Today.view.position }));
+    check(`${name}: "Another set" opens a new set at item 1: "1 of 10", the next number, one set made for the two taps`,
+      (await place()) === '1 of 10' && opened.position === 0 && opened.seq === seqBefore + 1, JSON.stringify([await place(), opened, seqBefore]));
+    const noteText = await page.locator('#note').innerText();
+    check(`${name}: …its note says plainly that it draws on words not yet due`, noteText.startsWith('Nothing more is due; this set draws on words not yet due.'), noteText);
+    await both(page, `another-${name}`);
+    const served = (await api('GET', '/today/set')).body;
+    check(`${name}: …and the server serves that set on a reload`, served.set.seq === opened.seq && served.position === 0);
     check(`${name}: no screen of this page shows the app's own words ("map", "spot", "touch", "demand") or a streak`, page.jargon.length === 0, page.jargon.join(' | '));
     await ctx.close();
   }

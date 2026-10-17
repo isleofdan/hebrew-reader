@@ -1,7 +1,8 @@
 'use strict';
-// Today: the day's drills, one item at a time. Pull-only: the page shows the
-// set the server made and nothing else; it never reminds, counts days or
-// asks Dan back. "3 of 10" is a place in today's set, not a streak.
+// Today: a set of drills, one item at a time, and another set on Dan's tap.
+// Pull-only: the page shows the set the server made and nothing else; it
+// never reminds, counts days or sets, or asks Dan back. "3 of 10" is a place
+// in the set on screen, not a streak.
 
 const $ = (s) => document.querySelector(s);
 const UI = window.CardUI;
@@ -320,18 +321,44 @@ function drawNoData(reason) {
   $('#state').textContent = reason && reason !== 'Nothing is due today.' ? `Nothing is due today. ${reason}` : 'Nothing is due today.';
 }
 
+// A set as GET /today/set or POST /today/another gives it: its note, and its
+// first unanswered item (or its "Done" screen).
+function open(data) {
+  view = data;
+  $('#state').textContent = '';
+  const note = $('#note');
+  note.textContent = view.set.note || '';
+  note.classList.toggle('hidden', !view.set.note);
+  if (view.done) drawDone(); else drawItem(view.items[view.position]);
+}
+
 async function load() {
   try {
     const data = await api('GET', '/today/set');
     if (data.state === 'no data') return drawNoData(data.reason);
-    view = data;
-    $('#state').textContent = '';
-    const note = $('#note');
-    note.textContent = view.set.note || '';
-    note.classList.toggle('hidden', !view.set.note);
-    if (view.done) drawDone(); else drawItem(view.items[view.position]);
+    open(data);
   } catch (e) {
     $('#state').textContent = e.message;
+  }
+}
+
+// "Another set": Dan's tap on the "Done" screen makes a new set and opens it
+// at item 1. The passages take a few seconds to write: the button says
+// "Building…" and waits; a second tap meanwhile does nothing.
+async function anotherSet() {
+  const b = $('#another'), msg = $('#another-msg');
+  if (b.disabled) return;
+  b.disabled = true; b.textContent = 'Building…';
+  msg.className = 'msg'; msg.textContent = '';
+  try {
+    const data = await api('POST', '/today/another');
+    if (data.state === 'no data') { msg.textContent = data.reason; return; }
+    $('#flash').classList.add('hidden');
+    open(data);
+  } catch (e) {
+    msg.className = 'msg error'; msg.textContent = e.message;
+  } finally {
+    b.disabled = false; b.textContent = 'Another set';
   }
 }
 
@@ -348,6 +375,7 @@ $('#missed').addEventListener('click', () => send({ result: 'wrong' }));
 $('#undo').addEventListener('click', undoLast);
 $('#easy').addEventListener('click', () => send({}, null, '/today/easy'));
 $('#next').addEventListener('click', next);
+$('#another').addEventListener('click', anotherSet);
 $('#english-show').addEventListener('click', async () => {
   const it = view.items[at];
   $('#english').classList.remove('hidden');

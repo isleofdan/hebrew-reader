@@ -1352,3 +1352,68 @@ day's words with their results. Nothing due: "Nothing is due today".
   the model down, an easy word saved shaky drilled again, the passage verb
   both ways, "Too easy" and its Undo), `today-pages.mjs` 67; totals 616
   server checks and 529 page checks.
+
+## hebrew-today-two (17 Oct 2026, the rented Linux machine, OpenRig team): as many sets a day as Dan likes
+
+**Dan's screens changed.** The end of a set says "Done" (the day is no
+longer the unit) and, under the list of results, a large "Another set"
+button; a tap says "Building…" while the set is made (the passages take a
+few seconds) and opens the new set at "1 of 10". On the phone the answer
+choices of a passage's question, "Which preposition" and "Which spelling"
+stand one under another, full width, each choice's text wrapping inside its
+button; on the computer they stay on one row and each button grows with its
+text.
+
+- **Why** (Dan, his first day): "Can't get a new set of drills going. I
+  think we need to change the app so I can do as many sets per day as I want
+  to." A set was keyed to the Tokyo day (`drill_sets.for_day` UNIQUE, the
+  insert `OR IGNORE`), so a finished set left nothing until the next 05:00
+  build. And a longer comprehension choice spilled out of its button below
+  the card on the phone.
+- **Sets are numbered, not dated** (in `migrate()`, nothing dropped or
+  moved): `drill_sets.seq INTEGER` by `ALTER TABLE … ADD COLUMN`, back-filled
+  from `id`. The current set is the newest unfinished one (by `seq`); with
+  none unfinished the page shows the newest finished set's "Done" screen.
+  `for_day` stays the Tokyo day a set was built on; its UNIQUE constraint
+  cannot be dropped in place, so a later set built the same day writes the
+  day with "#2", "#3" after it. The only reader of `for_day` as a day is
+  `newestSetOfDay`, which reads the suffix; the page, the scheduler and the
+  Undo message do not read it (the message names the newer set by number).
+  `addDrillSet` is a plain insert inside one transaction: a failed insert is
+  an error, never an old row answered in its place.
+- **When a set is made.** `ensureSet` (the page's open, the 05:00 build)
+  makes a set only when no set is unfinished and none was built that day;
+  `newSet` (the tap, `POST /today/another`) builds one regardless. Both share
+  one guard, so two taps at once make one set.
+- **A set never runs dry.** The eight word slots fill from (a) the words due
+  (never-drilled ones included), in the order of hebrew-today-one, then the
+  rest of the solid words due; then (b) shaky words not yet due, then (c)
+  solid words not yet due, each earliest due first, the least recently
+  touched first on the same day. A word already in an unfinished set is
+  skipped. When (b) or (c) is drawn on, the set's note begins "Nothing more
+  is due; this set draws on words not yet due." Answering a word not yet due
+  moves it by the same rules as a due one. "No data" is now only for a map
+  with no words (or, the one corner left, words that are all in unfinished
+  sets, known — judged easy, or marked solid before ever drilled — or never
+  met in a lesson or an article, which the reason says).
+- **Three things the brief did not say.** A new word answered right stays new
+  with a due day (hebrew-today-one's rule), so "a new word is never drilled"
+  is not quite so: such a word, not judged easy, is drawn on in (b) with the
+  shaky ones. (b) and (c), like (a), take only words met in a lesson or an
+  article (a word only ever looked up is not drilled, as before). And a
+  solid word never drilled (no due day) is not "a never-drilled word counts
+  as due": it is one Dan marked solid himself — "Mark solid" on a card, or
+  "Too easy", which leaves the schedule as it was — so it stays out of every
+  pool until it has a due day (as before); drilling it would bring a word he
+  just called too easy straight back in the next set. (The team's checker
+  raised this; kept by choice, with a check and a true "no data" reason.)
+- **Checks** after these: `today-smoke.mjs` 142 (a second set the same day
+  through `POST /today/another`, "#2" and "#3", two taps at once, the pools
+  and their note, the words of an unfinished set skipped, answering a word
+  not yet due, "no data" only with no words, a word marked solid before it
+  was ever drilled left out, the 05:00 build with a set unfinished, the
+  migration's back-fill), `today-pages.mjs` 83 ("Another set" under the
+  list, "Building…", the new set at "1 of 10", the choices stacked at phone
+  width with every choice's text inside its button, a long third choice in
+  the stand-in's passage question); totals 647 server checks and 545 page
+  checks.

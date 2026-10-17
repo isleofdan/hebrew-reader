@@ -293,7 +293,7 @@ http.createServer((req, res) => {
         hebrew, english: 'The government decided to act quickly. The words were discussed at length. The tender opened this week.',
         used: use.map((w) => ({ word: w.word, form: w.form })), new_words: [{ surface: 'המכרז', meaning_en: 'the tender' }],
         verb: kind === 'verb' ? verb : '', verb_lemma: kind === 'verb' ? verbLemma : '', question_he: kind === 'verb' ? '' : 'על מה מדובר בקטע?',
-        choices: kind === 'verb' ? ['', '', ''] : ['על החלטה של הממשלה', 'על משחק כדורגל', 'על מזג האוויר'], answer_index: 0,
+        choices: kind === 'verb' ? ['', '', ''] : ['על החלטה של הממשלה', 'על משחק כדורגל', 'על מזג האוויר הסוער שפקד את מרכז הארץ בסוף השבוע'], answer_index: 0,
       };
     } else if (user.startsWith('Sentence request\n')) {
       // a made-up sentence holding the word as given, and when a preposition

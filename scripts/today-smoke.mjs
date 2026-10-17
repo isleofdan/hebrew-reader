@@ -210,6 +210,41 @@ try {
   check('Undo reverses "Too easy" like any answer: shaky again, the spine told shaky, the item open again',
     easyUndo.status === 200 && sp5b.status === 'shaky' && (await spineBodies(W5)).at(-1).status === 'shaky' && easyUndo.body.view.items[5].answered === null, JSON.stringify([easyUndo.body.error, sp5b.status]));
 
+  // hebrew-today-two: "Another set" (POST /today/another), through the server
+  for (const it of (await api('GET', '/today/set')).body.items) {
+    if (it.answered) continue;
+    const body = it.kind === 'passage' ? { answer: it.question.answer } : { result: 'right' };
+    await api('POST', '/today/answer', { set_id: set.set.id, item_index: it.index, ...body });
+  }
+  const finished = (await api('GET', '/today/set')).body;
+  check('two: a finished set stays on its "Done" screen: GET /today/set serves it, done, and makes no second set by itself',
+    finished.set.id === set.set.id && finished.done === true && peek('SELECT COUNT(*) AS n FROM drill_sets')[0].n === 1, JSON.stringify([finished.set, finished.done]));
+  const pcA = (await orCalls()).passage_calls;
+  const another = await api('POST', '/today/another');
+  const setRows = peek('SELECT id, seq, for_day FROM drill_sets ORDER BY seq');
+  check('two, verify 1: POST /today/another makes a new set at item 1 with a different seq: two drill_sets rows, the second numbered after the first',
+    another.status === 200 && another.body.state === 'ok' && another.body.position === 0 && another.body.done === false && another.body.items.length > 0
+    && setRows.length === 2 && another.body.set.id === setRows[1].id && setRows[1].seq === setRows[0].seq + 1 && another.body.set.seq !== set.set.seq, JSON.stringify([another.status, another.body.error, setRows]));
+  check('two: the second set built the same day keeps for_day\'s rule: the day with "#2" after it',
+    setRows[0].for_day === tokyo() && setRows[1].for_day === `${tokyo()}#2`, JSON.stringify(setRows));
+  check('two: its passages are fresh: the new set asked the model for two more', (await orCalls()).passage_calls === pcA + 2);
+  const served2 = (await api('GET', '/today/set')).body;
+  check('two, verify 1: GET /today/set now returns the new set (the newest unfinished), at item 1', served2.set.id === another.body.set.id && served2.position === 0, JSON.stringify(served2.set));
+  const firstWords = new Set(set.items.filter((it) => it.spot_id).map((it) => it.spot_id));
+  const fresh2 = another.body.items.filter((it) => it.spot_id);
+  check('two: the first set is finished, so its words may come again: the new set holds the words now due and then words not yet due, with the note saying so',
+    fresh2.length === 8 && another.body.set.note && another.body.set.note.startsWith('Nothing more is due; this set draws on words not yet due.'), JSON.stringify([fresh2.length, another.body.set.note]));
+  check('two: …the words not yet due in it are ones the first set drilled', fresh2.filter((it) => firstWords.has(it.spot_id)).length > 0);
+  const oldUndo = await api('POST', '/today/undo', { set_id: set.set.id });
+  check('two: Undo in the first set once another is made: refused (409), naming the newer set by its number', oldUndo.status === 409 && /a newer set \(number 2\)/.test(oldUndo.body.error), JSON.stringify(oldUndo.body));
+  // two taps at once make one set
+  for (const it of served2.items) await api('POST', '/today/answer', { set_id: served2.set.id, item_index: it.index, ...(it.kind === 'passage' ? { answer: it.question.answer } : { result: 'wrong' }) });
+  const nBefore = peek('SELECT COUNT(*) AS n FROM drill_sets')[0].n;
+  const [x1, x2] = await Promise.all([api('POST', '/today/another'), api('POST', '/today/another')]);
+  check('two, verify 3: two POST /today/another at once make one new drill_sets row, and both answer that set',
+    peek('SELECT COUNT(*) AS n FROM drill_sets')[0].n === nBefore + 1 && x1.body.set && x2.body.set && x1.body.set.id === x2.body.set.id, JSON.stringify([nBefore, x1.body.set, x2.body.set]));
+  check('two: the third set the same day: "#3"', x1.body.set.for_day === `${tokyo()}#3` && x1.body.set.seq === 3, x1.body.set.for_day);
+
   // ================= part two: lib/today.js in this process, with a seeded clock =================
   quiet();
   const today = require(join(root, 'lib', 'today.js'));
@@ -360,9 +395,11 @@ try {
   check('…GET /today/set serves it, from where it stopped', cur.set.id === u1.id && cur.position === 1);
   await answerAt(t.addDays(D, 1), u1.id, 1, { result: 'right' });
   const u3 = await t.ensureSet(t.addDays(D, 1));
-  check('once finished, the next call that day makes the day\'s own set: רפורמה (right the day before) is due again, הסלמה (answered today) is not',
-    u3.built === true && u3.set.for_day === t.addDays(D, 1) && u3.set.items.length === 1 && u3.set.items[0].spot_id === U.spots['רפורמה'], JSON.stringify(u3.set && u3.set.items.map((x) => x.word)));
+  check('once finished, the next call that day makes the day\'s own set: רפורמה (right the day before) is due again and comes first; הסלמה (answered today, not due) follows, and the note says so',
+    u3.built === true && u3.set.for_day === t.addDays(D, 1) && u3.set.items.length === 2 && u3.set.items[0].spot_id === U.spots['רפורמה'] && u3.set.items[1].spot_id === U.spots['הסלמה']
+    && u3.set.note.startsWith('Nothing more is due; this set draws on words not yet due.'), JSON.stringify(u3.set && [u3.set.items.map((x) => x.word), u3.set.note]));
   await answerAt(t.addDays(D, 1), u3.set.id, 0, { result: 'right' });
+  await answerAt(t.addDays(D, 1), u3.set.id, 1, { result: 'right' });
   const u4 = await t.ensureSet(t.addDays(D, 1));
   check('a finished set is not replaced the same day', u4.set.id === u3.set.id && u4.built === false && U.raw.prepare('SELECT COUNT(*) AS n FROM drill_sets').get().n === 2);
   const u5 = await t.ensureSet(t.addDays(D, 2));
@@ -473,6 +510,112 @@ try {
   const ms = await t.misspelling('אמינות', 'homophonous-spelling');
   await orControl({ misspellings: {} });
   check('the model answering the word itself as its misspelling: refused, one made here instead', ms.by === 'rule' && ms.misspelling !== 'אמינות');
+
+  // ================= hebrew-today-two: numbered sets, pools, another set =================
+  const NOTE_LATER = 'Nothing more is due; this set draws on words not yet due.';
+  const wordsOf = (s) => s.items.filter((it) => it.spot_id).map((it) => it.word);
+
+  // verify 2: every word already drilled and not due: shaky not due first, then solid not due
+  const V = fresh('later', { only: ['רפורמה', 'הסלמה', 'שוטטות', 'שביתה'] });
+  const due = (w, status, on, iv = 3) => V.raw.prepare('UPDATE spots SET status = ?, due_on = ?, interval_days = ?, right_run = 1 WHERE id = ?').run(status, on, iv, V.spots[w]);
+  due('רפורמה', 'shaky', t.addDays(D, 2)); due('הסלמה', 'shaky', t.addDays(D, 2));
+  due('שוטטות', 'solid', t.addDays(D, 4), 7); due('שביתה', 'solid', t.addDays(D, 3), 7);
+  const vb = await t.build(D);
+  check('two, verify 2: nothing due: the set draws on shaky words not yet due first, then solid ones, each earliest due first, the least recently touched first on the same day (רפורמה before הסלמה, both due in two days; שביתה, due sooner, before שוטטות)',
+    wordsOf(vb).join() === 'רפורמה,הסלמה,שביתה,שוטטות', wordsOf(vb).join());
+  check(`two, verify 2: …and the set's note says "${NOTE_LATER}"`, vb.note === `${NOTE_LATER} No fresh passages today; they need at least 3 of your shaky words.`, vb.note);
+  check('two: the words not yet due carry their group: a lesson word "From Guy\'s lesson …", a solid word in the solid group', vb.items[0].group === 'lesson' && vb.items[0].source.startsWith("From Guy's lesson") && vb.items[2].group === 'solid');
+  // a word due comes before any word not yet due, never-drilled ones included
+  const V2 = fresh('later-due', { only: ['רפורמה', 'הסלמה', 'שביתה', 'מגמה'] });
+  V2.raw.prepare("UPDATE spots SET due_on = ?, interval_days = 3, right_run = 1 WHERE id IN (?, ?)").run(t.addDays(D, 1), V2.spots['רפורמה'], V2.spots['הסלמה']);
+  V2.raw.prepare("UPDATE spots SET status = 'solid', due_on = ?, interval_days = 7, right_run = 3 WHERE id = ?").run(t.addDays(D, 1), V2.spots['שביתה']);
+  V2.raw.prepare('UPDATE spots SET due_on = ?, interval_days = 1, right_run = 1 WHERE id = ?').run(D, V2.spots['מגמה']);
+  const v2 = await t.build(D);
+  check('two: a word due today (מגמה) comes first, then the shaky ones not yet due, then the solid one', wordsOf(v2).join() === 'מגמה,רפורמה,הסלמה,שביתה', wordsOf(v2).join());
+  // a set the words due fill needs no note
+  fresh('no-note');
+  const full = await t.build(D);
+  check('two: a set the words due fill draws on nothing not yet due, and its note says nothing of it', full.items.filter((it) => it.spot_id).length === 8 && !full.note, String(full.note));
+  // a new word still being learnt (answered right, so new with a due day) is drawn on with the shaky ones; one judged easy is not
+  const NW = fresh('later-new', { only: ['רפורמה', 'הסלמה'], status: 'new' });
+  NW.raw.prepare('UPDATE spots SET easy = 0, due_on = ?, interval_days = 1, right_run = 1 WHERE id = ?').run(t.addDays(D, 1), NW.spots['רפורמה']);
+  NW.raw.prepare('UPDATE spots SET easy = 1, due_on = ?, interval_days = 1, right_run = 1 WHERE id = ?').run(t.addDays(D, 1), NW.spots['הסלמה']);
+  check('two: a new word answered right before (new, with a due day) is drawn on with the shaky words; a new word judged easy is not', wordsOf(await t.build(D)).join() === 'רפורמה');
+  // no data only with no words at all
+  fresh('no-words', null);
+  const nw = await t.build(D);
+  check('two, verify 2: no words at all: { state: "no data" }, saying so plainly', nw.state === 'no data' && nw.reason === 'You have no words yet; save words as you read, or bring in a lesson from Guy.', JSON.stringify(nw));
+  check('two: …while a map whose every word is drilled and not due still gets a set (above), never "no data"', vb.items.length === 4 && !vb.state);
+  // a solid word never drilled is one Dan marked solid himself (Mark solid, or Too easy): not drilled until it has a due day
+  const SN = fresh('solid-never', { only: ['רפורמה', 'הסלמה'] });
+  SN.raw.prepare("UPDATE spots SET status = 'solid' WHERE id = ?").run(SN.spots['רפורמה']);
+  check('two: a word marked solid before it was ever drilled (no due day) is not drilled; the other word is', wordsOf(await t.build(D)).join() === 'הסלמה', wordsOf(await t.build(D)).join());
+  const SO = fresh('solid-only', { only: ['רפורמה'], status: 'solid' });
+  const so1 = await t.build(D);
+  check('two: words that are all marked solid and never drilled: "no data", and the reason says why truly (not "in an unfinished set" alone)',
+    so1.state === 'no data' && so1.reason === 'None of your words can be drilled just now: each is in a set not yet finished, is one you know (judged easy, or marked solid before it was ever drilled), or was never met in a lesson or an article.' && SO.raw.prepare('SELECT due_on FROM spots').get().due_on === null, JSON.stringify(so1));
+
+  // answering a word not yet due moves it by the same rules
+  const AN = fresh('answer-later', { only: ['רפורמה', 'הסלמה'] });
+  AN.raw.prepare('UPDATE spots SET due_on = ?, interval_days = 3, right_run = 2 WHERE id IN (?, ?)').run(t.addDays(D, 2), AN.spots['רפורמה'], AN.spots['הסלמה']);
+  const an = (await t.ensureSet(D)).set;
+  await answerAt(D, an.id, 0, { result: 'right' });
+  await answerAt(D, an.id, 1, { result: 'wrong' });
+  const anRow = (w) => AN.raw.prepare('SELECT due_on, interval_days, right_run FROM spots WHERE id = ?').get(AN.spots[w]);
+  check('two: a word not yet due answered right climbs from its interval (3 -> 7, due in 7 days); one answered wrong goes back to 1, due tomorrow',
+    anRow('רפורמה').interval_days === 7 && anRow('רפורמה').due_on === t.addDays(D, 7) && anRow('רפורמה').right_run === 3
+    && anRow('הסלמה').interval_days === 1 && anRow('הסלמה').due_on === t.addDays(D, 1) && anRow('הסלמה').right_run === 0, JSON.stringify([anRow('רפורמה'), anRow('הסלמה')]));
+
+  // a word in an unfinished set is skipped by the next set; the newest unfinished set is current
+  const B = fresh('busy');
+  const b1 = (await t.ensureSet(D)).set;
+  const b2 = (await t.newSet(D)).set;
+  const ids1 = new Set(b1.items.filter((it) => it.spot_id).map((it) => it.spot_id));
+  const ids2 = b2.items.filter((it) => it.spot_id).map((it) => it.spot_id);
+  check('two, verify 1: another set while one is unfinished: none of its words is in the unfinished set', ids2.length > 0 && !ids2.some((id) => ids1.has(id)), JSON.stringify([[...ids1], ids2]));
+  check('two: …two rows, numbered 1 and 2, for_day the day and the day "#2"', b1.seq === 1 && b2.seq === 2 && b1.for_day === D && b2.for_day === `${D}#2`, JSON.stringify([b1.seq, b1.for_day, b2.seq, b2.for_day]));
+  const curB = await t.current({ now: noon(D) });
+  check('two: the current set is the newest unfinished one (the second)', curB.set.id === b2.id && curB.set.seq === 2);
+  const b3 = (await t.newSet(D)).set;
+  const ids3 = b3.items.filter((it) => it.spot_id).map((it) => it.spot_id);
+  check('two: a third set skips the words of both unfinished sets', !ids3.some((id) => ids1.has(id) || ids2.includes(id)) && b3.for_day === `${D}#3`, JSON.stringify(ids3));
+
+  // two newSet calls at once share one build
+  const C2 = fresh('another-twice');
+  await t.ensureSet(D);
+  const [n1, n2] = await Promise.all([t.newSet(D), t.newSet(D)]);
+  check('two, verify 3: two newSet calls at once make one drill_sets row', C2.raw.prepare('SELECT COUNT(*) AS n FROM drill_sets').get().n === 2 && n1.set.id === n2.set.id);
+
+  // the 05:00 build makes a set only when none is unfinished
+  const F = fresh('scheduler-open', { only: ['רפורמה', 'הסלמה'] });
+  const f1 = (await t.ensureSet(D)).set;
+  const f2 = await t.ensureSet(t.addDays(D, 1));
+  check('two, verify 4: the 05:00 build (ensureSet for the new day) with an unfinished set present: no new row, the unfinished set kept',
+    F.raw.prepare('SELECT COUNT(*) AS n FROM drill_sets').get().n === 1 && f2.built === false && f2.set.id === f1.id);
+  // a day whose second set is finished: the page's open and the 05:00 build read the day through its "#2"
+  for (const it of f1.items) await answerAt(D, f1.id, it.index, { result: 'right' });
+  const f3 = (await t.newSet(D)).set;
+  for (const it of f3.items) await answerAt(D, f3.id, it.index, { result: 'right' });
+  const f4 = await t.ensureSet(D);
+  check('two: both sets of the day finished: opening the page the same day makes no third set; it serves the "#2" set, done',
+    f4.built === false && f4.set.id === f3.id && f3.for_day === `${D}#2` && F.raw.prepare('SELECT COUNT(*) AS n FROM drill_sets').get().n === 2 && (await t.current({ now: noon(D) })).done === true);
+  const f5 = await t.ensureSet(t.addDays(D, 1));
+  check('two: …and the next day\'s 05:00 build makes the day\'s set, for_day the plain day', f5.built === true && f5.set.for_day === t.addDays(D, 1) && f5.set.seq === 3);
+
+  // the migration: an existing drill_sets without seq gets it, back-filled from id
+  const M = newDir('migrate');
+  const old = new Database(join(M, 'reader.db'));
+  old.exec(`CREATE TABLE drill_sets (id INTEGER PRIMARY KEY AUTOINCREMENT, for_day TEXT NOT NULL UNIQUE, built_at TEXT NOT NULL, items_json TEXT NOT NULL, note TEXT);
+            INSERT INTO drill_sets (for_day, built_at, items_json) VALUES ('2026-10-15', 'x', '[]'), ('2026-10-16', 'x', '[]');`);
+  old.close();
+  const mraw = db.open(M);
+  const mrows = mraw.prepare('SELECT id, seq, for_day FROM drill_sets ORDER BY id').all();
+  const madded = db.addDrillSet({ day: '2026-10-16', items: [], note: null });
+  check('two: the migration adds drill_sets.seq to an existing table, back-filled from id; the rows stay; the next set is numbered after them',
+    JSON.stringify(mrows) === JSON.stringify([{ id: 1, seq: 1, for_day: '2026-10-15' }, { id: 2, seq: 2, for_day: '2026-10-16' }]) && madded.seq === 3 && madded.for_day === '2026-10-16#2', JSON.stringify([mrows, madded]));
+  let dup = null;
+  try { mraw.prepare("INSERT INTO drill_sets (seq, for_day, built_at, items_json) VALUES (9, '2026-10-16', 'x', '[]')").run(); } catch (e) { dup = e; }
+  check('two: for_day keeps its UNIQUE constraint (a plain insert of a taken day fails), and addDrillSet no longer ignores a failed insert', dup && /UNIQUE/.test(dup.message) && !/OR IGNORE/.test(String(db.addDrillSet)));
 } catch (e) {
   say(String(e && e.stack || e));
   failed++;
