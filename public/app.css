@@ -216,7 +216,10 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 .today-typed #check { flex-grow: 1; }
 .today-choices { display: grid; grid-template-columns: repeat(var(--n, 3), 1fr); gap: 8px; }
 .today-choices[data-count="2"] { --n: 2; }
-.today-choices .choice { height: 56px; font-family: var(--serif); font-size: 21px; padding: 0 8px; }
+/* a choice's text wraps inside its button, and the button grows with it */
+.today-choices .choice { height: auto; min-height: 56px; font-family: var(--serif); font-size: 21px; line-height: 1.3; padding: 8px 10px; white-space: normal; overflow-wrap: anywhere; }
+/* on the phone the choices stand one under another, full width */
+@media (max-width: 599px) { .today-choices, .today-choices[data-count="2"] { grid-template-columns: 1fr; } }
 .today-choices .choice.right { background: var(--ok); color: var(--ok-ink); border-color: var(--ok-line); }
 .today-choices .choice.wrong { border-color: var(--danger); color: var(--danger); text-decoration: line-through; }
 .today-reveal .btn, .today-after #next { width: 100%; height: 52px; font-size: 16px; }
