@@ -235,6 +235,8 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 .today-list .res { font-size: 14px; font-weight: 600; }
 .today-list .result-right .res { color: var(--ok-line); }
 .today-list .result-wrong .res { color: var(--amber-line); }
+.today-another { width: 100%; height: 56px; font-size: 17px; margin-top: 8px; }
+.today-done #another-msg:empty { display: none; }
 @media (max-width: 599px) {
   .topbar nav a.phone { order: -1; }
 }

@@ -256,7 +256,7 @@ try {
     const firstRow = await page.locator('#done-list li .he').first().innerText();
     check(`${name}: the day's list shows the words with niqud where their cards have it (נֶאֶלְצָה)`, firstRow === 'נֶאֶלְצָה', firstRow);
     check(`${name}: …and a word tapped "Too easy" as too easy`, (await page.locator('#done-list li').nth(5).locator('.res').innerText()) === 'too easy');
-    check(`${name}: "Done for today" and the day's ten items with their results; "10 of 10"`, rows === 10 && (await page.locator('#done h2').textContent()) === 'Done for today' && (await place()) === '10 of 10', String(rows));
+    check(`${name}: "Done" and the set's ten items with their results; "10 of 10"`, rows === 10 && (await page.locator('#done h2').textContent()) === 'Done' && (await place()) === '10 of 10', String(rows));
     await both(page, `done-${name}`);
     await page.reload();
     await page.locator('#done:not(.hidden)').waitFor();

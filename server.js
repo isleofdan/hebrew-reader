@@ -425,6 +425,9 @@ route('POST', /^\/today\/show$/, async (req, res) => sendJson(res, 200, await to
 route('POST', /^\/today\/easy$/, async (req, res) => sendJson(res, 200, await today.tooEasy(await readJson(req))));
 // { set_id, answer_id? } -> the set's last answer undone, its word put back
 route('POST', /^\/today\/undo$/, async (req, res) => sendJson(res, 200, await today.undo(await readJson(req))));
+// "Another set" (hebrew-today-two): {} -> a new set, as GET /today/set gives
+// it, opened at item 1; or { state: "no data", reason }
+route('POST', /^\/today\/another$/, async (req, res) => sendJson(res, 200, await today.another()));
 
 const GUIDE_TEMPLATE =fs.readFileSync(path.join(PUBLIC, 'guide.html'), 'utf8');
 function guidePage(res, id) {
