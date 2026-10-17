@@ -1394,18 +1394,26 @@ text.
   is due; this set draws on words not yet due." Answering a word not yet due
   moves it by the same rules as a due one. "No data" is now only for a map
   with no words (or, the one corner left, words that are all in unfinished
-  sets or judged easy, which says so).
-- **Two things the brief did not say.** A new word answered right stays new
+  sets, known — judged easy, or marked solid before ever drilled — or never
+  met in a lesson or an article, which the reason says).
+- **Three things the brief did not say.** A new word answered right stays new
   with a due day (hebrew-today-one's rule), so "a new word is never drilled"
   is not quite so: such a word, not judged easy, is drawn on in (b) with the
-  shaky ones. And (b) and (c), like (a), take only words met in a lesson or
-  an article (a word only ever looked up is not drilled, as before).
-- **Checks** after these: `today-smoke.mjs` 140 (a second set the same day
+  shaky ones. (b) and (c), like (a), take only words met in a lesson or an
+  article (a word only ever looked up is not drilled, as before). And a
+  solid word never drilled (no due day) is not "a never-drilled word counts
+  as due": it is one Dan marked solid himself — "Mark solid" on a card, or
+  "Too easy", which leaves the schedule as it was — so it stays out of every
+  pool until it has a due day (as before); drilling it would bring a word he
+  just called too easy straight back in the next set. (The team's checker
+  raised this; kept by choice, with a check and a true "no data" reason.)
+- **Checks** after these: `today-smoke.mjs` 142 (a second set the same day
   through `POST /today/another`, "#2" and "#3", two taps at once, the pools
   and their note, the words of an unfinished set skipped, answering a word
-  not yet due, "no data" only with no words, the 05:00 build with a set
-  unfinished, the migration's back-fill), `today-pages.mjs` 83 ("Another
-  set" under the list, "Building…", the new set at "1 of 10", the choices
-  stacked at phone width with every choice's text inside its button, a long
-  third choice in the stand-in's passage question); totals 645 server checks
-  and 545 page checks.
+  not yet due, "no data" only with no words, a word marked solid before it
+  was ever drilled left out, the 05:00 build with a set unfinished, the
+  migration's back-fill), `today-pages.mjs` 83 ("Another set" under the
+  list, "Building…", the new set at "1 of 10", the choices stacked at phone
+  width with every choice's text inside its button, a long third choice in
+  the stand-in's passage question); totals 647 server checks and 545 page
+  checks.

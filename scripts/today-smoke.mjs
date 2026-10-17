@@ -546,6 +546,14 @@ try {
   const nw = await t.build(D);
   check('two, verify 2: no words at all: { state: "no data" }, saying so plainly', nw.state === 'no data' && nw.reason === 'You have no words yet; save words as you read, or bring in a lesson from Guy.', JSON.stringify(nw));
   check('two: …while a map whose every word is drilled and not due still gets a set (above), never "no data"', vb.items.length === 4 && !vb.state);
+  // a solid word never drilled is one Dan marked solid himself (Mark solid, or Too easy): not drilled until it has a due day
+  const SN = fresh('solid-never', { only: ['רפורמה', 'הסלמה'] });
+  SN.raw.prepare("UPDATE spots SET status = 'solid' WHERE id = ?").run(SN.spots['רפורמה']);
+  check('two: a word marked solid before it was ever drilled (no due day) is not drilled; the other word is', wordsOf(await t.build(D)).join() === 'הסלמה', wordsOf(await t.build(D)).join());
+  const SO = fresh('solid-only', { only: ['רפורמה'], status: 'solid' });
+  const so1 = await t.build(D);
+  check('two: words that are all marked solid and never drilled: "no data", and the reason says why truly (not "in an unfinished set" alone)',
+    so1.state === 'no data' && so1.reason === 'None of your words can be drilled just now: each is in a set not yet finished, is one you know (judged easy, or marked solid before it was ever drilled), or was never met in a lesson or an article.' && SO.raw.prepare('SELECT due_on FROM spots').get().due_on === null, JSON.stringify(so1));
 
   // answering a word not yet due moves it by the same rules
   const AN = fresh('answer-later', { only: ['רפורמה', 'הסלמה'] });
