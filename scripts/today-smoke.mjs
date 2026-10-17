@@ -360,9 +360,11 @@ try {
   check('…GET /today/set serves it, from where it stopped', cur.set.id === u1.id && cur.position === 1);
   await answerAt(t.addDays(D, 1), u1.id, 1, { result: 'right' });
   const u3 = await t.ensureSet(t.addDays(D, 1));
-  check('once finished, the next call that day makes the day\'s own set: רפורמה (right the day before) is due again, הסלמה (answered today) is not',
-    u3.built === true && u3.set.for_day === t.addDays(D, 1) && u3.set.items.length === 1 && u3.set.items[0].spot_id === U.spots['רפורמה'], JSON.stringify(u3.set && u3.set.items.map((x) => x.word)));
+  check('once finished, the next call that day makes the day\'s own set: רפורמה (right the day before) is due again and comes first; הסלמה (answered today, not due) follows, and the note says so',
+    u3.built === true && u3.set.for_day === t.addDays(D, 1) && u3.set.items.length === 2 && u3.set.items[0].spot_id === U.spots['רפורמה'] && u3.set.items[1].spot_id === U.spots['הסלמה']
+    && u3.set.note.startsWith('Nothing more is due; this set draws on words not yet due.'), JSON.stringify(u3.set && [u3.set.items.map((x) => x.word), u3.set.note]));
   await answerAt(t.addDays(D, 1), u3.set.id, 0, { result: 'right' });
+  await answerAt(t.addDays(D, 1), u3.set.id, 1, { result: 'right' });
   const u4 = await t.ensureSet(t.addDays(D, 1));
   check('a finished set is not replaced the same day', u4.set.id === u3.set.id && u4.built === false && U.raw.prepare('SELECT COUNT(*) AS n FROM drill_sets').get().n === 2);
   const u5 = await t.ensureSet(t.addDays(D, 2));
