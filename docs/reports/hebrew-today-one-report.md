@@ -53,7 +53,7 @@ Both deploys succeeded. Live `/today` answers 303 to `/login`, as the code predi
   - **Better word choice** (commit 4df9490; Dan: "ראשון and צבעי were too easy").
     - Shaky words come before new ones.
     - Each new word is judged once by the model, and the judgment is kept in the new column `spots.easy`, added by `ALTER TABLE` in `migrate()`. Words judged easy are skipped while they are new; a word Dan saves as shaky is drilled whatever the judgment (fixed in 910fead).
-    - A passage's verb question blanks one of Dan's shaky verbs where the passage has one, never a basic verb.
+    - A passage's verb question blanks one of Dan's shaky verbs where the passage has one; that verb is used even if it is a common one, because Dan marked it shaky. Only when the passage holds none of his shaky verbs does it fall back to the model's chosen verb, and that fallback is refused if it is a basic verb (fixed lists `BASIC_VERBS` and `BASIC_FORMS` in `lib/today.js`).
     - A "Too easy" tap marks the word solid through `saveStatus`, so the mark reaches the spine, and Undo reverses it.
   - Checks on 910fead: `today-smoke` 111 and `today-pages` 67. Totals: 616 server checks and 529 page checks. Deploy run 38997365463: `success`; then `curl -sI https://hebrew-reader-dan.fly.dev/today` returned `HTTP/2 303` with `location: /login` (17 Oct 2026 03:07 UTC).
 
@@ -144,7 +144,8 @@ None. Needed from you: nothing to decide.
    - Four new or changed checks fail on 4df9490 and pass on 910fead.
 8. **Team check, round 4:** checker row `qitem-20261016171745-7d62a143`, verdict in `qitem-20261016171907-f4ef2044`. PASS for 910fead.
 9. **Pull request checks** on #15: both `checks` jobs passed (3m59s, 4m1s).
-10. **Result check, round 2,** on this version of the report and pull request #15: the verdict cannot sit inside the report it checks, so the closing message to Dan names it.
+10. **Result check, round 2:** job 20261017-032720-32c7cf, on the previous version of this report and pull request #15. FINDINGS, 1 (report: the passage-verb sentence said "never a basic verb", but the basic-verb refusal applies only to the model's fallback verb). Fixed in the report wording above; the code is unchanged, because a verb Dan marked shaky is worth drilling even if it is common.
+11. **Result check, round 3,** on this version of the report and pull request #15: the verdict cannot sit inside the report it checks, so the closing message to Dan names it.
 
 ## Fly machine and OpenRig lessons
 
