@@ -312,6 +312,11 @@ function thoughtCall(req, res, body, user) {
     walkChooses++;
     let answer;
     if (/israeli politics|decline/i.test(move)) answer = { declined: 'Current Israeli politics is outside what I do here; I walk through the texts of the tradition.' };
+    // the guide answers the move itself, naming no passage (a pushback that asks it to reflect)
+    else if (/what you think my question means|reflect|before searching/i.test(move)) answer = {
+      reply: 'I read your question as asking whether the tradition believes humanity is getting better, not whether it is getting more knowledgeable. The two come apart.',
+      next: [{ label: 'Take the moral reading', why: 'The prophets on a people learning.' }, { label: 'Take the knowledge reading', why: 'The dwarfs on giants again.' }],
+    };
     else if (/unknown twice/i.test(move)) answer = { ref: `Notabook ${walkChooses}`, title: 'A book Sefaria does not have', declined: '' };
     else if (/unknown once/i.test(move) && !/Sefaria answered/.test(move)) answer = { ref: 'Notabook 1', title: 'A book Sefaria does not have', declined: '' };
     else {

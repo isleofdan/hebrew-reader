@@ -70,7 +70,8 @@ try {
   const login = await fetch(`${base}/login`, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ passphrase: PASS }) });
   const cookie = login.headers.get('set-cookie').split(';')[0];
   const H = { cookie, 'content-type': 'application/json', accept: 'application/json' };
-  const api = async (method, path, body) => { const res = await fetch(base + path, { method, headers: H, body: body ? JSON.stringify(body) : undefined }); return { status: res.status, body: await res.json() }; };
+  // a POST to /walks/… waits for its stop (?wait=1) unless the check reads the background path itself
+  const api = async (method, path, body, { wait = true } = {}) => { const url = base + path + (method === 'POST' && path.startsWith('/walks/') && wait ? '?wait=1' : ''); const res = await fetch(url, { method, headers: H, body: body ? JSON.stringify(body) : undefined }); return { status: res.status, body: await res.json() }; };
   const control = (c) => fetch(`${mock}/control`, { method: 'POST', body: JSON.stringify(c) });
   const sefControl = (c) => fetch(`${sef}/control`, { method: 'POST', body: JSON.stringify(c) });
   const calls = async () => (await fetch(`${mock}/calls`)).json();
@@ -144,6 +145,26 @@ try {
     JSON.stringify(teach3.turns.map((x) => [x.role, x.content.slice(0, 60)])));
   check('the subject tells the guide the stops so far, so it does not repeat one', /Its stops so far, oldest first: Shabbat 112b; Genesis 1:1-3/.test(teach3.user), teach3.user.slice(0, 300));
   check('a choose call writes no row: three stops made with six calls, three asks rows', wa3.length === 6 && count('asks') === 3, `${wa3.length} calls, ${count('asks')} rows`);
+
+  // --- verify 2b: a pushback the guide answers itself, with no passage --------------------
+  // (Dan, 21 Oct 2026: "tell me what you think my question means before searching
+  // the texts further" came back as "the model gave no answer")
+  const askedBefore = (await walkAsks()).length;
+  const rp = await api('POST', `/walks/${w}/step`, { text: 'Read my question more closely and tell me what you think my question means before searching the texts further.' });
+  const rpRows = peek('SELECT * FROM asks WHERE walk_id = ? ORDER BY id', w);
+  const rpStop = rp.body.stops ? rp.body.stops.at(-1) : null;
+  check('a pushback that asks the guide to reflect instead of naming a passage is a stop: the guide\'s reply, no reference, no teaching call, one asks row chained to the stop before',
+    rp.status === 200 && rp.body.new_stop === 4 && rpStop && rpStop.ref === null && rpStop.passage === null && /I read your question as asking/.test(rpStop.reply)
+    && rpStop.next.length === 2 && rpStop.next[0].label === 'Take the moral reading' && rpStop.move.kind === 'text'
+    && rpRows.length === 4 && rpRows[3].ref === null && rpRows[3].parent_id === rows[2].id && rpRows[3].took_ms >= 0 && (await walkAsks()).length === askedBefore + 1,
+    JSON.stringify({ status: rp.status, error: rp.body.error, stop: rpStop && { ref: rpStop.ref, reply: (rpStop.reply || '').slice(0, 40), next: rpStop.next }, rows: rpRows.map((r) => [r.id, r.parent_id, r.ref]) }).slice(0, 600));
+  const rp2 = await api('POST', `/walks/${w}/step`, { pick: 0 });
+  const rp2Rows = peek('SELECT * FROM asks WHERE walk_id = ? ORDER BY id', w);
+  const rp2Teach = (await walkAsks()).filter((x) => x.kind === 'teach').at(-1);
+  check('…a pick on that reply makes an ordinary stop after it (its parent the reply row); the guide\'s list of stops so far leaves the reply out',
+    rp2.status === 200 && rp2.body.stops.length === 5 && rp2.body.stops[4].ref && rp2.body.stops[4].move.kind === 'pick' && rp2.body.stops[4].move.text === 'Take the moral reading'
+    && rp2Rows.length === 5 && rp2Rows[4].parent_id === rpRows[3].id && /Its stops so far, oldest first: Shabbat 112b; Genesis 1:1-3; [^;\n]+$/m.test(rp2Teach.user) && !/null/.test((/^Its stops so far.*$/m.exec(rp2Teach.user) || [''])[0]),
+    JSON.stringify({ status: rp2.status, error: rp2.body.error, so: (/^Its stops so far.*$/m.exec(rp2Teach.user) || [''])[0], rows: rp2Rows.map((r) => [r.id, r.parent_id, r.ref]) }).slice(0, 600));
 
   // a walk of twelve stops: the thirteenth carries the last ten
   const long = (await api('POST', '/walks/start', { question: 'Turn 1: where does authority sit?' })).body;
@@ -294,8 +315,49 @@ try {
   const re1 = await api('GET', `/walks/${w}/stops`), list = await api('GET', '/walks/list');
   check('reopening a walk (GET /walks/:id/stops) and the list make no request to the stand-in model or the stand-in Sefaria',
     re1.status === 200 && re1.body.stops.length === stopsNow + 2 && (await calls()).calls === orBefore && (await sefCalls()).count === sefB, JSON.stringify({ or: [orBefore, (await calls()).calls], sef: [sefB, (await sefCalls()).count] }));
-  check('…every stop comes back with its passage, its parts and its time', re1.body.stops.every((s) => s.passage && s.passage.he && s.passage.url.startsWith('https://www.sefaria.org/') && s.explanation && Number.isInteger(s.took_ms)));
+  check('…every stop comes back with its passage, its parts and its time (the guide\'s reply stop: its reply, no passage)',
+    re1.body.stops.every((s) => Number.isInteger(s.took_ms) && (s.reply ? s.passage === null && s.ref === null : s.passage && s.passage.he && s.passage.url.startsWith('https://www.sefaria.org/') && s.explanation))
+    && re1.body.stops.filter((s) => s.reply).length === 1);
   check('GET /walks/list: newest first, each with its title, the day it started and its stops', list.body.items[0].id === ids[0] && list.body.items.every((x) => x.title && x.started_at && Number.isInteger(x.stops)) && list.body.state === 'ok', JSON.stringify(list.body.items.slice(0, 3)));
+
+  // --- the background path: Start and a step answer at once, the page reads the walk ---
+  await control({ walk_teach_ms: 1500 });
+  const asksBg = count('asks');
+  let tb = Date.now();
+  const bg = await api('POST', '/walks/start', { question: 'Background: does the law move?' }, { wait: false });
+  const bgMs = Date.now() - tb;
+  const bgRow = peek('SELECT * FROM walks WHERE id = ?', bg.body.id)[0];
+  check('POST /walks/start without ?wait answers at once (under 1 s) with the walk written, pending true, pending_since a time, no stop yet, no new_stop',
+    bg.status === 200 && bgMs < 1000 && bgRow && bgRow.question === 'Background: does the law move?' && bg.body.pending === true && !Number.isNaN(Date.parse(bg.body.pending_since)) && bg.body.stops.length === 0 && bg.body.new_stop === undefined && bg.body.failure === null,
+    JSON.stringify({ status: bg.status, bgMs, body: bg.body }));
+  const bgBusy = await api('POST', `/walks/${bg.body.id}/step`, { text: 'too soon' }, { wait: false });
+  check('a step while the first stop is on its way: 409, as a second tab gets', bgBusy.status === 409 && /already being made/.test(bgBusy.body.error), JSON.stringify(bgBusy.body));
+  let bgGet = (await api('GET', `/walks/${bg.body.id}/stops`)).body;
+  check('GET /walks/:id/stops while the stop is on its way: pending true, the same pending_since', bgGet.pending === true && bgGet.pending_since === bg.body.pending_since && bgGet.stops.length === 0, JSON.stringify(bgGet));
+  for (let i = 0; i < 40 && bgGet.pending; i++) { await wait(250); bgGet = (await api('GET', `/walks/${bg.body.id}/stops`)).body; }
+  check('…and once made: pending false, the stop there with its passage, took_ms counted, one asks row',
+    bgGet.pending === false && bgGet.pending_since === null && bgGet.failure === null && bgGet.stops.length === 1 && bgGet.stops[0].ref === 'Shabbat 112b' && bgGet.stops[0].took_ms >= 1500 && count('asks') === asksBg + 1,
+    JSON.stringify(bgGet).slice(0, 300));
+  await control({ walk_teach_ms: 0, walk_teach_down: true });
+  const bgFail = await api('POST', `/walks/${bg.body.id}/step`, { pick: 0 }, { wait: false });
+  check('a step without ?wait answers at once, pending', bgFail.status === 200 && bgFail.body.pending === true, JSON.stringify(bgFail.body).slice(0, 200));
+  bgGet = bgFail.body;
+  for (let i = 0; i < 40 && bgGet.pending; i++) { await wait(250); bgGet = (await api('GET', `/walks/${bg.body.id}/stops`)).body; }
+  check('a stop that fails in the background: pending false and failure { status 502, the failure line }, the earlier stop kept, no row',
+    bgGet.pending === false && bgGet.failure && bgGet.failure.status === 502 && /^The stop could not be made: OpenRouter is unreachable/.test(bgGet.failure.error) && bgGet.stops.length === 1 && count('asks') === asksBg + 1,
+    JSON.stringify(bgGet.failure));
+  await control({ walk_teach_down: false });
+  const bgDec = await api('POST', `/walks/${bg.body.id}/step`, { text: 'What should be done about current Israeli politics?' }, { wait: false });
+  bgGet = bgDec.body;
+  for (let i = 0; i < 40 && bgGet.pending; i++) { await wait(250); bgGet = (await api('GET', `/walks/${bg.body.id}/stops`)).body; }
+  check('a move the guide declines in the background: failure { status 200, declined: <its line> }, and the earlier failure replaced',
+    bgGet.pending === false && bgGet.failure && bgGet.failure.status === 200 && /outside what I do/.test(bgGet.failure.declined) && bgGet.failure.error === undefined, JSON.stringify(bgGet.failure));
+  const bgOk = await api('POST', `/walks/${bg.body.id}/step`, { pick: 0 }, { wait: false });
+  bgGet = bgOk.body;
+  check('the next move clears the failure at once', bgOk.body.failure === null && bgOk.body.pending === true, JSON.stringify(bgOk.body.failure));
+  for (let i = 0; i < 40 && bgGet.pending; i++) { await wait(250); bgGet = (await api('GET', `/walks/${bg.body.id}/stops`)).body; }
+  check('…and the stop is made: two stops, failure null', bgGet.stops.length === 2 && bgGet.failure === null && bgGet.pending === false, JSON.stringify(bgGet).slice(0, 200));
+
 
   // --- the hebrew desk is unchanged -------------------------------------------------------
   const heb = await api('POST', '/ask', { subject: { kind: 'root', root: 'ה.מ.ר', lemma: 'הימר' }, question: 'Which words share this root?' });

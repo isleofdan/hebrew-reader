@@ -452,11 +452,14 @@ async function walkMove(res, run) {
 // -> { items: [{ id, title, started_at, stops }], state }, newest first
 route('GET', /^\/walks\/list$/, (req, res) => sendJson(res, 200, walks.list()));
 // { question } or { ref } -> the walk with its first stop (or `declined`)
-route('POST', /^\/walks\/start$/, async (req, res) => walkMove(res, async () => walks.start(await readJson(req))));
+// A stop is made in the background and the walk answered at once, marked
+// pending; ?wait=1 waits for it (the checks)
+const waits = (req) => new URL(req.url, 'http://x').searchParams.get('wait') === '1';
+route('POST', /^\/walks\/start$/, async (req, res) => walkMove(res, async () => walks.start(await readJson(req), { wait: waits(req) })));
 // -> the walk with its stops, oldest first, each with its passage
 route('GET', /^\/walks\/(?<id>[^/]+)\/stops$/, (req, res, { id }) => sendJson(res, 200, walks.get(id)));
 // { pick: <index of an offered direction> } or { text } -> the walk with its new stop (or `declined`)
-route('POST', /^\/walks\/(?<id>[^/]+)\/step$/, async (req, res, { id }) => walkMove(res, async () => walks.step(id, await readJson(req))));
+route('POST', /^\/walks\/(?<id>[^/]+)\/step$/, async (req, res, { id }) => walkMove(res, async () => walks.step(id, await readJson(req), { wait: waits(req) })));
 
 const GUIDE_TEMPLATE =fs.readFileSync(path.join(PUBLIC, 'guide.html'), 'utf8');
 function guidePage(res, id) {

@@ -133,7 +133,7 @@ try {
     await page.locator('.walk-thinking').waitFor();
     const thinkingTop = await page.locator('.walk-thinking').evaluate((t) => t.getBoundingClientRect().top);
     check(`${name}: pressing a direction shows "Thinking…" in place of the buttons, at the pressed button's height (${Math.round(before)} px → ${Math.round(thinkingTop)} px)`,
-      (await page.locator('.walk-thinking').innerText()) === 'Thinking…' && Math.abs(thinkingTop - before) < 1 && (await page.locator('.walk-dir:visible').count()) === 0);
+      /^Thinking…/.test(await page.locator('.walk-thinking').innerText()) && Math.abs(thinkingTop - before) < 1 && (await page.locator('.walk-dir:visible').count()) === 0);
     await both(page, tag('thinking'));
     await page.locator('.walk-chose').waitFor();
     await page.locator('.walk-stop').nth(1).waitFor();
@@ -185,6 +185,19 @@ try {
       (await page.locator('.walk-stop').count()) === 3 && (await page.locator('.walk-chose').allInnerTexts()).join('|') === 'You chose: The denial of any line|You wrote: I am not convinced: is the descent not just nostalgia?'
       && (await orCalls()) === o1 && (await sefCalls()) === s1c, JSON.stringify({ or: [o1, await orCalls()], sef: [s1c, await sefCalls()] }));
 
+    // --- a pushback the guide answers itself (no passage) ------------------------------------
+    // (Dan, 21 Oct 2026: "tell me what you think my question means" came back as a failure)
+    await page.locator('.walk-push').fill('Tell me what you think my question means before searching the texts further.');
+    await page.locator('.walk-move .walk-go').click();
+    await page.locator('.walk-stop').nth(3).waitFor();
+    const replyStop = page.locator('.walk-stop').nth(3);
+    check(`${name}: a pushback the guide answers itself draws "Stop 4 · the guide answers" with its reply, no passage, and its two directions`,
+      /^Stop 4 · the guide answers$/i.test(await replyStop.locator('.walk-stop-title').innerText()) && (await replyStop.locator('.walk-passage').count()) === 0
+      && /^I read your question as asking/.test(await replyStop.locator('.walk-reply-text p, .walk-reply-text').last().innerText()) && (await page.locator('.walk-dir:visible').count()) === 2
+      && (await page.locator('.walk-chose').last().innerText()) === 'You wrote: Tell me what you think my question means before searching the texts further.',
+      JSON.stringify({ title: await replyStop.locator('.walk-stop-title').innerText(), dirs: await page.locator('.walk-dir:visible').count(), text: (await replyStop.innerText()).slice(0, 200) }));
+    await both(page, tag('reply'));
+
     // --- the list with walks -------------------------------------------------------------
     await page.goto(`${base}/walks`);
     await page.locator('.walk-line').first().waitFor();
@@ -206,11 +219,26 @@ try {
   await page.goto(`${base}/walks`);
   await page.locator('#question').fill('What should be done about current Israeli politics?');
   await page.locator('#start-go').click();
-  await page.locator('#start-msg').filter({ hasText: 'outside' }).waitFor();
-  check('phone: a declined first stop shows the decline line and offers the box again',
-    /Current Israeli politics is outside what I do here/.test(await page.locator('#start-msg').innerText()) && (await page.locator('#question').isVisible()) && (await page.locator('#start-go').isVisible()) && /\/walks$/.test(page.url()));
-  check('phone: …and the question stays in the box, with a link to the walk it was saved as',
-    (await page.locator('#question').inputValue()) === 'What should be done about current Israeli politics?' && /^\/walks\/\d+$/.test(await page.locator('#start-msg a').getAttribute('href')) && /saved as a walk/.test(await page.locator('#start-msg a').innerText()));
+  await page.waitForURL(/\/walks\/\d+$/);
+  await page.locator('.walk-failed.declined').waitFor();
+  check('phone: a declined first stop opens the walk (its title the question) with the decline line and the box to ask again; the draft is cleared',
+    /Current Israeli politics is outside what I do here/.test(await page.locator('.walk-failed').innerText()) && (await page.locator('#walk-title').innerText()) === 'What should be done about current Israeli politics?'
+    && (await page.locator('.walk-push').isVisible()) && (await page.locator('.walk-move .walk-go').isVisible()) && (await page.evaluate(() => localStorage.getItem('walks.draft'))) === null);
+
+  // --- a pending walk reopened: the wait shown, then the stop ---------------------------
+  await control({ walk_teach_ms: 4000 });
+  await page.locator('.walk-push').fill('Then what about the idea of progress itself?');
+  await page.locator('.walk-move .walk-go').click();
+  await page.locator('.walk-thinking').waitFor();
+  await page.reload();
+  await page.locator('.walk-thinking').waitFor();
+  check('phone: a walk reopened while its stop is on its way shows "Thinking… N s" in place of the controls and no failure line',
+    /^Thinking…( \d+ s)?$/.test(await page.locator('.walk-thinking').innerText()) && (await page.locator('.walk-dir:visible').count()) === 0 && (await page.locator('.walk-failed').count()) === 0, await page.locator('#move').innerText());
+  await page.locator('.walk-stop').first().waitFor({ timeout: 15000 });
+  check('phone: …and draws the stop when it arrives, with "You wrote: …" above it, by reading the walk (no second request to make it)',
+    (await page.locator('.walk-stop').count()) === 1 && (await page.locator('.walk-chose').last().innerText()) === 'You wrote: Then what about the idea of progress itself?' && (await page.locator('.walk-dir').count()) === 3,
+    await page.locator('#stops').innerText());
+  await control({ walk_teach_ms: 0 });
 
   // --- the draft survives a reload; a too-long question is refused before sending ----------
   await page.goto(`${base}/walks`);
