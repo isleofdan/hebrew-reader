@@ -71,6 +71,12 @@ button { font: inherit; cursor: pointer; }
 .topbar nav { display: flex; gap: 4px; }
 .topbar nav a { padding: 8px 14px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 15px; }
 .topbar nav a.active { background: var(--accent-soft); color: var(--accent-dark); font-weight: 600; }
+/* six links (Walks joined, hebrew-walks-one) are wider than a phone: they
+   wrap rather than widen the page past the screen */
+@media (max-width: 599px) {
+  .topbar nav { flex-wrap: wrap; row-gap: 2px; }
+  .topbar nav a { padding: 8px 10px; }
+}
 .topbar .spacer { flex-grow: 1; }
 /* Find, from the reader's top strip: it opens the desk with the word found */
 .topbar .topfind input { height: 36px; width: 11em; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px; font: inherit; font-size: 14px; background: var(--field); color: var(--text); }

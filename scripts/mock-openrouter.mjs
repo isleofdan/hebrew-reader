@@ -277,8 +277,75 @@ function mockArticleGuide(user, fault) {
   };
 }
 
+// --- the walks' guide, the thought desk (hebrew-walks-one) ------------------------------
+// A walk's call (its last user message starts "The walk:") is answered by its
+// turn: without tools it is *choose*, answered {"ref", "title", "declined"};
+// with the search it is *teach*, answered with a stop and citations to
+// Sefaria pages. Every call is kept in walk_asks (kind, model, max_tokens,
+// the earlier turns it carried, the user text, the sites it may search).
+// The reader's move (after "Question: ") decides:
+//   "Israeli politics", "decline"  choose declines in one line
+//   "unknown once"                 choose names a reference Sefaria does not
+//                                  know, then a good one when told so
+//   "unknown twice"                choose names unknown references both times
+// else choose names control.walk_refs by how many stops the walk has made
+// (default Shabbat 112b, Genesis 1:1-3, Ecclesiastes 1:9, round and round).
+// control.walk_teach_ms: teach answers after that many ms; walk_teach_hang:
+// teach never answers; walk_teach_down: teach drops the connection.
+let walkChooses = 0;
+const walkAsks = [];
+const WALK_REFS = ['Shabbat 112b', 'Genesis 1:1-3', 'Ecclesiastes 1:9'];
+function thoughtCall(req, res, body, user) {
+  const teach = Array.isArray(body.tools) && body.tools.length > 0;
+  const move = user.split('\n\nQuestion: ')[1] || '';
+  walkAsks.push({ kind: teach ? 'teach' : 'choose', model: body.model, max_tokens: body.max_tokens, system: body.messages[0].content, user, move,
+    turns: body.messages.slice(1, -1).map((m) => ({ role: m.role, content: m.content })),
+    allowed_domains: teach ? (body.tools[0].parameters || {}).allowed_domains : null, response_format: body.response_format || null });
+  const reply = (content, cites = []) => {
+    if (res.destroyed) return;
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ id: 'mock', model: body.model, choices: [{ message: { role: 'assistant', content, annotations: cites }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 2000, completion_tokens: 900, ...(teach ? { server_tool_use: { web_search_requests: 1 } } : {}) } }));
+  };
+  if (!teach) {
+    walkChooses++;
+    let answer;
+    if (/israeli politics|decline/i.test(move)) answer = { declined: 'Current Israeli politics is outside what I do here; I walk through the texts of the tradition.' };
+    else if (/unknown twice/i.test(move)) answer = { ref: `Notabook ${walkChooses}`, title: 'A book Sefaria does not have', declined: '' };
+    else if (/unknown once/i.test(move) && !/Sefaria answered/.test(move)) answer = { ref: 'Notabook 1', title: 'A book Sefaria does not have', declined: '' };
+    else {
+      // by the walk's own stops so far, so every walk goes the same way
+      const so = (/^Its stops so far, oldest first: (.*)$/m.exec(user) || [])[1];
+      const refs = control.walk_refs || WALK_REFS;
+      const ref = refs[(so ? so.split('; ').length : 0) % refs.length];
+      answer = { ref, title: ref, declined: '' };
+    }
+    return reply(JSON.stringify(answer));
+  }
+  const ref = (/^The passage for this stop: .* \((.+)\)$/m.exec(user) || [])[1] || '';
+  const earlier = body.messages.length - 2;
+  const stop = {
+    why_here: `I am starting at ${ref} because your move asks for it: "${move.split('\n')[0].slice(0, 60)}".`,
+    transliteration: 'Amar Rabbi Zeira amar Rava bar Zimuna: im rishonim bnei malakhim, anu bnei anashim.',
+    explanation: `The Talmud is the record of rabbinic debate compiled in Babylonia around the year 500. (The guide was given ${earlier / 2} earlier stop(s).)`,
+    argues: control.walk_no_argues ? '' : 'Rabbi Isaiah di Trani (13th-century Italy) said later generations are dwarfs on the shoulders of giants; Menachem Kellner reads Maimonides as never holding the descent.',
+    opinion: 'I think this passage is about authority, not about the world. You may well disagree. Tell me where.',
+    next: [
+      { label: 'The ascending line', why: 'Rav Kook read the whole world as climbing.' },
+      { label: 'The denial of any line', why: 'Kohelet: nothing new under the sun.' },
+      { label: 'Progress in the law itself', why: 'Maimonides on why sacrifice was commanded.' },
+    ],
+  };
+  const cite = (url, title) => ({ type: 'url_citation', url_citation: { url, title, content: `from ${title}`, start_index: 0, end_index: 10 } });
+  const cites = control.walk_no_argues ? [] : [cite('https://www.sefaria.org/Shabbat.112b', 'Shabbat 112b'), cite('https://www.sefaria.org/sheets/12345', 'Descent of the generations — a source sheet')];
+  if (control.walk_teach_down) { req.socket.destroy(); return; }
+  if (control.walk_teach_hang) return;
+  if (control.walk_teach_ms) return setTimeout(() => reply(JSON.stringify(stop), cites), control.walk_teach_ms);
+  reply(JSON.stringify(stop), cites);
+}
+
 http.createServer((req, res) => {
-  if (req.url === '/calls') { res.end(JSON.stringify({ difficulty_calls: difficultyCalls, last_difficulty_ask: lastDifficultyAsk, passage_calls: passageCalls, sentence_calls: sentenceCalls, misspell_calls: misspellCalls, last_passage_ask: lastPassageAsk, judge_calls: judgeCalls, last_judge_max_tokens: lastJudgeMaxTokens, article_guides: articleGuides, last_article_guide_model: lastArticleGuideModel, sheet_calls: sheetCalls, sheet_asks: sheetAsks, search_calls: searchCalls, search_asks: searchAsks, calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
+  if (req.url === '/calls') { res.end(JSON.stringify({ walk_asks: walkAsks,difficulty_calls: difficultyCalls, last_difficulty_ask: lastDifficultyAsk, passage_calls: passageCalls, sentence_calls: sentenceCalls, misspell_calls: misspellCalls, last_passage_ask: lastPassageAsk, judge_calls: judgeCalls, last_judge_max_tokens: lastJudgeMaxTokens, article_guides: articleGuides, last_article_guide_model: lastArticleGuideModel, sheet_calls: sheetCalls, sheet_asks: sheetAsks, search_calls: searchCalls, search_asks: searchAsks, calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
   let raw = '';
   req.on('data', (c) => raw += c);
   req.on('end', () => {
@@ -292,6 +359,8 @@ http.createServer((req, res) => {
       res.end(JSON.stringify({ error: { message: `${body.model} is not a valid model ID`, code: 400 } }));
       return;
     }
+    const lastUser = body.messages.filter((m) => m.role === 'user').at(-1).content;
+    if (lastUser.startsWith('The walk:')) return thoughtCall(req, res, body, lastUser);
     const user = body.messages.find((m) => m.role === 'user').content;
     if (Array.isArray(body.tools) && body.tools.length) return webSearch(req, res, body);
     const followUp = body.messages.length > 2;

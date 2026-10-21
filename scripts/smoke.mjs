@@ -304,8 +304,8 @@ try {
     && asked.body.links.every((l) => !('term' in l)) && Number.isInteger(asked.body.id), JSON.stringify(asked.body).slice(0, 200));
   const deskBad = await api('POST', '/ask', { desk: 'talmud', subject: { kind: 'article' }, question: 'x?' });
   const kindBad = await api('POST', '/ask', { subject: { kind: 'verse' }, question: 'x?' });
-  check('ask refusals name the valid values: "desk must be one of hebrew", "subject.kind must be one of article, card, root"',
-    deskBad.status === 400 && deskBad.body.error === 'desk must be one of hebrew' && kindBad.status === 400 && kindBad.body.error === 'subject.kind must be one of article, card, root', JSON.stringify([deskBad.body, kindBad.body]));
+  check('ask refusals name the valid values: "desk must be one of hebrew, thought", "subject.kind must be one of article, card, root, walk"',
+    deskBad.status === 400 && deskBad.body.error === 'desk must be one of hebrew, thought' && kindBad.status === 400 && kindBad.body.error === 'subject.kind must be one of article, card, root, walk', JSON.stringify([deskBad.body, kindBad.body]));
   const askedPiece = await api('POST', '/ask', { question: "Which Nif'al forms are in this piece?", article_id: stored.id });
   check("ask with an article: the piece's mapped words reach the model, so the Nif'al forms are answered from data",
     askedPiece.body.answer.includes('ייקבעו') && askedPiece.body.answer.includes('שנאלצה') && !askedPiece.body.answer.includes('להתמודד') && askedPiece.body.links.every((l) => l.url.startsWith('https://www.pealim.com/')), askedPiece.body.answer);
