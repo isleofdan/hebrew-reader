@@ -288,6 +288,11 @@ try {
     check(`${name}: numbered writing prompts, none naming a word that is not on the sheet`, prompts.length >= 3 && /^1\./.test(prompts[0]) && !prompts.some((p) => p.includes('לנדוד')), JSON.stringify(prompts));
     check(`${name}: every page closes with "Nothing you write here goes back to the desk…"`, (await page.locator('.page-foot').allInnerTexts()).every((t) => t === 'Nothing you write here goes back to the desk. The desk only remembers that this sheet was made.'));
     check(`${name}: the page says how to get it onto the reMarkable, and has no desk buttons`, (await page.locator('#how').innerText()).startsWith('Print this page to PDF, then send it to the reMarkable') && (await page.locator('.page button, .page .desk-strip').count()) === 0);
+    // hebrew-ask-one: one line by the Print button about the print window's headers and footers
+    const printBox = await page.locator('#print').boundingBox(), lineBox = await page.locator('#print-line').boundingBox();
+    check(`${name}: beside the Print button, "In the print window, choose no headers and footers." (on screen; the bar does not print)`,
+      (await page.locator('#print-line').innerText()) === 'In the print window, choose no headers and footers.' && Math.abs(lineBox.y - printBox.y) < 40 && (await page.locator('.bar #print-line').count()) === 1,
+      JSON.stringify({ printBox, lineBox }));
     const ratio = await pages.first().evaluate((e) => e.offsetHeight / e.offsetWidth);
     check(`${name}: a page is in the reMarkable's proportion (3:4, 1404×1872)`, Math.abs(ratio - 1872 / 1404) < 0.01, String(ratio));
     const rtl = await page.locator('.s-ex').first().evaluate((e) => getComputedStyle(e).direction);
