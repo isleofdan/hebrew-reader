@@ -1499,8 +1499,14 @@ answer there, with "Nothing here to look up in a reference."
   bottom of the screen — the reader's and the lesson page's card on the
   phone — growing would push the buttons up, so that card keeps its height
   while the pane is open and the pane opens below the buttons inside the
-  card, which scrolls; Close gives the card its height back. A new word on
-  the card closes the pane. On the phone the pane is the card's full width
+  card, which scrolls. Close keeps the buttons where they are on the screen
+  at the moment of the tap, however far the page or the card was scrolled
+  while the pane was in use: when the content left below is too short for
+  that, blank room is added at the end of the page (or of the card, which
+  then keeps its height) and taken away when the pane next opens or the
+  card shows another word. A new word on the card closes the pane. "Put on
+  the desk" on the card makes a tab tapped afterwards record on the card it
+  placed, with no reload. On the phone the pane is the card's full width
   and "Ask" is 56 px high.
 - **Four small fixes.** The reader's Ask box onto the web search (above).
   An empty note card — no text, nothing kept, asked, noted or drawn on it —
@@ -1513,6 +1519,10 @@ answer there, with "Nothing here to look up in a reference."
   button: "In the print window, choose no headers and footers." (the bar
   does not print).
 - **Checks**: `grow-smoke.mjs` 83, `smoke.mjs` 256, `paper-smoke.mjs` 86,
-  `screenshots.mjs` 231, `grow-pages.mjs` 98, `paper-pages.mjs` 54,
+  `screenshots.mjs` 231, `grow-pages.mjs` 104, `paper-pages.mjs` 54,
   `lookup-pages.mjs` 44 (its check that the button was hidden now opens
-  the pane); totals 670 server checks and 580 page checks.
+  the pane); totals 670 server checks and 586 page checks. The team's
+  checker found two faults in the first candidate, both fixed with a check
+  each: Close after the pane was used and scrolled let the page or the
+  sheet jump, and a word just put on the desk recorded no lookup until its
+  card was opened again.

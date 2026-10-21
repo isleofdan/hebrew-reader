@@ -240,7 +240,7 @@
   // "Put on the desk" (session twelve): the card on screen goes onto the desk
   // Dan last worked on, once. `onPut()` answers the server's { desk, already };
   // the card's foot says where it went, quietly, with a way to the desk.
-  function wirePut(card, onPut) {
+  function wirePut(card, onPut, getCurrent) {
     const b = document.createElement('button');
     b.className = 'btn'; b.type = 'button'; b.dataset.act = 'desk'; b.textContent = 'Put on the desk';
     el(card, 'actions').append(b);
@@ -250,6 +250,10 @@
       foot.textContent = 'putting it on the desk…';
       try {
         const got = await onPut();
+        // the card is on a desk now: a reference opened from its ask pane is
+        // recorded on it from here on (the Look up page records on its own card already)
+        const cur = getCurrent ? getCurrent() : null;
+        if (cur && got.key && !cur.lookup_origin) cur.desk_key = got.key;
         foot.textContent = got.already ? `Already on the desk “${got.desk.name}”. ` : `On the desk “${got.desk.name}”. `;
         const a = document.createElement('a'); a.href = '/desk'; a.textContent = 'Open the desk';
         foot.append(a);
@@ -268,7 +272,7 @@
   function wire(card, { onStatus, getCurrent, onClose, onSetVerb, onPut, api }) {
     // the root and binyan control shows on verb cards of a page that saves it
     if (onSetVerb) card._onSetVerb = onSetVerb;
-    if (onPut) wirePut(card, onPut);
+    if (onPut) wirePut(card, onPut, getCurrent);
     card.querySelector('[data-act=shaky]').addEventListener('click', () => onStatus('shaky'));
     card.querySelector('[data-act=solid]').addEventListener('click', () => onStatus('solid'));
     const ask = card.querySelector('[data-act=ask]');

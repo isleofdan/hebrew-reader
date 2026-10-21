@@ -59,32 +59,61 @@
 
   // --- keeping Dan's place --------------------------------------------------------------
 
-  // The nearest ancestor that scrolls, or null for the page itself.
+  // What scrolls the row: the nearest ancestor that clips its content
+  // (overflow auto or scroll) and can scroll now, or the card itself while it
+  // is held at its height (it may have just become too short to scroll),
+  // else the page.
   function scroller(node) {
     for (let s = node.parentElement; s && s !== document.body && s !== document.documentElement; s = s.parentElement) {
       const o = getComputedStyle(s).overflowY;
-      if ((o === 'auto' || o === 'scroll') && s.scrollHeight > s.clientHeight) return s;
+      if ((o === 'auto' || o === 'scroll') && (s.scrollHeight > s.clientHeight || s.dataset.askHeld)) return s;
     }
-    return null;
+    return document.scrollingElement || document.documentElement;
   }
 
+  // Scrolls `s` by `by` pixels. When the content below has become too short
+  // for that (the pane removed near the end of the page or the card), blank
+  // room is added at the end of `s` first, so the scroll is not cut short and
+  // nothing jumps; the room stays until the pane next opens.
+  function scrollBy(s, by) {
+    const want = s.scrollTop + by;
+    const short = want - (s.scrollHeight - s.clientHeight);
+    if (short > 0.5) {
+      const host = s === document.scrollingElement || s === document.documentElement ? document.body : s;
+      let room = host.querySelector(':scope > .ask-room');
+      // flex: none, so a card held at its height (a flex column) cannot squeeze it away
+      if (!room) { room = el('div', 'ask-room'); room.setAttribute('aria-hidden', 'true'); room.style.flex = 'none'; host.append(room); }
+      room.style.height = `${(parseFloat(room.style.height) || 0) + Math.ceil(short)}px`;
+    }
+    s.scrollTop = want;
+  }
+
+  // Scrolls until the row is back at `top` on the screen: a second pass takes
+  // up what the first could not see coming (the gap a card puts before added room).
+  function settle(row, top) {
+    for (let pass = 0; pass < 3; pass++) {
+      const moved = row.getBoundingClientRect().top - top;
+      if (Math.abs(moved) < 0.5) return;
+      scrollBy(scroller(row), moved);
+    }
+  }
+
+  // Room added by an earlier Close is taken away before the pane opens again.
+  function dropRoom() { for (const r of document.querySelectorAll('.ask-room')) r.remove(); }
+
   // Runs `change` (the pane opened or closed) and puts the action row back
-  // at the height it had on the screen. A card that grew upward (anchored to
-  // the bottom of the screen) is held at its height instead, until the pane
-  // closes; anything else is scrolled back by what it moved.
+  // at the height it had on the screen just before. A card that grew upward
+  // (anchored to the bottom of the screen) is held at its height instead,
+  // until the pane closes; anything else is scrolled back by what it moved.
   function keepPlace(card, row, change) {
     const top = row.getBoundingClientRect().top;
     const height = card.getBoundingClientRect().height;
     change();
-    let moved = row.getBoundingClientRect().top - top;
-    if (moved < -0.5 && !card.style.height) {
+    if (row.getBoundingClientRect().top - top < -0.5 && !card.style.height) {
       card.style.height = `${height}px`;
       card.dataset.askHeld = '1';
-      moved = row.getBoundingClientRect().top - top;
     }
-    if (Math.abs(moved) < 0.5) return;
-    const s = scroller(row);
-    if (s) s.scrollTop += moved; else window.scrollBy(0, moved);
+    settle(row, top);
   }
 
   // --- the pane --------------------------------------------------------------------------
@@ -111,19 +140,25 @@
     if (b) b.setAttribute('aria-expanded', 'false');
   }
 
-  // "Close" (or the button tapped again): a card held at its height goes
-  // back to it, the row where it was before the pane opened; any other card
-  // is put back at the row's height on the screen now.
+  // "Close" (or the button tapped again): the pane goes and the action row
+  // stays where it is on the screen at that moment, however far the page or
+  // the card was scrolled while the pane was in use. A card held at its
+  // height keeps it while letting it go would move the row.
   function closeKeeping(card) {
-    if (card.dataset.askHeld) { close(card); return; }
-    keepPlace(card, card.querySelector('.actions'), () => close(card));
+    const row = card.querySelector('.actions');
+    const top = row.getBoundingClientRect().top;
+    const held = card.dataset.askHeld ? card.style.height : '';
+    close(card);
+    // the card's own height back only if that leaves the row where it is
+    if (held && Math.abs(row.getBoundingClientRect().top - top) >= 0.5) { card.style.height = held; card.dataset.askHeld = '1'; }
+    settle(row, top);
   }
 
   function open(card, { api, current }) {
     const c = current.card;
     const row = card.querySelector('.actions');
     const pane = el('section', 'ask-pane');
-    pane.dataset.word = wordOf(c);
+    pane.dataset.word = card._askWord = wordOf(c);
     pane.setAttribute('aria-label', 'Ask about this root');
 
     // the head: the root in Hebrew, or the dictionary form, and Close
@@ -194,7 +229,7 @@
     const more = box('ask-pane-more hidden', 'Ask more: a follow-up, or push back…', 'Ask more', true);
 
     pane.append(head, tabs, refBox, ask, thread, more);
-    keepPlace(card, row, () => { row.after(pane); card._askPane = pane; });
+    keepPlace(card, row, () => { dropRoom(); row.after(pane); card._askPane = pane; });
     const b = card.querySelector('[data-act=ask]');
     if (b) b.setAttribute('aria-expanded', 'true');
   }
@@ -210,7 +245,14 @@
   // A card filled again: the pane stays for the same word (its nikud or
   // status arrived) and goes for another.
   function follow(card, c) {
-    if (card._askPane && (!c || card._askPane.dataset.word !== wordOf(c))) close(card);
+    if (!c || wordOf(c) !== card._askWord) {
+      close(card);
+      // what a Close left to keep the row in place (room, the card's held
+      // height) goes with the word it was left for
+      for (const r of card.querySelectorAll('.ask-room')) r.remove();
+      if (card.dataset.askHeld) { card.style.height = ''; delete card.dataset.askHeld; }
+      card._askWord = c ? wordOf(c) : null;
+    }
   }
 
   window.AskUI = { toggle, close, follow, drawLinks, drawTurn, keepPlace };

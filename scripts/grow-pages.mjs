@@ -463,13 +463,19 @@ try {
         measured.push(`${label}: Ask button ${goBox.height} px high`);
       }
       await shoot('open');
+      // Close is brought into view first, as Dan would scroll to it (on the
+      // phone's sheet only its head shows under the buttons); the row must
+      // then stay where it is as Close is tapped
+      await pane.locator('.ask-pane-close').scrollIntoViewIfNeeded();
+      await page.waitForTimeout(200);
+      const topC = (await row.boundingBox()).y;
       await pane.locator('.ask-pane-close').click();
       await page.waitForTimeout(300);
       const top2 = (await row.boundingBox()).y;
-      measured.push(`${label}: action row top ${top0} px before opening, ${top1} px open, ${top2} px after Close`);
+      measured.push(`${label}: action row top ${top0} px before opening, ${top1} px open, ${topC} px with Close in view, ${top2} px after Close`);
       console.log(`     ${measured.at(-1)}`);
-      check(`${label}: the action row stays at the same height on the screen when the pane opens and when it closes (${top0} / ${top1} / ${top2} px)`,
-        Math.abs(top1 - top0) < 0.5 && Math.abs(top2 - top0) < 0.5 && await card.locator('.ask-pane').count() === 0);
+      check(`${label}: the action row stays at the same height on the screen when the pane opens (${top0} / ${top1} px) and when it closes (${topC} / ${top2} px)`,
+        Math.abs(top1 - top0) < 0.5 && Math.abs(top2 - topC) < 0.5 && await card.locator('.ask-pane').count() === 0);
       // Ask, then Ask more
       await askBtn.click();
       await pane.waitFor({ timeout: 5000 });
@@ -500,7 +506,44 @@ try {
         && sent.slice(sent1).some((s) => s === 'GET /reference/pealim') && recorded === (onDesk ? 1 : 0) && ctx.pages().length === pagesBefore, JSON.stringify(sent.slice(sent1)));
       await pane.locator('.ref-pane').scrollIntoViewIfNeeded();
       await shoot('tab');
+      // Close after the pane was used and the page (or the card) scrolled to
+      // bring Close back into view: the row stays where it is at that moment
+      await pane.locator('.ask-pane-close').scrollIntoViewIfNeeded();
+      await page.waitForTimeout(200);
+      const atClose = (await row.boundingBox()).y;
+      await pane.locator('.ask-pane-close').click();
+      await page.waitForTimeout(300);
+      const afterClose = (await row.boundingBox()).y;
+      measured.push(`${label}: after use, action row top ${atClose} px as Close is tapped, ${afterClose} px after`);
+      console.log(`     ${measured.at(-1)}`);
+      check(`${label}: Close after Ask, Ask more and a tab, scrolled back to Close: the action row stays where it was when Close was tapped (${atClose} / ${afterClose} px)`,
+        Math.abs(afterClose - atClose) < 0.5 && await card.locator('.ask-pane').count() === 0);
       console.log(`     ${label} screenshots: ${shots.join(', ')}`);
+    }
+    // a word put on the desk from its card, then a reference opened from its
+    // pane without reloading: recorded on the card just placed
+    {
+      const fresh = vname === 'phone' ? 'באמינות' : 'רפורמה';
+      await page.goto(`${base}/read.html?id=${art.id}`);
+      await page.waitForSelector('.body .w');
+      const w = page.locator('.w', { hasText: fresh }).first();
+      await w.scrollIntoViewIfNeeded();
+      if (isMobile) await w.tap(); else await w.hover();
+      const card = page.locator(isMobile ? '#card-phone' : '#card-desktop');
+      await card.locator('.meaning:not(:empty)').waitFor({ timeout: 10000 });
+      await card.locator('[data-act=desk]').click();
+      await card.locator('.foot', { hasText: /^On the desk/ }).waitFor({ timeout: 5000 });
+      await card.locator('[data-act=ask]').click();
+      const pane = card.locator('.ask-pane');
+      await pane.waitFor({ timeout: 5000 });
+      const sent1 = sent.length;
+      await pane.locator('.ask-pane-tabs button', { hasText: 'Pealim' }).click();
+      await pane.locator('.ref-pane .ref-frame').waitFor({ timeout: 10000 });
+      await page.waitForTimeout(500);
+      const recorded = sent.slice(sent1).filter((s) => /^POST \/card\/word:\d+\/lookup$/.test(s)).length;
+      check(`reader ${vname}: a word just put on the desk (${fresh}) has a reference opened from its pane recorded on its desk card, with no reload`,
+        recorded === 1, JSON.stringify(sent.slice(sent1)));
+      await pane.locator('.ask-pane-close').click();
     }
     check(`ask pane ${vname}: no screen shows "map", "met", "touch" or "spot"`, page.jargon.length === 0, page.jargon.join(' | '));
     await ctx.close();
