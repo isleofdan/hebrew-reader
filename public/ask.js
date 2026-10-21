@@ -17,34 +17,6 @@
   const moreQ = $('#ask-more-q'), moreGo = $('#ask-more-go'), moreMsg = $('#ask-more-msg');
   let last = null; // the id of the thread's latest answer, the next follow-up's parent
 
-  // Each citation as its reference's label and the page's title, opening the page in a new tab.
-  function drawLinks(ul, links) {
-    ul.innerHTML = '';
-    for (const l of links || []) {
-      const li = document.createElement('li');
-      const a = document.createElement('a'); a.href = l.url; a.target = '_blank'; a.rel = 'noopener';
-      const label = document.createElement('span'); label.className = 'ref-label'; label.textContent = l.label;
-      a.append(label);
-      // the title in its own direction (a Hebrew title reads right to left), after the separator
-      if (l.title) { const t = document.createElement('span'); t.className = 'ref-title'; t.dir = 'auto'; t.textContent = l.title; a.append(document.createTextNode(' · '), t); }
-      li.append(a);
-      ul.append(li);
-    }
-    if (!ul.children.length) {
-      const li = document.createElement('li'); li.className = 'claim none'; li.textContent = 'Nothing here to look up in a reference.'; ul.append(li);
-    }
-  }
-
-  function drawTurn(question, data) {
-    const turn = document.createElement('div'); turn.className = 'ask-turn'; turn.dataset.ask = data.id;
-    const qp = document.createElement('p'); qp.className = 'ask-question'; qp.dir = 'auto'; qp.textContent = question;
-    const ap = document.createElement('p'); ap.className = 'answer'; ap.textContent = data.answer;
-    const ul = document.createElement('ul'); ul.className = 'links';
-    drawLinks(ul, data.links);
-    turn.append(qp, ap, ul);
-    thread.append(turn);
-  }
-
   async function send(field, button, line, parent) {
     const question = field.value.trim();
     line.className = 'msg';
@@ -56,7 +28,8 @@
       const data = await window.Reader.api('POST', '/ask', { desk: 'hebrew', subject: { kind: 'article', article_id: article ? article.id : undefined }, question, parent: parent || undefined });
       line.textContent = '';
       if (!parent) thread.innerHTML = '';
-      drawTurn(question, data);
+      // drawn as the ask pane draws an answer (ask-ui.js): the question, the answer, each cited page
+      window.AskUI.drawTurn(thread, question, data);
       last = data.id;
       field.value = parent ? '' : field.value;
       box.classList.remove('hidden');

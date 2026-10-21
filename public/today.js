@@ -31,9 +31,10 @@ const slot = { current: null };
 UI.wire(cardEl, {
   onStatus: (status) => UI.saveStatus(cardEl, api, slot.current, status),
   getCurrent: () => slot.current,
+  api,
 });
 function showCard(data, sentence) {
-  const current = slot.current = { card: data.card, spot: data.spot, sentence: sentence || '' };
+  const current = slot.current = { card: data.card, spot: data.spot, sentence: sentence || '', desk_key: data.desk_key || null };
   UI.fill(cardEl, data);
   UI.addPoints(cardEl, data, { api, sentence, isCurrent: () => slot.current === current });
 }

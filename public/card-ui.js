@@ -15,7 +15,11 @@
     const s = document.createElement('span'); s.className = 'he'; s.textContent = text; return s;
   }
 
+  // the ask pane goes with the word it was opened for (ask-ui.js)
+  function askFollows(card, c) { if (window.AskUI) window.AskUI.follow(card, c); }
+
   function setLoading(card, surface) {
+    askFollows(card, null);
     card.classList.remove('idle');
     const sv = card.querySelector('.setverb'); if (sv) sv.remove();
     el(card, 'surface').textContent = surface;
@@ -25,6 +29,7 @@
   }
 
   function setError(card, surface, message) {
+    askFollows(card, null);
     card.classList.remove('idle');
     const sv = card.querySelector('.setverb'); if (sv) sv.remove();
     el(card, 'surface').textContent = surface;
@@ -64,6 +69,7 @@
 
   function fill(card, data) {
     const c = data.card, spot = data.spot;
+    askFollows(card, c);
     card.classList.remove('idle');
     headword(el(card, 'surface'), c);
     el(card, 'status').textContent = spot ? `${STATUS_TEXT[spot.status] || spot.status} · ${seen(spot.touches)}` : 'no spot for this word';
@@ -227,14 +233,9 @@
     return `${Number(m[3])} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(m[2]) - 1]} ${m[1]}`;
   }
 
-  // "Ask about this root": Pealim and Hebrew Wiktionary in new tabs.
-  function askAbout(c) {
-    if (!c) return;
-    const rootLetters = c.root ? c.root.replace(/\./g, '') : '';
-    const q = rootLetters || c.lemma;
-    window.open(`https://www.pealim.com/search/?q=${encodeURIComponent(q)}`, '_blank', 'noopener');
-    window.open(`https://he.wiktionary.org/w/index.php?search=${encodeURIComponent(c.lemma || q)}`, '_blank', 'noopener');
-  }
+  // "Ask about this root" (hebrew-ask-one): the ask pane under the action
+  // row (ask-ui.js), with Pealim and Wiktionary inside it and a question to
+  // the ask surface; it no longer opens tabs.
 
   // "Put on the desk" (session twelve): the card on screen goes onto the desk
   // Dan last worked on, once. `onPut()` answers the server's { desk, already };
@@ -260,15 +261,19 @@
     });
   }
 
-  // Wires one card element: `getCurrent()` answers { card, spot } for the
-  // word on the card; `onStatus(status)` saves; `onClose()` for the sheet.
-  function wire(card, { onStatus, getCurrent, onClose, onSetVerb, onPut }) {
+  // Wires one card element: `getCurrent()` answers { card, spot, sentence?,
+  // desk_key? } for the word on the card; `onStatus(status)` saves;
+  // `onClose()` for the sheet; `api` is the page's own, which the ask pane
+  // asks through.
+  function wire(card, { onStatus, getCurrent, onClose, onSetVerb, onPut, api }) {
     // the root and binyan control shows on verb cards of a page that saves it
     if (onSetVerb) card._onSetVerb = onSetVerb;
     if (onPut) wirePut(card, onPut);
     card.querySelector('[data-act=shaky]').addEventListener('click', () => onStatus('shaky'));
     card.querySelector('[data-act=solid]').addEventListener('click', () => onStatus('solid'));
-    card.querySelector('[data-act=ask]').addEventListener('click', () => askAbout((getCurrent() || {}).card));
+    const ask = card.querySelector('[data-act=ask]');
+    ask.setAttribute('aria-expanded', 'false');
+    ask.addEventListener('click', () => window.AskUI.toggle(card, { api, current: getCurrent() }));
     const close = card.querySelector('.close');
     if (close && onClose) close.addEventListener('click', onClose);
   }
@@ -292,5 +297,5 @@
     }
   }
 
-  window.CardUI = { BINYAN, LABELS, STATUS_TEXT, seen, fill, addPoints, setLoading, setError, hint, spineLine, askAbout, wire, saveStatus };
+  window.CardUI = { BINYAN, LABELS, STATUS_TEXT, seen, fill, addPoints, setLoading, setError, hint, spineLine, wire, saveStatus };
 })();

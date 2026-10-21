@@ -135,7 +135,13 @@ try {
     const tabs = await page.locator('#tabs button.ref').allTextContents();
     check(`${name}: the seven tabs under the card, in the references' order; no reference asked for before a tap`,
       tabs.join('|') === 'Morfix|Pealim|Wiktionary|Milog|the Academy|Kizur|Sefaria' && page.refAsks.length === 0 && (await page.locator('#pane').isHidden()), tabs.join('|') + ' ' + page.refAsks.join(' '));
-    check(`${name}: the card's "Ask about this root" (two new tabs) is not on this page; the tabs do it inside`, await card.locator('[data-act=ask]').isHidden());
+    // hebrew-ask-one: "Ask about this root" no longer opens tabs; here too it opens the ask pane in the card
+    const pagesNow = page.context().pages().length;
+    await card.locator('[data-act=ask]').click();
+    await card.locator('.ask-pane').waitFor({ timeout: 5000 });
+    check(`${name}: the card's "Ask about this root" opens the ask pane in the card (root ה.מ.ר), asking no reference and opening no tab`,
+      (await card.locator('.ask-pane-title').innerText()).trim() === 'ה.מ.ר' && page.refAsks.length === 0 && page.context().pages().length === pagesNow);
+    await card.locator('.ask-pane-close').click();
     const n0 = Number((/(\d+) times|once/.exec(await page.locator('#looked-line').innerText()) || [])[1] || 1);
     await both(page, `entry-${name}`);
 

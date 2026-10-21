@@ -24,7 +24,7 @@
       const source = window.Reader.source ? window.Reader.source() : { article_id: window.Reader.article.id };
       const data = await window.Reader.api('POST', '/lookup', { surface, sentence, ...source });
       if (my !== seq) return;
-      current.card = data.card; current.spot = data.spot;
+      current.card = data.card; current.spot = data.spot; current.desk_key = data.desk_key || null;
       UI.fill(card, data);
       UI.addPoints(card, data, { api: window.Reader.api, sentence, isCurrent: () => my === seq });
       if (data.spot) {
@@ -68,8 +68,10 @@
   // the card on screen onto the desk (session twelve)
   const put = () => window.Reader.api('POST', '/desks/put', { surface: current.surface, sentence: current.sentence });
 
+  // the page's own api (reader.js, or lesson.js on the lesson page), for the ask pane
+  const api = (...a) => window.Reader.api(...a);
   for (const card of cards) {
-    UI.wire(card, { onStatus: setStatus, getCurrent: () => current, onClose: () => { card.classList.add('idle'); seq++; }, onSetVerb: setVerb, onPut: put });
+    UI.wire(card, { onStatus: setStatus, getCurrent: () => current, onClose: () => { card.classList.add('idle'); seq++; }, onSetVerb: setVerb, onPut: put, api });
   }
 
   window.showCard = showCard;
