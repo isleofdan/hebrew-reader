@@ -11,6 +11,11 @@
 // Pressing a direction or Go keeps Dan's place: "Thinking…" takes the
 // buttons' place, and when the stop arrives the line "You chose: …" (or "You
 // wrote: …") stands where the pressed button stood, with the new stop below.
+// A stop takes up to three minutes, longer than a phone keeps one request
+// open: Start and a move answer at once with the walk marked pending, and
+// the page reads the walk every few seconds until the stop is there or a
+// failure line says why there is none. Reopening a pending walk shows the
+// wait and goes on reading.
 // A question typed into the box is kept in this browser as Dan types (a
 // phone that reloads the page during the wait for the first stop would
 // otherwise lose it); it is cleared when the walk opens with its stop. A
@@ -95,10 +100,10 @@ function countLine(value) {
 
 // "Thinking… 12 s": the wait, counted, so a long first stop (up to three
 // minutes) is not taken for a hang. Returns the stop function.
-function ticking(node, label) {
-  const t0 = Date.now();
-  node.textContent = `${label}…`;
-  const id = setInterval(() => { node.textContent = `${label}… ${Math.round((Date.now() - t0) / 1000)} s`; }, 1000);
+function ticking(node, label, t0 = Date.now()) {
+  const show = () => { const s = Math.round((Date.now() - t0) / 1000); node.textContent = s >= 1 ? `${label}… ${s} s` : `${label}…`; };
+  show();
+  const id = setInterval(show, 1000);
   return () => clearInterval(id);
 }
 
@@ -124,19 +129,10 @@ async function start(ref) {
   stopTicking();
   thinking.remove();
   row.style.minHeight = '';
-  if (r.ok && !r.data.declined) { draft.write(''); location.href = `/walks/${r.data.id}`; return; }
+  if (r.ok) { draft.write(''); location.href = `/walks/${r.data.id}`; return; }
   $('#start-go').classList.remove('hidden');
-  // the walk was saved before its first stop was tried: the question is
-  // not lost, and the walk's own box is where to ask again
-  const saved = (r.ok ? r.data : r.data.walk) || null;
-  if (r.ok) msg.textContent = r.data.declined;
-  else { msg.classList.add('error'); msg.textContent = r.data.error || 'The server did not answer.'; }
-  if (saved && saved.id) {
-    msg.append(' ');
-    const a = el('a', '', 'Your question is saved as a walk; open it to try again.');
-    a.href = `/walks/${saved.id}`;
-    msg.append(a);
-  }
+  msg.classList.add('error');
+  msg.textContent = `${r.data.error || 'The server did not answer.'} Your question is kept here; try Start again.`;
 }
 
 // --- /walks/<id> --------------------------------------------------------------------
@@ -147,18 +143,85 @@ async function walkPage(id) {
   const r = await api('GET', `/walks/${id}/stops`);
   if (!r.ok) { state(r.data.error); return; }
   state('');
-  walk = r.data;
+  draw(r.data);
+  $('#walk').classList.remove('hidden');
+  if (walk.pending) await follow(null, null);
+}
+
+// The whole walk from the record: its stops oldest first, the line between
+// each pair, and under the last the controls (or, while a stop is on its
+// way, the wait; or the last move's failure line and the controls).
+function draw(data) {
+  walk = data;
   document.title = `Hebrew reader · ${walk.title}`;
   $('#walk-title').textContent = walk.title;
   const box = $('#stops');
   box.innerHTML = '';
-  walk.stops.forEach((s, i) => {
+  // the line saying what Dan did stands above every stop but the one the
+  // walk began with (its question or passage is the title)
+  walk.stops.forEach((s) => {
+    if (s.move.kind === 'pick' || s.move.kind === 'text') box.append(moveLine(s.move));
     box.append(stopPanel(s));
-    const after = walk.stops[i + 1];
-    if (after) box.append(moveLine(after.move));
   });
   box.append(movePanel());
-  $('#walk').classList.remove('hidden');
+  if (walk.failure) showFailure(walk.failure);
+}
+
+const POLL_MS = 3000;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Reads the walk every few seconds while a stop is on its way. "Thinking…"
+// with the seconds counted (from when the server began) stands in place of
+// the controls, at `top` when a pressed control is being replaced. When the
+// stop arrives, `label` (what Dan pressed or wrote) becomes the line where
+// the control was and the new stop goes below; a failure shows its line and
+// the controls come back.
+async function follow(label, top) {
+  const zone = $('#move');
+  const had = walk.stops.length;
+  for (const old of zone.querySelectorAll('.walk-failed')) old.remove();
+  zone.querySelector('.walk-msg').textContent = '';
+  zone.style.minHeight = `${zone.offsetHeight}px`;
+  const kept = [...zone.children];
+  for (const c of kept) c.classList.add('hidden');
+  const thinking = el('p', 'walk-thinking');
+  const since = walk.pending_since ? Date.parse(walk.pending_since) : Date.now();
+  const stopTicking = ticking(thinking, 'Thinking', since);
+  zone.prepend(thinking);
+  if (top !== null) keepAt(thinking, top);
+  let data = walk;
+  while (data.pending) {
+    await wait(POLL_MS);
+    const r = await api('GET', `/walks/${walk.id}/stops`).catch(() => null);
+    if (r && r.ok) data = r.data;
+  }
+  stopTicking();
+  thinking.remove();
+  sending = false;
+  walk = data;
+  if (walk.stops.length > had) {
+    const s = walk.stops.at(-1);
+    const move = label !== null ? (s.move.kind === 'pick' ? { kind: 'pick', text: label } : { kind: 'text', text: label }) : s.move;
+    const box = $('#stops');
+    let line = null;
+    if (move.kind === 'pick' || move.kind === 'text') { line = moveLine(move); zone.replaceWith(line); } else zone.remove();
+    box.append(stopPanel(s), movePanel());
+    if (top !== null && line) keepAt(line, top);
+    return;
+  }
+  zone.style.minHeight = '';
+  for (const c of kept) c.classList.remove('hidden');
+  showFailure(walk.failure || { error: 'The stop did not arrive. Ask again.' }, top);
+}
+
+// The last move's failure line (or the guide's decline) where the controls are.
+function showFailure(f, top = null) {
+  const zone = $('#move');
+  for (const old of zone.querySelectorAll('.walk-failed')) old.remove();
+  const line = el('p', `walk-failed${f.declined ? ' declined' : ''}`, f.declined || f.error);
+  line.setAttribute('role', 'status');
+  zone.prepend(line);
+  if (top !== null) keepAt(line, top);
 }
 
 // "You chose: …" / "You wrote: …", the line a pressed control leaves
@@ -178,8 +241,10 @@ function stopPanel(s) {
   const panel = el('section', 'panel walk-stop');
   panel.dataset.n = s.n;
   const head = el('div', 'walk-stop-head');
-  const h = el('h2', 'walk-stop-title', `Stop ${s.n} · ${s.passage ? s.passage.title : s.ref}`);
+  // a stop with no passage: the guide answered the move itself
+  const h = el('h2', 'walk-stop-title', `Stop ${s.n} · ${s.passage ? s.passage.title : (s.ref || 'the guide answers')}`);
   head.append(h);
+  if (s.reply) panel.classList.add('walk-reply');
   if (s.passage) {
     const a = el('a', 'walk-full', 'Full passage'); a.href = s.passage.url; a.target = '_blank'; a.rel = 'noopener';
     head.append(a);
@@ -193,6 +258,7 @@ function stopPanel(s) {
     block.append(he, tr, en);
     panel.append(block);
   }
+  if (s.reply) panel.append(section('The guide answers', s.reply, 'walk-reply-text'));
   if (s.why_here) panel.append(section('Why here', s.why_here, 'walk-why'));
   if (s.explanation) panel.append(section('What it says, plainly', s.explanation, 'walk-explain'));
   if (s.argues) {
@@ -215,7 +281,7 @@ function movePanel() {
   const zone = el('div', 'walk-move');
   zone.id = 'move';
   const last = walk.stops.at(-1);
-  if (!last) zone.append(el('p', 'walk-none', 'No stop yet. Ask again, in other words if you like.'));
+  if (!last && !walk.pending && !walk.failure) zone.append(el('p', 'walk-none', 'No stop yet. Ask again, in other words if you like.'));
   const dirs = el('div', 'walk-dirs');
   (last ? last.next : []).forEach((d, i) => {
     const b = el('button', 'btn walk-dir');
@@ -240,40 +306,22 @@ function movePanel() {
 
 let sending = false;
 
-// One step: "Thinking…" where the controls were, then the line saying what
-// Dan did at the height of the button he pressed, and the new stop below. A
-// failed or declined step shows its line there and the controls come back.
+// One move: the POST answers at once (the walk marked pending), then the
+// page follows the stop as it is made; `follow` draws the line saying what
+// Dan did at the height of the control he pressed, and the new stop below.
 async function send(body, pressed, label) {
   if (sending) return;
   sending = true;
   const zone = $('#move');
   const top = pressed.getBoundingClientRect().top;
-  for (const old of zone.querySelectorAll('.walk-failed')) old.remove();
-  zone.querySelector('.walk-msg').textContent = '';
-  zone.style.minHeight = `${zone.offsetHeight}px`;
-  const kept = [...zone.children];
-  for (const c of kept) c.classList.add('hidden');
-  const thinking = el('p', 'walk-thinking', 'Thinking…');
-  zone.prepend(thinking);
-  keepAt(thinking, top);
   const r = await api('POST', `/walks/${walk.id}/step`, body).catch((e) => ({ ok: false, data: { error: e.message } }));
-  sending = false;
-  thinking.remove();
-  if (r.ok && !r.data.declined) {
-    walk = r.data;
-    const line = moveLine(body.pick !== undefined ? { kind: 'pick', text: label } : { kind: 'text', text: label });
-    const box = $('#stops');
-    zone.replaceWith(line);
-    box.append(stopPanel(walk.stops.at(-1)), movePanel());
-    keepAt(line, top);
+  if (!r.ok) {
+    sending = false;
+    showFailure({ error: r.data.error || 'The server did not answer.' }, top);
     return;
   }
-  zone.style.minHeight = '';
-  for (const c of kept) c.classList.remove('hidden');
-  const line = el('p', `walk-failed${r.ok ? ' declined' : ''}`, r.ok ? r.data.declined : r.data.error);
-  line.setAttribute('role', 'status');
-  zone.prepend(line);
-  keepAt(line, top);
+  walk = r.data;
+  await follow(label, top);
 }
 
 // Scroll so `node` sits at `top` on the screen (the height of what Dan pressed).
