@@ -360,7 +360,8 @@ route('PATCH', /^\/notes\/(?<id>\d+)$/, async (req, res, { id }) => {
 // Catching a card on the phone: { text?, url?, title? } shared from another
 // app -> a note card on the desk worked on last, not yet placed.
 route('POST', /^\/desks\/catch$/, async (req, res) => {
-  const out = desk.catchCard(await readJson(req));
+  // Chrome's doubled address (plain, and with the selection coded in) kept once
+  const out = desk.catchCard(caught.share(await readJson(req)));
   caught.later(out.card.key, out.fetch);
   return sendJson(res, 201, out);
 });
