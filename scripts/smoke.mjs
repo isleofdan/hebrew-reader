@@ -297,12 +297,15 @@ try {
 
   // 10. the ask surface (step 6)
   const asked = await api('POST', '/ask', { question: 'What does נאלץ take?' });
-  check('ask answers briefly with one link per reference the mock named, every url built from lib/references.js',
+  check('ask answers briefly, its links the pages the web search cited (hebrew-ask-one: the Ask box asks the hebrew desk), each named by its reference',
     asked.status === 200 && /not sure/.test(asked.body.answer) && asked.body.links.length === 3
     && asked.body.links.map((l) => l.reference).join(',') === 'pealim,wiktionary,academy'
-    && asked.body.links[0].url === 'https://www.pealim.com/search/?q=' + encodeURIComponent('אלצ')
-    && asked.body.links[1].url === 'https://he.wiktionary.org/w/index.php?search=' + encodeURIComponent('נאלץ')
-    && asked.body.links[2].url === 'https://hebrew-academy.org.il/?s=' + encodeURIComponent('נאלץ'), JSON.stringify(asked.body).slice(0, 200));
+    && asked.body.links[0].url === 'https://www.pealim.com/dict/2-lehealetz/' && asked.body.links[0].label === 'Pealim' && asked.body.links[0].title === 'להיאלץ – Pealim'
+    && asked.body.links.every((l) => !('term' in l)) && Number.isInteger(asked.body.id), JSON.stringify(asked.body).slice(0, 200));
+  const deskBad = await api('POST', '/ask', { desk: 'talmud', subject: { kind: 'article' }, question: 'x?' });
+  const kindBad = await api('POST', '/ask', { subject: { kind: 'verse' }, question: 'x?' });
+  check('ask refusals name the valid values: "desk must be one of hebrew", "subject.kind must be one of article, card, root"',
+    deskBad.status === 400 && deskBad.body.error === 'desk must be one of hebrew' && kindBad.status === 400 && kindBad.body.error === 'subject.kind must be one of article, card, root', JSON.stringify([deskBad.body, kindBad.body]));
   const askedPiece = await api('POST', '/ask', { question: "Which Nif'al forms are in this piece?", article_id: stored.id });
   check("ask with an article: the piece's mapped words reach the model, so the Nif'al forms are answered from data",
     askedPiece.body.answer.includes('ייקבעו') && askedPiece.body.answer.includes('שנאלצה') && !askedPiece.body.answer.includes('להתמודד') && askedPiece.body.links.every((l) => l.url.startsWith('https://www.pealim.com/')), askedPiece.body.answer);

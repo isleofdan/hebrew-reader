@@ -168,8 +168,10 @@ route('POST', /^\/demand\/show$/, async (req, res) => sendJson(res, 200, await d
 
 // --- the ask surface --------------------------------------------------------
 
-// { question, article_id? } -> { answer, links, references, state }
-route('POST', /^\/ask$/, async (req, res) => sendJson(res, 200, await askRefs.ask(await readJson(req))));
+// { desk?, subject: { kind, … }, question, parent? } -> { id, answer, links,
+// searches, state } (lib/ask.js); the Ask box's first shape { question,
+// article_id? } is the article subject on the hebrew desk
+route('POST', /^\/ask$/, async (req, res) => sendJson(res, 200, await askRefs.askRoute(await readJson(req))));
 
 // --- make from recent reading -----------------------------------------------
 
@@ -374,8 +376,9 @@ const CARD = '(?<key>[a-z]+:\\d+)';
 route('GET', new RegExp(`^/card/${CARD}$`), (req, res, { key }) => sendJson(res, 200, desk.full(key)));
 // { text } -> a note that is a layer of this card
 route('POST', new RegExp(`^/card/${CARD}/notes$`), async (req, res, { key }) => sendJson(res, 201, { layer: desk.noteLayer(key, (await readJson(req)).text) }));
-// { question } -> { layer, searches }; an answer with no link answers 422 and why
-route('POST', new RegExp(`^/card/${CARD}/ask$`), async (req, res, { key }) => sendJson(res, 201, await grow.ask(key, await readJson(req))));
+// { question } -> { layer, ask_id, searches }, through the ask surface; an
+// answer with no link answers 422 and why
+route('POST', new RegExp(`^/card/${CARD}/ask$`), async (req, res, { key }) => sendJson(res, 201, await askRefs.askCard(key, await readJson(req))));
 // -> { added, refused, already, found, searches }
 route('POST', new RegExp(`^/card/${CARD}/examples$`), async (req, res, { key }) => sendJson(res, 200, await grow.findExamples(key)));
 // on an example: { kept: true | false }

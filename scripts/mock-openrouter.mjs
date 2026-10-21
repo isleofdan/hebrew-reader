@@ -3,13 +3,8 @@
 // so a test can prove the second lookup was served from the cache.
 //   node scripts/mock-openrouter.mjs [port]
 //
-// The ask surface has four shapes a question can force, so the page can be
-// checked against each. A question containing:
-//   "no reference"  -> an answer with an empty links list
-//   "in plain text" -> plain text instead of JSON
-//   "a recipe"      -> {"error": ...}, the model declining
-//   "while it is down" -> the socket dropped, so the call is unreachable
-//   "list my map"   -> every surface the article context carried, echoed back
+// The ask surface (lib/ask.js) answers through the web search; its shapes are
+// listed above webSearch below.
 //
 // A lesson guide ("Lesson: …" in the user message) is built from the items it
 // is given, plus one invented vocabulary row, expression and card that the
@@ -147,30 +142,68 @@ function mockGuide(items, date, n, fault) {
 // A call carrying tools gets an answer shaped as OpenRouter's: the text in
 // message.content, the pages the search leaned on as url_citation
 // annotations, and usage.server_tool_use.web_search_requests.
-// "Ask here" ("The card:" … "Question: …"): a question containing
-//   "without a link" -> an answer with no annotation at all
+// An ask (lib/ask.js: "The card:", "The article:" or "The root:" …
+// "Question: …", the earlier turns of a follow-up as messages before it): a
+// question containing
+//   "while it is down" -> the socket dropped, so the call is unreachable
+//   "decline", "a recipe" -> {"error"}
+//   "in plain text"    -> plain text instead of JSON, no annotation
+//   "without a link", "no reference" -> an answer with no annotation at all
 //   "link in the text" -> the link written in the answer, no annotation
-//   "decline"          -> {"error"}
-//   anything else      -> an answer whose links are only in the annotations
+//   "list my map"      -> every surface the article subject carried, echoed back
+//   "Nif'al" on an article -> the Nif'al forms the article subject carries,
+//                         each cited to its Pealim page
+//   anything else      -> an answer for its subject whose links are only in
+//                         the annotations
+// Every ask is kept in search_asks with its subject kind, system text, the
+// earlier turns it carried and the sites it may search.
 // "Find more examples" ("The word: …"): control.examples, when set, is the
 // list answered; else five examples for להמר, one without a url, and from
 // the second search on one more with a new url each time.
 let searchCalls = 0, exampleCalls = 0, sheetCalls = 0;
 const sheetAsks = [];
 const searchAsks = [];
-function webSearch(res, body, user) {
+function webSearch(req, res, body) {
   searchCalls++;
   const tool = body.tools[0];
-  searchAsks.push({ tool: tool.type, parameters: tool.parameters || {}, response_format: body.response_format || null, max_tokens: body.max_tokens, kind: user.startsWith('The card:') ? 'ask' : 'examples', has_entry: /Root: /.test(user), has_layers: /What the reader has added/.test(user), forms: (/Forms to look for: (.*)/.exec(user) || [])[1] || null });
+  // the ask's own message is the last; a follow-up's earlier turns sit before it
+  const user = body.messages.filter((m) => m.role === 'user').at(-1).content;
+  const subject = (/^The (card|article|root):/.exec(user) || [])[1] || null;
+  searchAsks.push({ tool: tool.type, parameters: tool.parameters || {}, response_format: body.response_format || null, max_tokens: body.max_tokens, model: body.model,
+    kind: subject ? 'ask' : 'examples', subject, system: body.messages[0].content, user, turns: body.messages.slice(1, -1).map((m) => ({ role: m.role, content: m.content })),
+    has_entry: /Root: /.test(user), has_layers: /What the reader has added/.test(user), forms: (/Forms to look for: (.*)/.exec(user) || [])[1] || null });
   let content, cites = [];
   const cite = (url, title) => ({ type: 'url_citation', url_citation: { url, title, content: `from ${title}`, start_index: 0, end_index: 10 } });
-  if (user.startsWith('The card:')) {
+  if (subject) {
     const q = user.split('\n\nQuestion: ')[1] || '';
-    if (/decline/i.test(q)) content = JSON.stringify({ error: 'that is not a question about Hebrew' });
+    if (/while it is down/i.test(q)) { req.socket.destroy(); return; }
+    const nifal = [...user.matchAll(/^- (\S+): root \S+, nifal/gm)].map((m) => m[1]);
+    if (/decline|a recipe/i.test(q)) content = JSON.stringify({ error: 'that is not a question about Hebrew' });
+    else if (/in plain text/i.test(q)) content = "נאלץ is the Nif'al of א.ל.צ, 'to be forced'. Nothing here needs a reference.";
     else if (/link in the text/i.test(q)) content = JSON.stringify({ answer: 'להמר is Pi\'el; see https://www.pealim.com/dict/479-lehamer/ for its forms.' });
-    else {
+    else if (/no reference/i.test(q)) content = JSON.stringify({ answer: 'No Nif\'al verb form appears among the words of this piece you have looked up.' });
+    else if (/list my map/i.test(q)) content = JSON.stringify({ answer: `Your words in this piece: ${[...user.matchAll(/^- (\S+): /gm)].map((m) => m[1]).join(', ')}.` });
+    else if (subject === 'article' && /nif.?al/i.test(q)) {
+      content = JSON.stringify({ answer: nifal.length ? `The Nif'al forms among your words in this piece: ${nifal.join(', ')}.` : 'None of your words in this piece is a Nif\'al form yet.' });
+      cites = nifal.map((w) => cite(`https://www.pealim.com/search/?q=${encodeURIComponent(w)}`, `${w} – Pealim`));
+    } else if (subject === 'card') {
       content = JSON.stringify({ answer: 'להמר (Pi\'el of ה.מ.ר) is to bet or gamble, and takes על; לסכן is to put at risk, and takes an object (not sure about formal usage).' });
       if (!/without a link/i.test(q)) cites = [cite('https://www.pealim.com/dict/479-lehamer/', 'להמר – Pealim'), cite('https://milog.co.il/%D7%9C%D7%94%D7%9E%D7%A8', 'מה זה להמר – מילוג'), cite('https://www.pealim.com/dict/479-lehamer/', 'להמר – Pealim')];
+    } else if (subject === 'root') {
+      const root = (/^The root: (\S+)/.exec(user) || [])[1] || '';
+      content = JSON.stringify({ answer: `The root ${root} gives the verbs and nouns of one family; ${body.messages.length > 2 ? `(following ${(body.messages.length - 2) / 2} earlier turn(s)) ` : ''}its Pi'el is the common verb (not sure about rarer forms).` });
+      if (!/without a link/i.test(q)) cites = [cite('https://www.pealim.com/dict/479-lehamer/', 'להמר – Pealim'), cite('https://he.wiktionary.org/wiki/%D7%94%D7%99%D7%9E%D7%A8', 'הימר – ויקימילון')];
+    } else {
+      content = JSON.stringify({ answer: "נאלץ is the Nif'al of א.ל.צ, 'to be forced'; it takes ל- plus an infinitive (not sure about older usage with את)." });
+      if (!/without a link/i.test(q)) cites = [cite('https://www.pealim.com/dict/2-lehealetz/', 'להיאלץ – Pealim'), cite('https://he.wiktionary.org/wiki/%D7%A0%D7%90%D7%9C%D7%A5', 'נאלץ – ויקימילון'), cite('https://hebrew-academy.org.il/2013/07/01/%D7%A0%D7%90%D7%9C%D7%A5/', 'נאלץ – האקדמיה ללשון העברית')];
+    }
+    // the search reaches only the sites it is allowed: a desk of other sites
+    // (the seam's stand-in desk) gets a page of its own first site instead
+    const allowed = (tool.parameters || {}).allowed_domains;
+    if (allowed && cites.length) {
+      const onAllowed = (u) => { const h = new URL(u).hostname; return allowed.some((d) => h === d || h.endsWith(`.${d}`)); };
+      const kept = cites.filter((x) => onAllowed(x.url_citation.url));
+      cites = kept.length ? kept : [cite(`https://www.${allowed[0]}/search?q=${encodeURIComponent(q.slice(0, 20))}`, `${allowed[0]}: ${q.slice(0, 20)}`)];
     }
   } else {
     exampleCalls++;
@@ -260,7 +293,7 @@ http.createServer((req, res) => {
       return;
     }
     const user = body.messages.find((m) => m.role === 'user').content;
-    if (Array.isArray(body.tools) && body.tools.length) return webSearch(res, body, user);
+    if (Array.isArray(body.tools) && body.tools.length) return webSearch(req, res, body);
     const followUp = body.messages.length > 2;
     let answer, format = 'clean';
     if (user.startsWith('Difficulty request\n')) {
