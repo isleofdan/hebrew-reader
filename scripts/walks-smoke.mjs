@@ -284,6 +284,8 @@ try {
     JSON.stringify([bad3.body, bad5.body]));
   check('a pick outside the offered directions: 400 naming the valid ones', bad4.status === 400 && /pick is one of 0, 1, 2/.test(bad4.body.error) && /got 7/.test(bad4.body.error), JSON.stringify(bad4.body));
   check('a start with neither question nor ref: 400 naming both', bad6.status === 400 && /\{ question: .* \} or \{ ref: .* \}/.test(bad6.body.error), JSON.stringify(bad6.body));
+  const longQ = await api("POST", "/walks/start", { question: "q".repeat(4001) });
+  check('a question over 4,000 characters: 400 naming the limit (a walk may start from a long question)', longQ.status === 400 && /question is at most 4000 characters; this one has 4001/.test(longQ.body.error), JSON.stringify(longQ.body));
   const badKind = await api('POST', '/ask', { desk: 'thought', subject: { kind: 'walk', walk_id: 999 }, question: 'x?' });
   check('the ask surface refuses a walk subject of no walk (404, naming where the walks are listed)', badKind.status === 404 && /No walk with id 999; GET \/walks\/list/.test(badKind.body.error), JSON.stringify(badKind.body));
 

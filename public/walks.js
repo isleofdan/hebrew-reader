@@ -11,6 +11,11 @@
 // Pressing a direction or Go keeps Dan's place: "Thinking…" takes the
 // buttons' place, and when the stop arrives the line "You chose: …" (or "You
 // wrote: …") stands where the pressed button stood, with the new stop below.
+// A question typed into the box is kept in this browser as Dan types (a
+// phone that reloads the page during the wait for the first stop would
+// otherwise lose it); it is cleared when the walk opens with its stop. A
+// first stop that fails or is declined keeps the question in the box, and
+// the walk it was saved as is linked so nothing typed is lost.
 
 const $ = (s) => document.querySelector(s);
 
@@ -37,6 +42,15 @@ const DAY = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', y
 const dayOf = (iso) => { try { return DAY.format(new Date(iso)); } catch { return ''; } };
 const state = (text) => { $('#state').textContent = text || ''; };
 
+// the question as typed, kept in this browser (storage can be refused: a
+// private window, cleared site data; the page works without it)
+const DRAFT = 'walks.draft';
+const draft = {
+  read() { try { return localStorage.getItem(DRAFT) || ''; } catch { return ''; } },
+  write(v) { try { if (v) localStorage.setItem(DRAFT, v); else localStorage.removeItem(DRAFT); } catch { /* storage refused */ } },
+};
+const QUESTION_MAX = 4000; // lib/walks.js WALK_QUESTION_MAX
+
 // --- /walks ---------------------------------------------------------------------------
 
 async function listPage() {
@@ -49,6 +63,12 @@ async function listPage() {
   }
   $('#start-go').addEventListener('click', () => start(ref));
   $('#question').addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) start(ref); });
+  if (!ref) {
+    const q = $('#question');
+    if (!q.value && draft.read()) { q.value = draft.read(); $('#start-msg').textContent = 'Your question from before, kept here.'; }
+    q.addEventListener('input', () => { draft.write(q.value); countLine(q.value); });
+    countLine(q.value);
+  }
   const r = await api('GET', '/walks/list');
   state('');
   if (!r.ok) { state(r.data.error); return; }
@@ -65,26 +85,58 @@ async function listPage() {
   $('#saved').classList.remove('hidden');
 }
 
+// "3,850 / 4,000" once the question is long, so the limit is never a surprise
+function countLine(value) {
+  const n = value.trim().length;
+  const c = $('#count');
+  c.textContent = n > QUESTION_MAX * 0.75 ? `${n.toLocaleString()} / ${QUESTION_MAX.toLocaleString()}` : '';
+  c.classList.toggle('error', n > QUESTION_MAX);
+}
+
+// "Thinking… 12 s": the wait, counted, so a long first stop (up to three
+// minutes) is not taken for a hang. Returns the stop function.
+function ticking(node, label) {
+  const t0 = Date.now();
+  node.textContent = `${label}…`;
+  const id = setInterval(() => { node.textContent = `${label}… ${Math.round((Date.now() - t0) / 1000)} s`; }, 1000);
+  return () => clearInterval(id);
+}
+
 async function start(ref) {
   const question = $('#question').value.trim();
   const msg = $('#start-msg');
   msg.classList.remove('error');
+  msg.textContent = '';
   if (!ref && !question) { msg.textContent = 'Write a question to walk with first.'; return; }
+  if (!ref && question.length > QUESTION_MAX) {
+    msg.classList.add('error');
+    msg.textContent = `The question is ${question.length.toLocaleString()} characters; the most is ${QUESTION_MAX.toLocaleString()}. Shorten it a little; it stays here as you do.`;
+    return;
+  }
   const row = $('#start-row');
   const held = row.offsetHeight;
   row.style.minHeight = `${held}px`;
   $('#start-go').classList.add('hidden');
-  const thinking = el('p', 'walk-thinking', 'Thinking…');
+  const thinking = el('p', 'walk-thinking');
+  const stopTicking = ticking(thinking, 'Thinking');
   row.append(thinking);
-  msg.textContent = '';
   const r = await api('POST', '/walks/start', ref ? { ref } : { question }).catch((e) => ({ ok: false, data: { error: e.message } }));
+  stopTicking();
   thinking.remove();
   row.style.minHeight = '';
-  if (r.ok && !r.data.declined) { location.href = `/walks/${r.data.id}`; return; }
+  if (r.ok && !r.data.declined) { draft.write(''); location.href = `/walks/${r.data.id}`; return; }
   $('#start-go').classList.remove('hidden');
-  if (r.ok) { msg.textContent = r.data.declined; return; }
-  msg.classList.add('error');
-  msg.textContent = r.data.error;
+  // the walk was saved before its first stop was tried: the question is
+  // not lost, and the walk's own box is where to ask again
+  const saved = (r.ok ? r.data : r.data.walk) || null;
+  if (r.ok) msg.textContent = r.data.declined;
+  else { msg.classList.add('error'); msg.textContent = r.data.error || 'The server did not answer.'; }
+  if (saved && saved.id) {
+    msg.append(' ');
+    const a = el('a', '', 'Your question is saved as a walk; open it to try again.');
+    a.href = `/walks/${saved.id}`;
+    msg.append(a);
+  }
 }
 
 // --- /walks/<id> --------------------------------------------------------------------
