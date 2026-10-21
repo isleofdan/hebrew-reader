@@ -544,6 +544,39 @@ try {
       check(`reader ${vname}: a word just put on the desk (${fresh}) has a reference opened from its pane recorded on its desk card, with no reload`,
         recorded === 1, JSON.stringify(sent.slice(sent1)));
       await pane.locator('.ask-pane-close').click();
+      // a put still on its way when another word is opened: the word opened
+      // meanwhile gets neither the key nor the message, and records nothing
+      if (!isMobile) {
+        let release;
+        const held = new Promise((r) => { release = r; });
+        await page.route('**/desks/put', async (route) => { await held; await route.continue(); });
+        const a = page.locator('.body .w', { hasText: 'להתמודד' }).first();
+        await a.hover();
+        await card.locator('.meaning', { hasText: 'to cope' }).waitFor({ timeout: 10000 });
+        await card.locator('[data-act=desk]').click();
+        await card.locator('.foot', { hasText: 'putting it on the desk' }).waitFor({ timeout: 5000 });
+        const b = page.locator('.body .w', { hasText: 'ייקבעו' }).first();
+        await b.hover();
+        await card.locator('.meaning', { hasText: 'will be set' }).waitFor({ timeout: 10000 });
+        const putDone = page.waitForResponse((r) => r.url().endsWith('/desks/put'));
+        release();
+        await putDone;
+        await page.waitForTimeout(300);
+        await page.unroute('**/desks/put');
+        const foot = await card.locator('.foot').innerText();
+        await card.locator('[data-act=ask]').click();
+        const paneB = card.locator('.ask-pane');
+        await paneB.waitFor({ timeout: 5000 });
+        const sent2 = sent.length;
+        await paneB.locator('.ask-pane-tabs button', { hasText: 'Pealim' }).click();
+        await paneB.locator('.ref-pane .ref-frame').waitFor({ timeout: 10000 });
+        await page.waitForTimeout(500);
+        const onA = (await api('GET', '/desks/current')).body.cards.some((c) => c.card && c.card.surface === 'להתמודד');
+        check('reader computer: a put answered after another word was opened leaves that word alone: no "On the desk" on its card, and a reference from its pane records nothing; the first word is on the desk',
+          !/On the desk/.test(foot) && sent.slice(sent2).filter((s) => /^POST \/card\/word:\d+\/lookup$/.test(s)).length === 0 && sent.slice(sent2).includes('GET /reference/pealim') && onA,
+          JSON.stringify({ foot, sent: sent.slice(sent2), onA }));
+        await paneB.locator('.ask-pane-close').click();
+      }
     }
     check(`ask pane ${vname}: no screen shows "map", "met", "touch" or "spot"`, page.jargon.length === 0, page.jargon.join(' | '));
     await ctx.close();

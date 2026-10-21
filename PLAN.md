@@ -1506,7 +1506,9 @@ answer there, with "Nothing here to look up in a reference."
   then keeps its height) and taken away when the pane next opens or the
   card shows another word. A new word on the card closes the pane. "Put on
   the desk" on the card makes a tab tapped afterwards record on the card it
-  placed, with no reload. On the phone the pane is the card's full width
+  placed, with no reload — only on the word it was pressed for: a word
+  opened while the put was on its way gets neither the key nor the "On the
+  desk" line. On the phone the pane is the card's full width
   and "Ask" is 56 px high.
 - **Four small fixes.** The reader's Ask box onto the web search (above).
   An empty note card — no text, nothing kept, asked, noted or drawn on it —
@@ -1519,10 +1521,12 @@ answer there, with "Nothing here to look up in a reference."
   button: "In the print window, choose no headers and footers." (the bar
   does not print).
 - **Checks**: `grow-smoke.mjs` 83, `smoke.mjs` 256, `paper-smoke.mjs` 86,
-  `screenshots.mjs` 231, `grow-pages.mjs` 104, `paper-pages.mjs` 54,
+  `screenshots.mjs` 231, `grow-pages.mjs` 105, `paper-pages.mjs` 54,
   `lookup-pages.mjs` 44 (its check that the button was hidden now opens
-  the pane); totals 670 server checks and 586 page checks. The team's
+  the pane); totals 670 server checks and 587 page checks. The team's
   checker found two faults in the first candidate, both fixed with a check
   each: Close after the pane was used and scrolled let the page or the
   sheet jump, and a word just put on the desk recorded no lookup until its
-  card was opened again.
+  card was opened again. Its recheck found the second fix could hand the
+  key to a word opened while the put was on its way; fixed, with a check
+  that holds the put's answer back.

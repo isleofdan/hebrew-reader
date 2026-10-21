@@ -246,19 +246,23 @@
     el(card, 'actions').append(b);
     b.addEventListener('click', async () => {
       const foot = el(card, 'foot');
+      // the word this put is for, taken before the server answers: another
+      // word opened meanwhile gets neither this key nor this message
+      const cur = getCurrent ? getCurrent() : null;
+      const still = () => !getCurrent || getCurrent() === cur;
       b.disabled = true;
       foot.textContent = 'putting it on the desk…';
       try {
         const got = await onPut();
         // the card is on a desk now: a reference opened from its ask pane is
         // recorded on it from here on (the Look up page records on its own card already)
-        const cur = getCurrent ? getCurrent() : null;
         if (cur && got.key && !cur.lookup_origin) cur.desk_key = got.key;
+        if (!still()) return;
         foot.textContent = got.already ? `Already on the desk “${got.desk.name}”. ` : `On the desk “${got.desk.name}”. `;
         const a = document.createElement('a'); a.href = '/desk'; a.textContent = 'Open the desk';
         foot.append(a);
       } catch (e) {
-        foot.textContent = `Not put on the desk: ${e.message}`;
+        if (still()) foot.textContent = `Not put on the desk: ${e.message}`;
       } finally {
         b.disabled = false;
       }
