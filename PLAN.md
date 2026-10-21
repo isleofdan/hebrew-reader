@@ -1417,3 +1417,116 @@ text.
   width with every choice's text inside its button, a long third choice in
   the stand-in's passage question); totals 647 server checks and 545 page
   checks.
+
+## hebrew-ask-one (21 Oct 2026, the rented Linux machine, OpenRig team): one ask surface, and "Ask about this root" inside the page
+
+**Dan's screens changed.** "Ask about this root" on a word card no longer
+opens Pealim and Wiktionary in two new tabs: it opens a pane directly under
+the card's buttons, in the card, on every page with a word card (the
+reader, the lesson page, the phone page, Today, the Look up page — where the
+button was hidden until now — and the desk's opened card). Top to bottom:
+the root in Hebrew (the dictionary form for a word with no root) and
+"Close"; two tabs, "Pealim" and "Wiktionary", that show the reference inside
+the pane as the Look up page does (Pealim by the root letters, Wiktionary by
+the dictionary form, as before); a box, "a question about this root…", and
+"Ask"; the answer with the pages it leaned on; then "Ask more". The reader's
+Ask box now searches the references too: its links are the pages the
+search cited (the reference's name and the page's title), and "Ask more"
+under an answer asks a follow-up. An answer with nothing cited is still an
+answer there, with "Nothing here to look up in a reference."
+
+- **One ask surface** (`lib/ask.js`). Every question is answered by `ask`:
+  the reader's Ask box and the root ask through `POST /ask`, the desk's "Ask
+  here" through `POST /card/:key/ask` (`askCard`, which also writes the
+  answer layer). An ask has three parts: a **subject** — `article`
+  (`article_id`, optional: the piece's mapped words go into the question, as
+  before), `card` (`key`: the desk card's entry and layers, `grow.context`),
+  `root` (`root`, `lemma`, `lemma_pointed`, `binyan` or `pos`, `meaning_en`,
+  `sentence`, from the card the page holds; a root or a lemma needed); a
+  **desk** — who answers and what it may search; and an optional
+  **parent** — the earlier ask a follow-up follows. With a parent, the
+  model is sent the chain's earlier questions and answers as conversation
+  turns (`lookup.chat`'s new `history`, oldest first, the last six turns)
+  before the subject and the new question. A follow-up goes to its parent's
+  desk (another desk: 400). One model call with OpenRouter's web search
+  limited to the desk's sites; the links are the citations (`grow.linksFrom`),
+  never an address the model wrote (`lib/references.js` still builds the
+  "Look up in" links). Whether an answer with no citation is kept is the
+  caller's choice, passed in (`keepWithoutLink`): kept for the Ask box and
+  the root ask (session three), refused with session thirteen's 422 for
+  "Ask here". `POST /ask` takes `{ desk?, subject, question, parent? }` and
+  answers `{ id, answer, links, searches, state, links_state }`; the first
+  shape `{ question, article_id? }` is the article subject on the hebrew
+  desk. Refusals name the valid values: "desk must be one of hebrew",
+  "subject.kind must be one of article, card, root". A card asked through
+  `POST /ask` is recorded in `asks` but writes no answer layer: only "Ask
+  here" puts an answer on a card.
+- **The desks** (`lib/ask-desks.js`): `{ id, persona, domains, model,
+  limits }`. One desk, `hebrew`: the persona from session thirteen's "Ask
+  here" text (the subject's own line and the answer's JSON shape are added
+  by `lib/ask.js`), the seven references' domains, the card model and
+  `grow.ASK`'s limits (900 tokens, 55 s); no new limit. `register(desk)`
+  adds a desk; the check registers a stand-in second desk through `node
+  --require` before the server starts, with no change to `server.js` or
+  `lib/ask.js`.
+- **The record** (in `migrate()`, nothing dropped or moved): a new table
+  `asks(id, desk, subject_kind, subject_text, word, question, answer,
+  links_json, searches, parent_id, asked_at)` by `CREATE TABLE IF NOT
+  EXISTS` (indexes on `word` and `parent_id`), and `answers.ask_id` by
+  `ALTER TABLE … ADD COLUMN` (existing rows: null). Every accepted answer is
+  one `asks` row (`subject_text` as the model was given it; `word`, the
+  dictionary form, for a root or a card); "Ask here" writes its `asks` row
+  and its answer layer in one transaction, the layer pointing at the row. A
+  refused or declined ask writes nothing.
+- **What a second desk needs** (the guided study Dan intends): one
+  `register({ id, persona, domains })` entry — its persona (the guide who
+  explains, flags where scholars disagree, gives an opinion and takes push
+  back), its sites (Sefaria, say), and a model and limits if not the
+  card model's; a subject kind for its text (a passage, with a reference and
+  its translation), added to `KINDS` and `subjectOf` in `lib/ask.js`; and a
+  screen. The follow-up chain is already there for the push back. The pane
+  would need the text and its translation side by side, which it does not
+  have: it is built around one word card.
+- **The pane** (`public/ask-ui.js`; `CardUI.wire` takes the page's `api`).
+  Nothing is fetched on opening (rule 3): a reference loads on its tab's
+  tap, the model is asked on "Ask". A tab opened from the pane is recorded
+  as a lookup on the word's desk card when the word's card is on a desk
+  (`desk_key`, which `POST /lookup` and the phone page's demand answers now
+  carry; the Look up page records it on its own card with origin `lookup`,
+  as its tabs do; the desk's opened card on itself); a word with no desk
+  card records nothing. The card's buttons stay at the same height on the
+  screen when the pane opens and closes (rule 5). On a card anchored to the
+  bottom of the screen — the reader's and the lesson page's card on the
+  phone — growing would push the buttons up, so that card keeps its height
+  while the pane is open and the pane opens below the buttons inside the
+  card, which scrolls. Close keeps the buttons where they are on the screen
+  at the moment of the tap, however far the page or the card was scrolled
+  while the pane was in use: when the content left below is too short for
+  that, blank room is added at the end of the page (or of the card, which
+  then keeps its height) and taken away when the pane next opens or the
+  card shows another word. A new word on the card closes the pane. "Put on
+  the desk" on the card makes a tab tapped afterwards record on the card it
+  placed, with no reload — only on the word it was pressed for: a word
+  opened while the put was on its way gets neither the key nor the "On the
+  desk" line. On the phone the pane is the card's full width
+  and "Ask" is 56 px high.
+- **Four small fixes.** The reader's Ask box onto the web search (above).
+  An empty note card — no text, nothing kept, asked, noted or drawn on it —
+  is left off the sheet (`lib/sheet.js`; a desk of only such notes makes no
+  sheet and says why). A line shared from Chrome with the page's address
+  twice, plain and with the selection coded in after `#:~:text=`, keeps the
+  plain address once and the selected text as the line's text
+  (`catch.share`, called by `POST /desks/catch`; with only the coded address
+  the selection is read back from it). The sheet page says by its Print
+  button: "In the print window, choose no headers and footers." (the bar
+  does not print).
+- **Checks**: `grow-smoke.mjs` 83, `smoke.mjs` 256, `paper-smoke.mjs` 86,
+  `screenshots.mjs` 231, `grow-pages.mjs` 105, `paper-pages.mjs` 54,
+  `lookup-pages.mjs` 44 (its check that the button was hidden now opens
+  the pane); totals 670 server checks and 587 page checks. The team's
+  checker found two faults in the first candidate, both fixed with a check
+  each: Close after the pane was used and scrolled let the page or the
+  sheet jump, and a word just put on the desk recorded no lookup until its
+  card was opened again. Its recheck found the second fix could hand the
+  key to a word opened while the put was on its way; fixed, with a check
+  that holds the put's answer back.

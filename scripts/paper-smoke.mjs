@@ -257,6 +257,18 @@ try {
     const emptyDesk = (await api('POST', '/desks')).body;
     const none = await api('POST', `/desks/${emptyDesk.desk.id}/sheets`);
     check('an empty desk makes no sheet and says so', none.status === 400 && /nothing to put on a sheet/.test(none.body.error), JSON.stringify(none.body));
+    // hebrew-ask-one: a note card with no text is left off the sheet (it printed as a bare "note")
+    const blankNote = (await api('POST', '/notes', { text: '', desk_id: emptyDesk.desk.id })).body.card.key;
+    const onlyBlank = await api('POST', `/desks/${emptyDesk.desk.id}/sheets`);
+    check('a desk holding only an empty note card makes no sheet and says why', onlyBlank.status === 400 && /empty note/.test(onlyBlank.body.error), JSON.stringify(onlyBlank.body));
+    await api('POST', `/desks/${emptyDesk.desk.id}/cards`, { card: W });
+    const askedBefore = (await calls()).sheet_asks.length;
+    const withBlank = await api('POST', `/desks/${emptyDesk.desk.id}/sheets`);
+    const printed = withBlank.body.sheet.groups.flatMap((x) => x.cards.map((c) => c.key));
+    const blankAsks = (await calls()).sheet_asks.slice(askedBefore);
+    check('a desk with one empty note card and one word card prints the word card and not the note, and no "(empty)" reaches the prompts',
+      withBlank.status === 201 && printed.join() === W && !printed.includes(blankNote) && blankAsks.length === 1 && !blankAsks.some((a) => a.user.includes('(empty)')) && !JSON.stringify(withBlank.body).includes('(empty)'),
+      JSON.stringify({ printed, users: blankAsks.map((a) => a.user) }).slice(0, 300));
     await api('POST', `/desks/${deskId}/open`);
   }
 
@@ -331,6 +343,17 @@ try {
     check('a link with Hebrew in it keeps its title when Dan types under it', ht && hk.link && hk.link.title === 'שלום – ויקיפדיה', JSON.stringify(hk.link));
     const dup = await api('POST', '/desks/catch', { text: `look ${siteBase}`, url: siteBase });
     check('a shared link already in the shared text is not written twice (a bare domain, spelled with or without "/")', dup.status === 201 && dup.body.card.text === `look ${siteBase}`, JSON.stringify(dup.body.card.text));
+    // hebrew-ask-one: Chrome shares the plain address and the same address with the selection coded in
+    const sel = 'הם ממשיכים להמר על הריבית';
+    const coded = `${siteBase}/with-title#:~:text=${encodeURIComponent(sel)}`;
+    const doubled = await api('POST', '/desks/catch', { text: `"${sel}"\n${coded}`, url: `${siteBase}/with-title` });
+    check('a shared line carrying the plain address and the #:~:text= address saves one address, the plain one, and the selected text itself',
+      doubled.status === 201 && doubled.body.card.text === `${sel}\n${siteBase}/with-title` && !doubled.body.card.text.includes(':~:') && doubled.body.card.link && doubled.body.card.link.url === `${siteBase}/with-title`, JSON.stringify(doubled.body.card));
+    const onlyCoded = await api('POST', '/desks/catch', { text: `${siteBase}/with-title#:~:text=${encodeURIComponent('על')}-,${encodeURIComponent('הריבית')},-${encodeURIComponent('השבוע')}` });
+    check('only the coded address shared: the plain address once, and the selection read back from it (without its prefix and suffix)',
+      onlyCoded.status === 201 && onlyCoded.body.card.text === `הריבית\n${siteBase}/with-title`, JSON.stringify(onlyCoded.body.card.text));
+    const C2 = createRequire(import.meta.url)(join(root, 'lib', 'catch.js'));
+    check('false-rejection check: a shared line with no coded address is left exactly as shared', JSON.stringify(C2.share({ text: `look ${siteBase}/a#part`, url: `${siteBase}/a#part` })) === JSON.stringify({ text: `look ${siteBase}/a#part`, url: `${siteBase}/a#part` }));
   }
 
   check('the server log names each ink stroke layer, link, sheet and catch', /ink layer ink:\d+/.test(server.log) && /linked to/.test(server.log) && /sheet \d+ made/.test(server.log) && /caught on desk/.test(server.log));

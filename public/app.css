@@ -254,7 +254,13 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 .ask-answer .he { direction: rtl; unicode-bidi: isolate; font-family: var(--serif); font-size: 16px; }
 .ask-answer .links { margin: 8px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .ask-answer .links .claim { color: var(--muted); }
-.ask-answer .links .term { direction: rtl; unicode-bidi: isolate; font-family: var(--serif); font-size: 15px; }
+.ask-answer .links .ref-title { color: var(--muted); unicode-bidi: isolate; }
+/* hebrew-ask-one: a thread of questions and answers, then "Ask more" */
+.ask-thread { display: flex; flex-direction: column; gap: 12px; }
+.ask-turn + .ask-turn { border-top: 1px solid var(--line); padding-top: 10px; }
+.ask-question { margin: 0 0 4px; font-weight: 600; }
+.ask-more { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.ask-more-label { font-size: 13px; font-weight: 600; color: var(--muted); }
 .ask .make-title { margin-top: 8px; }
 .ask .make .btn { display: inline-flex; align-items: center; text-decoration: none; color: var(--text); }
 .ask .caption { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
@@ -294,6 +300,33 @@ h1.headline { margin: 0; direction: rtl; text-align: right; font-family: var(--s
 .card .actions { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 4px; }
 .card .actions .btn { height: 40px; padding: 0 12px; font-size: 14px; }
 .card .foot { font-size: 12px; color: var(--muted); }
+/* "Ask about this root" (hebrew-ask-one): the ask pane under the action row */
+.ask-pane { display: flex; flex-direction: column; gap: 8px; width: 100%; box-sizing: border-box; border: 1px solid var(--line-strong); border-radius: 10px; padding: 10px 12px 12px; background: var(--field); }
+.ask-pane-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ask-pane-title { margin: 0; }
+.ask-pane-title .he { font-family: var(--serif); font-size: 22px; font-weight: 700; }
+.ask-pane .btn.small { align-self: auto; }
+.ask-pane-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.ask-pane-tabs .btn.ref { height: 40px; font-size: 14px; padding: 0 14px; }
+.ask-pane-tabs .btn.ref.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-dark); }
+.ask-pane form { display: flex; flex-direction: column; gap: 6px; }
+.ask-pane textarea { min-height: 0; height: auto; direction: ltr; unicode-bidi: plaintext; font-family: var(--sans); font-size: 15px; line-height: 1.4; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--field); color: var(--text); resize: vertical; }
+.ask-pane .ask-pane-go { height: 44px; align-self: flex-start; }
+.ask-pane-msg { margin: 0; font-size: 13px; color: var(--muted); }
+.ask-pane-msg:empty { display: none; }
+.ask-pane-msg.bad { color: var(--danger); }
+.ask-pane .ask-thread:empty { display: none; }
+.ask-pane .answer { margin: 0; font-size: 14px; line-height: 1.5; }
+.ask-pane .links { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.ask-pane .links .claim { color: var(--muted); }
+.ask-pane .links .ref-title { color: var(--muted); unicode-bidi: isolate; }
+.ask-pane .ref-pane .ref-frame { height: 55vh; min-height: 300px; }
+.ask-pane form.hidden { display: none; }
+@media (max-width: 699px) {
+  /* the phone: the pane across the card, the buttons large enough for a thumb */
+  .ask-pane .ask-pane-go { height: 56px; width: 100%; font-size: 16px; }
+  .ask-pane-tabs .btn.ref { flex: 1 1 0; height: 48px; font-size: 16px; }
+}
 .card .error { font-size: 14px; color: var(--danger); }
 .card .close { display: none; }
 .card.idle .line, .card.idle .chips, .card.idle .actions, .card.idle .foot { display: none; }
@@ -658,8 +691,6 @@ body.linking .dcard { cursor: pointer; }
 .lookup-entry .saved-line, .lookup-entry .looked-line { margin: 0; font-size: 14px; color: var(--muted); }
 .lookup-entry .saved-line { color: var(--ok-ink); font-weight: 600; }
 .lookup-entry .saved-line:empty, .lookup-entry .looked-line:empty { display: none; }
-/* "Ask about this root" opens two new tabs; here the tabs below do that inside the page */
-.lookup-entry .card [data-act=ask] { display: none; }
 .lookup-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
 .lookup-tabs > .btn.ref, .lookup-list .btn.small { height: 40px; font-size: 14px; padding: 0 14px; }
 @media (max-width: 699px) {

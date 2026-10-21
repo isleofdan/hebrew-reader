@@ -34,13 +34,14 @@ for (const id of ['card-demand', 'card-also', 'card-lookup']) {
       return data;
     },
     onPut: () => api('POST', '/desks/put', { surface: slot.current.card.surface, sentence: slot.current.sentence || '' }),
+    api,
   });
   slots[id] = slot;
 }
 
 function showOnSlot(id, data, sentence) {
   const slot = slots[id];
-  const current = slot.current = { card: data.card, spot: data.spot, sentence: sentence || '' };
+  const current = slot.current = { card: data.card, spot: data.spot, sentence: sentence || '', desk_key: data.desk_key || null };
   UI.fill(slot.el, data);
   UI.addPoints(slot.el, data, { api, sentence, isCurrent: () => slot.current === current });
 }

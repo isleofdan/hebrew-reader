@@ -35,6 +35,7 @@ UI.wire(cardEl, {
     return data;
   },
   onPut: () => api('POST', '/desks/put', { card_id: current.card_id }),
+  api,
 });
 
 // "Saved to your words." — or what the word already was.
@@ -116,7 +117,8 @@ async function search(ev) {
   try {
     const data = await api('POST', '/lookup', { surface: word, sentence: '', origin: 'lookup' });
     if (seq !== searching) return;
-    current = { card: data.card, spot: data.spot, sentence: data.sentence || '', key: data.key, card_id: data.card_id, references: data.references, lookups: data.lookups };
+    // the ask pane's tabs are recorded on the card as this page's own tabs are (desk_key, origin lookup)
+    current = { card: data.card, spot: data.spot, sentence: data.sentence || '', key: data.key, card_id: data.card_id, references: data.references, lookups: data.lookups, desk_key: data.key, lookup_origin: 'lookup' };
     msg.textContent = '';
     UI.fill(cardEl, data);
     UI.addPoints(cardEl, data, { api, sentence: current.sentence, isCurrent: () => current && current.key === data.key });

@@ -585,7 +585,8 @@ function openFull(key, data) {
   $('#full-note').classList.toggle('hidden', c.kind !== 'note');
   const host = c.kind === 'word' ? $('#full-card') : $('#full-note');
   if (c.kind === 'word') {
-    fullCurrent = { card: c.card, spot: c.spot ? { ...c.spot } : null };
+    // desk_key: the ask pane's tabs are recorded on this card, as its "Look up in" row's are
+    fullCurrent = { card: c.card, spot: c.spot ? { ...c.spot } : null, sentence: c.sentence || '', desk_key: key };
     UI.fill($('#full-card'), { card: c.card, spot: fullCurrent.spot, cached: true });
     $('#full-card .foot').textContent = '';
     wireFullActions(c, Boolean(entry));
@@ -641,6 +642,7 @@ function closeFull() {
 UI.wire($('#full-card'), {
   getCurrent: () => fullCurrent,
   onClose: closeFull,
+  api,
   onStatus: async (status) => {
     const got = await UI.saveStatus($('#full-card'), api, fullCurrent, status);
     const entry = fullKey && cards.get(fullKey);

@@ -67,8 +67,15 @@
         <span class="msg" id="ask-msg"></span>
       </div>
       <div class="ask-answer hidden" id="ask-answer">
-        <p class="answer" id="ask-text"></p>
-        <ul class="links" id="ask-links"></ul>
+        <div class="ask-thread" id="ask-thread"></div>
+        <div class="ask-more">
+          <label class="ask-more-label" for="ask-more-q">Ask more</label>
+          <textarea id="ask-more-q" rows="2" placeholder="a follow-up, or push back…"></textarea>
+          <div class="row">
+            <button class="btn" id="ask-more-go">Ask more</button>
+            <span class="msg" id="ask-more-msg"></span>
+          </div>
+        </div>
       </div>
       <h2 class="make-title">Make from recent reading</h2>
       <div class="row make">
@@ -104,6 +111,8 @@
 <script src="/tokenize.js"></script>
 <script src="/delete-ui.js"></script>
 <script src="/reader.js"></script>
+<script src="/reference-ui.js"></script>
+<script src="/ask-ui.js"></script>
 <script src="/card-ui.js"></script>
 <script src="/card.js"></script>
 <script src="/ask.js"></script>

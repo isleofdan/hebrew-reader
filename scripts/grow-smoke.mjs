@@ -4,7 +4,7 @@
 // stand-ins for OpenRouter and the spine.
 //   node scripts/grow-smoke.mjs      (npm run smoke runs it after smoke.mjs)
 import { spawn } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,7 +38,13 @@ function check(name, ok, detail = '') {
 
 start('node', ['scripts/mock-openrouter.mjs', String(OR_PORT)]);
 start('node', ['scripts/mock-spine.mjs', String(SPINE_PORT), 'test-spine-token']);
-const server = start('node', ['server.js'], {
+// The seam of the ask surface (hebrew-ask-one): a stand-in second desk,
+// registered from this check before the server starts — its own persona and
+// one site of its own — with no change to server.js or lib/ask.js.
+const STANDIN = { id: 'standin', persona: 'You are the stand-in second desk: a guide to one classical text at a time.', domains: ['sefaria.org'] };
+const preload = join(dataDir, 'standin-desk.cjs');
+writeFileSync(preload, `require(${JSON.stringify(join(root, 'lib', 'ask-desks.js'))}).register(${JSON.stringify(STANDIN)});\n`);
+const server = start('node', ['--require', preload, 'server.js'], {
   PORT: String(PORT), DATA_DIR: dataDir, APP_PASSWORD: PASS, COOKIE_SECRET: 'x'.repeat(64), COOKIE_INSECURE: '1',
   OPENROUTER_API_KEY: 'test-key', OPENROUTER_URL: `http://127.0.0.1:${OR_PORT}/v1/chat/completions`,
   SPINE_TOKEN: 'test-spine-token', SPINE_URL: `http://127.0.0.1:${SPINE_PORT}`,
@@ -132,8 +138,85 @@ try {
   await api('POST', `/card/${W}/ask`, { question: 'What else?' });
   c = await calls();
   const lastAsk = c.search_asks.filter((x) => x.kind === 'ask').at(-1);
-  check('the Ask box on the reader page is unchanged: it makes no web search', await (async () => { const n = c.search_calls; await api('POST', '/ask', { question: 'What does נאלץ take?' }); return (await calls()).search_calls === n; })());
   check('Ask here: the card\'s entry and its layers go to the model as context', lastAsk.has_entry && lastAsk.has_layers, JSON.stringify(lastAsk));
+
+  // --- the ask surface (hebrew-ask-one): one place a question is answered ----------
+  const asksRows = (kind) => peek('SELECT * FROM asks WHERE subject_kind = ? ORDER BY id', kind);
+  const cardAsks = asksRows('card');
+  const answerRows = peek('SELECT id, ask_id, question FROM answers ORDER BY id');
+  check('Ask here goes through the ask surface: each accepted answer is one asks row (kind card, desk hebrew, the word\'s dictionary form) and its answer layer points at it',
+    cardAsks.length === 2 && answerRows.length === 2 && cardAsks.every((r, i) => r.desk === 'hebrew' && r.word === 'הימר' && answerRows[i].ask_id === r.id && answerRows[i].question === r.question)
+    && ask1.body.ask_id === cardAsks[0].id && JSON.parse(cardAsks[0].links_json).length === 2 && cardAsks[0].searches === 2 && /^The card:\nThe word: הימר/.test(cardAsks[0].subject_text),
+    JSON.stringify({ cardAsks: cardAsks.map((r) => [r.id, r.desk, r.word, r.question]), answerRows }));
+  check('a desk ask refused without a citation (and one declined) writes neither an asks row nor an answers row',
+    peek('SELECT COUNT(*) AS n FROM asks')[0].n === 2 && peek("SELECT COUNT(*) AS n FROM asks WHERE question IN ('Answer without a link, please.', 'Give the link in the text only.', 'decline this')")[0].n === 0);
+  // the reader's Ask box, its first shape { question, article_id? }
+  const nBefore = (await calls()).search_calls;
+  const oldShape = await api('POST', '/ask', { question: 'What does נאלץ take?' });
+  c = await calls();
+  const boxAsk = c.search_asks.at(-1);
+  check('the old shape { question } is still answered: the article subject on the hebrew desk, through the web search limited to the seven references',
+    oldShape.status === 200 && oldShape.body.state === 'ok' && Number.isInteger(oldShape.body.id) && c.search_calls === nBefore + 1 && boxAsk.subject === 'article'
+    && JSON.stringify(boxAsk.parameters.allowed_domains) === JSON.stringify(['morfix.co.il', 'pealim.com', 'he.wiktionary.org', 'milog.co.il', 'hebrew-academy.org.il', 'kizur.co.il', 'sefaria.org']) && boxAsk.response_format === null,
+    JSON.stringify({ body: oldShape.body, boxAsk: boxAsk && { subject: boxAsk.subject, parameters: boxAsk.parameters } }).slice(0, 400));
+  check('the reader\'s Ask box: its links are the citations the search returned (label and title), never a search link the model named',
+    oldShape.body.links.length === 3 && oldShape.body.links.map((l) => l.reference).join(',') === 'pealim,wiktionary,academy' && oldShape.body.links.every((l) => l.title && l.label && !('term' in l) && !('claim' in l))
+    && oldShape.body.links[0].url === 'https://www.pealim.com/dict/2-lehealetz/', JSON.stringify(oldShape.body.links));
+  const boxNoLink = await api('POST', '/ask', { question: 'Which forms, with no reference to give?' });
+  check('the reader\'s Ask box keeps an answer the search cited nothing for (200, links [], links_state no data), and records it',
+    boxNoLink.status === 200 && boxNoLink.body.links.length === 0 && boxNoLink.body.links_state === 'no data' && peek('SELECT id FROM asks WHERE id = ?', boxNoLink.body.id).length === 1, JSON.stringify(boxNoLink.body));
+  check('an article ask is one asks row of kind article, with no word', asksRows('article').length === 2 && asksRows('article').every((r) => r.word === null && r.desk === 'hebrew'));
+  // the root ask: a word card from any page, as the page holds it
+  const rootSubject = { kind: 'root', root: 'ה.מ.ר', lemma: 'הימר', lemma_pointed: 'הִימֵּר', binyan: 'piel', meaning_en: 'to gamble, to bet', sentence };
+  const r1 = await api('POST', '/ask', { subject: rootSubject, question: 'Which other words come from this root?' });
+  const rootAsk = (await calls()).search_asks.at(-1);
+  const rr = asksRows('root');
+  check('a root ask (desk defaulting to hebrew): answered with the citations as links, one asks row of kind root with the dictionary form as its word',
+    r1.status === 200 && Number.isInteger(r1.body.id) && r1.body.links.length === 2 && r1.body.links[0].reference === 'pealim' && rr.length === 1 && rr[0].id === r1.body.id && rr[0].word === 'הימר' && rr[0].desk === 'hebrew'
+    && JSON.parse(rr[0].links_json).length === 2 && rr[0].parent_id === null, JSON.stringify({ body: r1.body, rr }).slice(0, 400));
+  check('a root ask gives the model the root, the dictionary form with its nikud, the binyan, the meaning and the sentence it was met in',
+    rootAsk.subject === 'root' && /^The root: ה\.מ\.ר\nDictionary form: הִימֵּר \(הימר\)\nBinyan: piel\nMeaning: to gamble, to bet\nThe sentence it was met in: לא כדאי להמר/.test(rootAsk.user) && rr[0].subject_text === rootAsk.user.split('\n\nQuestion: ')[0], rootAsk.user);
+  const rNoLink = await api('POST', '/ask', { subject: rootSubject, question: 'Answer without a link, please.' });
+  check('a root ask keeps an answer with no citation (session three\'s rule), and records it', rNoLink.status === 200 && rNoLink.body.links.length === 0 && asksRows('root').length === 2, JSON.stringify(rNoLink.body));
+  const noRootWord = await api('POST', '/ask', { subject: { kind: 'root', lemma: 'רפורמה', pos: 'noun' }, question: 'Where does this word come from?' });
+  check('a word with no root is asked by its dictionary form', noRootWord.status === 200 && /^The root: none \(the word has no root\)\nDictionary form: רפורמה\nPart of speech: noun/.test((await calls()).search_asks.at(-1).user), JSON.stringify(noRootWord.body));
+  const cardViaAsk = await api('POST', '/ask', { subject: { kind: 'card', key: W }, question: 'And how do I say "bet on"?' });
+  check('a card asked through POST /ask: one asks row of kind card, and no answer layer (only "Ask here" writes one)',
+    cardViaAsk.status === 200 && asksRows('card').length === 3 && peek('SELECT COUNT(*) AS n FROM answers')[0].n === 2, JSON.stringify(cardViaAsk.body).slice(0, 200));
+  // refusals name the valid values
+  const badDesk = await api('POST', '/ask', { desk: 'talmud', subject: rootSubject, question: 'x?' });
+  const badKind = await api('POST', '/ask', { subject: { kind: 'verse' }, question: 'x?' });
+  const noRoot = await api('POST', '/ask', { subject: { kind: 'root' }, question: 'x?' });
+  check('an unknown desk answers 400 naming the desks; an unknown subject kind 400 naming the kinds; a root subject with neither root nor word 400',
+    badDesk.status === 400 && badDesk.body.error === 'desk must be one of hebrew, standin' && badKind.status === 400 && badKind.body.error === 'subject.kind must be one of article, card, root' && noRoot.status === 400,
+    JSON.stringify([badDesk.body, badKind.body, noRoot.body]));
+  // a follow-up: the chain's earlier turns before the new question
+  const f1 = await api('POST', '/ask', { subject: rootSubject, question: 'Is the Pa\'al used?', parent: r1.body.id });
+  const fAsk = (await calls()).search_asks.at(-1);
+  check('a follow-up (parent set): the model is given the earlier question and answer, in that order, before the new question; its asks row names its parent',
+    f1.status === 200 && fAsk.turns.length === 2 && fAsk.turns[0].role === 'user' && fAsk.turns[0].content === 'Question: Which other words come from this root?'
+    && fAsk.turns[1].role === 'assistant' && JSON.parse(fAsk.turns[1].content).answer === r1.body.answer && /\n\nQuestion: Is the Pa'al used\?$/.test(fAsk.user)
+    && peek('SELECT parent_id FROM asks WHERE id = ?', f1.body.id)[0].parent_id === r1.body.id, JSON.stringify(fAsk.turns).slice(0, 300));
+  let at = null;
+  const chain = [];
+  for (let i = 1; i <= 7; i++) { at = (await api('POST', '/ask', { subject: rootSubject, question: `Turn ${i}?`, parent: at ? at.id : undefined })).body; chain.push(at); }
+  await api('POST', '/ask', { subject: rootSubject, question: 'And the eighth?', parent: at.id });
+  const longAsk = (await calls()).search_asks.at(-1);
+  const carried = longAsk.turns.filter((t) => t.role === 'user').map((t) => t.content);
+  check('a chain of seven: the follow-up carries only the last six turns, oldest first',
+    chain.every((x) => Number.isInteger(x.id)) && longAsk.turns.length === 12 && carried.join('|') === ['Turn 2?', 'Turn 3?', 'Turn 4?', 'Turn 5?', 'Turn 6?', 'Turn 7?'].map((q) => `Question: ${q}`).join('|'), carried.join('|'));
+  const badParent = await api('POST', '/ask', { subject: rootSubject, question: 'x?', parent: 99999 });
+  const otherDesk = await api('POST', '/ask', { desk: 'standin', subject: rootSubject, question: 'x?', parent: r1.body.id });
+  check('a follow-up of no ask is 404; one on another desk than its parent\'s is 400 and says so', badParent.status === 404 && otherDesk.status === 400 && /hebrew desk/.test(otherDesk.body.error), JSON.stringify([badParent.body, otherDesk.body]));
+  // the seam: the stand-in second desk registered by this check
+  const seam = await api('POST', '/ask', { desk: 'standin', subject: rootSubject, question: 'What does the commentary say about this root?' });
+  const seamAsk = (await calls()).search_asks.at(-1);
+  check('the seam: a second desk registered from the check answers through POST /ask with its own persona and its own site in the model\'s request',
+    seam.status === 200 && seamAsk.system.startsWith(STANDIN.persona) && !seamAsk.system.includes('Hebrew reference desk') && JSON.stringify(seamAsk.parameters.allowed_domains) === '["sefaria.org"]'
+    && seam.body.links.length > 0 && seam.body.links.every((l) => l.reference === 'sefaria') && peek('SELECT desk FROM asks WHERE id = ?', seam.body.id)[0].desk === 'standin',
+    JSON.stringify({ body: seam.body, system: seamAsk.system.slice(0, 120), domains: seamAsk.parameters.allowed_domains }));
+  check('…with no change to server.js or lib/ask.js: neither names the stand-in desk', !readFileSync(join(root, 'server.js'), 'utf8').includes('standin') && !readFileSync(join(root, 'lib', 'ask.js'), 'utf8').includes('standin'));
+  check('the hebrew desk keeps its own persona and the seven sites', boxAsk.system.startsWith('You are a Hebrew reference desk') && rootAsk.model === 'anthropic/claude-sonnet-4.6' && rootAsk.max_tokens === 900);
 
   // --- step 4: Find more examples ------------------------------------------------------
   check('Find more examples: five mocked results with one refused (no url) -> four layers, not yet kept',

@@ -1,7 +1,8 @@
 // Page checks for session thirteen, a card grows: the opened card with its
 // layers and action row, Ask here, Find more examples and keeping one, Note
 // here, the seven lookups, branching and cutting on the desk, Find's chips
-// and Threads column, and the past desk in the corner. Against the local
+// and Threads column, and the past desk in the corner; since hebrew-ask-one
+// also the ask pane under a word card's action row. Against the local
 // mocks, at computer (1280×800) and phone (412×915) size, light and dark;
 // screenshots into docs/screenshots/grow-*.png. Run by `npm run screenshots`,
 // or alone:
@@ -375,6 +376,212 @@ try {
     check(`${name}: no screen of this session shows "map", "met", "touch" or "spot"`, page.jargon.length === 0, page.jargon.join(' | '));
     await ctx.close();
   }
+
+  // --- the ask pane: "Ask about this root" inside the page (hebrew-ask-one) ---------------
+  // On the reader's card and the phone page's card, at phone (390×844) and
+  // computer (1280×800) width, light and dark: closed, open with nothing
+  // fetched, after "Ask", after "Ask more", a tab open. The action row's top
+  // on the screen is measured before opening, open, and after "Close".
+  const tok = (await import('../public/tokenize.js')).default;
+  const sample = readFileSync(join(here, 'sample-article.txt'), 'utf8');
+  const art = (await api('GET', `/articles/${(await api('POST', '/articles', { text: sample })).body.id}`)).body;
+  const asRead = `${art.title}\n${art.text}`;
+  const sentenceOf = (w) => tok.sentenceAt(asRead, asRead.indexOf(w));
+  for (const w of ['שנאלצה', 'ייקבעו']) await api('POST', '/lookup', { surface: w, sentence: sentenceOf(w), article_id: art.id });
+  // שנאלצה's card is on the desk, so a tab opened from its pane is recorded on it; ייקבעו's is not
+  await api('POST', '/desks/put', { surface: 'שנאלצה', sentence: sentenceOf('שנאלצה') });
+  const orCalls = async () => (await (await fetch(`http://127.0.0.1:${OR_PORT}/calls`)).json()).calls;
+  const refCalls = async () => Object.values(await (await fetch(`${standin}/calls`)).json()).reduce((a, b) => a + b, 0);
+  const measured = [];
+  for (const [vname, viewport, isMobile] of [['phone', { width: 390, height: 844 }, true], ['computer', { width: 1280, height: 800 }, false]]) {
+    const { ctx, page } = await context(viewport, isMobile);
+    const sent = [];
+    page.on('request', (r) => { const u = new URL(r.url()); if (u.port === String(PORT)) sent.push(`${r.method()} ${u.pathname}`); });
+    for (const where of ['reader', 'phone-page']) {
+      let card;
+      if (where === 'reader') {
+        await page.goto(`${base}/read.html?id=${art.id}`);
+        await page.waitForSelector('.body .w');
+        const w = page.locator('.body .w', { hasText: 'שנאלצה' }).first();
+        await w.scrollIntoViewIfNeeded();
+        if (isMobile) await w.tap(); else await w.hover();
+        card = page.locator(isMobile ? '#card-phone' : '#card-desktop');
+      } else {
+        await page.goto(`${base}/phone`);
+        await page.waitForSelector('#demand-sentence .gap');
+        await page.click('#show');
+        card = page.locator('#card-demand');
+      }
+      await card.locator('.meaning:not(:empty)').waitFor({ timeout: 10000 });
+      await page.waitForTimeout(400);
+      const onDesk = where === 'reader' || (await page.evaluate(() => window.Phone.item.surface)) === 'שנאלצה';
+      const label = `${where} ${vname}`;
+      const shots = [];
+      const shoot = async (state) => {
+        for (const theme of ['light', 'dark']) {
+          await page.emulateMedia({ colorScheme: theme });
+          await page.waitForTimeout(120);
+          const path = join(out, `ask-pane-${where}-${vname}-${state}-${theme}.png`);
+          await page.screenshot({ path });
+          shots.push(path.split('/').pop());
+        }
+        await page.emulateMedia({ colorScheme: 'light' });
+      };
+      await shoot('closed');
+      const row = card.locator('.actions');
+      const askBtn = card.locator('[data-act=ask]');
+      check(`${label}: the card's button reads "Ask about this root"`, (await askBtn.innerText()).trim() === 'Ask about this root');
+      // opening: nothing fetched, the row where it was (the row brought to the
+      // middle of the screen first, as Dan would have it, so the click itself
+      // need not scroll it into view)
+      await row.evaluate((e) => e.scrollIntoView({ block: 'center' }));
+      await page.waitForTimeout(200);
+      const top0 = (await row.boundingBox()).y;
+      const or0 = await orCalls(), ref0 = await refCalls(), sent0 = sent.length;
+      const pagesBefore = ctx.pages().length;
+      await askBtn.click();
+      const pane = card.locator('.ask-pane');
+      await pane.waitFor({ timeout: 5000 });
+      await page.waitForTimeout(400);
+      const top1 = (await row.boundingBox()).y;
+      check(`${label}: opening the pane fetches nothing — no request from the page, none to the stand-in model or the stand-in references, no new tab`,
+        sent.length === sent0 && (await orCalls()) === or0 && (await refCalls()) === ref0 && ctx.pages().length === pagesBefore, JSON.stringify(sent.slice(sent0)));
+      const paneBox = await pane.boundingBox(), cardBox = await card.boundingBox(), rowBox = await row.boundingBox();
+      // the root the card shows (the reader's word is שנאלצה, א.ל.צ; the phone page's is the item it gave)
+      const root = (await card.locator('.grammar').innerText()).match(/root ([א-ת](?:\.[א-ת])+)/)[1];
+      check(`${label}: the pane sits directly under the action row, in the card: the root in Hebrew, Close, the tabs Pealim and Wiktionary, the question box and Ask`,
+        paneBox.y >= rowBox.y + rowBox.height - 1 && paneBox.y - (rowBox.y + rowBox.height) <= 16 && (where !== 'reader' || root === 'א.ל.צ')
+        && (await pane.locator('.ask-pane-title').innerText()).trim() === root && (await pane.locator('.ask-pane-close').innerText()).trim() === 'Close'
+        && (await pane.locator('.ask-pane-tabs button').allInnerTexts()).map((t) => t.trim()).join('|') === 'Pealim|Wiktionary'
+        && (await pane.locator('.ask-pane-ask textarea').getAttribute('placeholder')) === 'a question about this root…'
+        && (await pane.locator('.ask-pane-ask .ask-pane-go').innerText()).trim() === 'Ask' && await pane.locator('.ask-pane-more').isHidden(),
+        JSON.stringify({ paneBox, rowBox }));
+      const goBox = await pane.locator('.ask-pane-ask .ask-pane-go').boundingBox();
+      if (isMobile) {
+        check(`${label}: on the phone the pane is full width (the card's inner width) and "Ask" is at least 56 px high (${goBox.height} px)`,
+          paneBox.width >= cardBox.width - 2 * 18 - 4 && goBox.height >= 56, JSON.stringify({ paneBox, cardBox, goBox }));
+        measured.push(`${label}: Ask button ${goBox.height} px high`);
+      }
+      await shoot('open');
+      // Close is brought into view first, as Dan would scroll to it (on the
+      // phone's sheet only its head shows under the buttons); the row must
+      // then stay where it is as Close is tapped
+      await pane.locator('.ask-pane-close').scrollIntoViewIfNeeded();
+      await page.waitForTimeout(200);
+      const topC = (await row.boundingBox()).y;
+      await pane.locator('.ask-pane-close').click();
+      await page.waitForTimeout(300);
+      const top2 = (await row.boundingBox()).y;
+      measured.push(`${label}: action row top ${top0} px before opening, ${top1} px open, ${topC} px with Close in view, ${top2} px after Close`);
+      console.log(`     ${measured.at(-1)}`);
+      check(`${label}: the action row stays at the same height on the screen when the pane opens (${top0} / ${top1} px) and when it closes (${topC} / ${top2} px)`,
+        Math.abs(top1 - top0) < 0.5 && Math.abs(top2 - topC) < 0.5 && await card.locator('.ask-pane').count() === 0);
+      // Ask, then Ask more
+      await askBtn.click();
+      await pane.waitFor({ timeout: 5000 });
+      await pane.locator('.ask-pane-ask textarea').fill('Which other words come from this root?');
+      await pane.locator('.ask-pane-ask .ask-pane-go').click();
+      await pane.locator('.ask-turn').first().waitFor({ timeout: 10000 });
+      const links = await pane.locator('.ask-turn .links a').evaluateAll((as) => as.map((a) => a.innerText));
+      check(`${label}: "Ask" answers under the box with the pages the search cited, and "Ask more" appears`,
+        (await pane.locator('.ask-turn .answer').first().innerText()).startsWith(`The root ${root} `) && links.length === 2 && /^Pealim · /.test(links[0]) && /^Wiktionary · /.test(links[1]) && await pane.locator('.ask-pane-more').isVisible(),
+        JSON.stringify(links));
+      await pane.locator('.ask-turn').first().scrollIntoViewIfNeeded();
+      await shoot('after-ask');
+      await pane.locator('.ask-pane-more textarea').fill('Is the Pa\'al used at all?');
+      await pane.locator('.ask-pane-more .ask-pane-go').click();
+      await pane.locator('.ask-turn').nth(1).waitFor({ timeout: 10000 });
+      check(`${label}: "Ask more" sends a follow-up: its answer comes after the first, the model having had the earlier turn`,
+        /following 1 earlier turn/.test(await pane.locator('.ask-turn').nth(1).locator('.answer').innerText()) && (await pane.locator('.ask-pane-more textarea').inputValue()) === '');
+      await pane.locator('.ask-turn').nth(1).scrollIntoViewIfNeeded();
+      await shoot('after-ask-more');
+      // a tab: Pealim inside the pane, recorded on the desk card only when there is one
+      const sent1 = sent.length;
+      await pane.locator('.ask-pane-tabs button', { hasText: 'Pealim' }).click();
+      await pane.locator('.ref-pane .ref-frame').waitFor({ timeout: 10000 });
+      await page.waitForTimeout(500);
+      const recorded = sent.slice(sent1).filter((s) => /^POST \/card\/word:\d+\/lookup$/.test(s)).length;
+      check(`${label}: the Pealim tab opens Pealim inside the pane (the root letters), marked; ${onDesk ? 'recorded as a lookup on the word\'s desk card' : 'nothing recorded for a word with no desk card'}`,
+        (await pane.locator('.ref-pane .ref-title').innerText()).includes(root.replace(/\./g, '')) && (await pane.locator('.ask-pane-tabs button.active').innerText()).trim() === 'Pealim'
+        && sent.slice(sent1).some((s) => s === 'GET /reference/pealim') && recorded === (onDesk ? 1 : 0) && ctx.pages().length === pagesBefore, JSON.stringify(sent.slice(sent1)));
+      await pane.locator('.ref-pane').scrollIntoViewIfNeeded();
+      await shoot('tab');
+      // Close after the pane was used and the page (or the card) scrolled to
+      // bring Close back into view: the row stays where it is at that moment
+      await pane.locator('.ask-pane-close').scrollIntoViewIfNeeded();
+      await page.waitForTimeout(200);
+      const atClose = (await row.boundingBox()).y;
+      await pane.locator('.ask-pane-close').click();
+      await page.waitForTimeout(300);
+      const afterClose = (await row.boundingBox()).y;
+      measured.push(`${label}: after use, action row top ${atClose} px as Close is tapped, ${afterClose} px after`);
+      console.log(`     ${measured.at(-1)}`);
+      check(`${label}: Close after Ask, Ask more and a tab, scrolled back to Close: the action row stays where it was when Close was tapped (${atClose} / ${afterClose} px)`,
+        Math.abs(afterClose - atClose) < 0.5 && await card.locator('.ask-pane').count() === 0);
+      console.log(`     ${label} screenshots: ${shots.join(', ')}`);
+    }
+    // a word put on the desk from its card, then a reference opened from its
+    // pane without reloading: recorded on the card just placed
+    {
+      const fresh = vname === 'phone' ? 'באמינות' : 'רפורמה';
+      await page.goto(`${base}/read.html?id=${art.id}`);
+      await page.waitForSelector('.body .w');
+      const w = page.locator('.w', { hasText: fresh }).first();
+      await w.scrollIntoViewIfNeeded();
+      if (isMobile) await w.tap(); else await w.hover();
+      const card = page.locator(isMobile ? '#card-phone' : '#card-desktop');
+      await card.locator('.meaning:not(:empty)').waitFor({ timeout: 10000 });
+      await card.locator('[data-act=desk]').click();
+      await card.locator('.foot', { hasText: /^On the desk/ }).waitFor({ timeout: 5000 });
+      await card.locator('[data-act=ask]').click();
+      const pane = card.locator('.ask-pane');
+      await pane.waitFor({ timeout: 5000 });
+      const sent1 = sent.length;
+      await pane.locator('.ask-pane-tabs button', { hasText: 'Pealim' }).click();
+      await pane.locator('.ref-pane .ref-frame').waitFor({ timeout: 10000 });
+      await page.waitForTimeout(500);
+      const recorded = sent.slice(sent1).filter((s) => /^POST \/card\/word:\d+\/lookup$/.test(s)).length;
+      check(`reader ${vname}: a word just put on the desk (${fresh}) has a reference opened from its pane recorded on its desk card, with no reload`,
+        recorded === 1, JSON.stringify(sent.slice(sent1)));
+      await pane.locator('.ask-pane-close').click();
+      // a put still on its way when another word is opened: the word opened
+      // meanwhile gets neither the key nor the message, and records nothing
+      if (!isMobile) {
+        let release;
+        const held = new Promise((r) => { release = r; });
+        await page.route('**/desks/put', async (route) => { await held; await route.continue(); });
+        const a = page.locator('.body .w', { hasText: 'להתמודד' }).first();
+        await a.hover();
+        await card.locator('.meaning', { hasText: 'to cope' }).waitFor({ timeout: 10000 });
+        await card.locator('[data-act=desk]').click();
+        await card.locator('.foot', { hasText: 'putting it on the desk' }).waitFor({ timeout: 5000 });
+        const b = page.locator('.body .w', { hasText: 'ייקבעו' }).first();
+        await b.hover();
+        await card.locator('.meaning', { hasText: 'will be set' }).waitFor({ timeout: 10000 });
+        const putDone = page.waitForResponse((r) => r.url().endsWith('/desks/put'));
+        release();
+        await putDone;
+        await page.waitForTimeout(300);
+        await page.unroute('**/desks/put');
+        const foot = await card.locator('.foot').innerText();
+        await card.locator('[data-act=ask]').click();
+        const paneB = card.locator('.ask-pane');
+        await paneB.waitFor({ timeout: 5000 });
+        const sent2 = sent.length;
+        await paneB.locator('.ask-pane-tabs button', { hasText: 'Pealim' }).click();
+        await paneB.locator('.ref-pane .ref-frame').waitFor({ timeout: 10000 });
+        await page.waitForTimeout(500);
+        const onA = (await api('GET', '/desks/current')).body.cards.some((c) => c.card && c.card.surface === 'להתמודד');
+        check('reader computer: a put answered after another word was opened leaves that word alone: no "On the desk" on its card, and a reference from its pane records nothing; the first word is on the desk',
+          !/On the desk/.test(foot) && sent.slice(sent2).filter((s) => /^POST \/card\/word:\d+\/lookup$/.test(s)).length === 0 && sent.slice(sent2).includes('GET /reference/pealim') && onA,
+          JSON.stringify({ foot, sent: sent.slice(sent2), onA }));
+        await paneB.locator('.ask-pane-close').click();
+      }
+    }
+    check(`ask pane ${vname}: no screen shows "map", "met", "touch" or "spot"`, page.jargon.length === 0, page.jargon.join(' | '));
+    await ctx.close();
+  }
+  for (const m of measured) console.log(`measured: ${m}`);
   await browser.close();
 } catch (e) {
   console.error(e);

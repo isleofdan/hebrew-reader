@@ -251,8 +251,20 @@ try {
     await page.fill('#ask-q', "Which Nif'al forms are in this piece?");
     await page.click('#ask-go');
     await page.locator('#ask-answer:not(.hidden)').waitFor({ timeout: 10000 });
-    const askLinks = await page.locator('#ask-links a').evaluateAll((as) => as.map((a) => a.href));
-    check(`${name}: ask box answers under itself with a reference link per claim`, /Nif'al/.test(await page.locator('#ask-text').innerText()) && askLinks.length >= 1 && askLinks.every((h) => h.startsWith('https://www.pealim.com/')), askLinks.join(' '));
+    const lastTurn = '#ask-thread .ask-turn:last-child';
+    const askLinks = await page.locator(`${lastTurn} .links a`).evaluateAll((as) => as.map((a) => ({ href: a.href, text: a.innerText })));
+    check(`${name}: ask box answers under itself, its links the pages the search cited, each drawn as its reference and title`,
+      /Nif'al/.test(await page.locator(`${lastTurn} .answer`).innerText()) && askLinks.length >= 1 && askLinks.every((l) => l.href.startsWith('https://www.pealim.com/search/') && /^Pealim · .+ – Pealim$/.test(l.text)), JSON.stringify(askLinks));
+    // "Ask more": a follow-up under the drawn answer, the thread kept above it
+    await page.fill('#ask-more-q', 'And which of them is in the past?');
+    await page.click('#ask-more-go');
+    await page.locator('#ask-thread .ask-turn').nth(1).waitFor({ timeout: 10000 });
+    const turns = await page.locator('#ask-thread .ask-question').allInnerTexts();
+    check(`${name}: "Ask more" adds the follow-up's answer under the first, the box emptied for the next`,
+      turns.join('|') === "Which Nif'al forms are in this piece?|And which of them is in the past?" && (await page.locator('#ask-more-q').inputValue()) === '', turns.join('|'));
+    await page.locator('#ask').scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: join(out, `reader-ask-more-${name}.png`) });
     const askBox = await page.locator('#ask').boundingBox();
     const articleBox = await page.locator('.article-col').boundingBox();
     check(`${name}: ask box sits ${isMobile ? 'below the article' : 'in the right column'}`, isMobile ? askBox.y >= articleBox.y + articleBox.height - 1 : askBox.x >= articleBox.x + articleBox.width - 1);
@@ -267,11 +279,11 @@ try {
       await page.click('#ask-go');
       await page.locator('#ask-msg', { hasText: 'asking…' }).waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
       await page.waitForTimeout(400);
-      return { shown: await page.locator('#ask-answer:not(.hidden)').count() === 1, answer: await page.locator('#ask-text').innerText().catch(() => ''), msg: await page.locator('#ask-msg').innerText().catch(() => '') };
+      return { shown: await page.locator('#ask-answer:not(.hidden)').count() === 1, answer: await page.locator(`${lastTurn} .answer`).innerText().catch(() => ''), msg: await page.locator('#ask-msg').innerText().catch(() => '') };
     };
     const noLinks = await askThis('Which forms are here that need no reference?');
-    check(`${name}: an answer with no links draws as an answer, with no failure line`, noLinks.shown && /No Nif'al verb form appears/.test(noLinks.answer) && noLinks.msg.trim() === ''
-      && /Nothing here to look up/.test(await page.locator('#ask-links').innerText()), `${noLinks.answer.slice(0, 60)} | msg: ${noLinks.msg}`);
+    check(`${name}: an answer with no links draws as an answer, with no failure line, and a new question starts a new thread`, noLinks.shown && /No Nif'al verb form appears/.test(noLinks.answer) && noLinks.msg.trim() === ''
+      && /Nothing here to look up/.test(await page.locator(`${lastTurn} .links`).innerText()) && await page.locator('#ask-thread .ask-turn').count() === 1, `${noLinks.answer.slice(0, 60)} | msg: ${noLinks.msg}`);
     await page.locator('#ask').scrollIntoViewIfNeeded();
     await page.screenshot({ path: join(out, `reader-ask-no-links-${name}.png`) });
     const plain = await askThis('Answer this one in plain text, please.');
