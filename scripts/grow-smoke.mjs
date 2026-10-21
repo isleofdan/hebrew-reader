@@ -188,7 +188,7 @@ try {
   const badKind = await api('POST', '/ask', { subject: { kind: 'verse' }, question: 'x?' });
   const noRoot = await api('POST', '/ask', { subject: { kind: 'root' }, question: 'x?' });
   check('an unknown desk answers 400 naming the desks; an unknown subject kind 400 naming the kinds; a root subject with neither root nor word 400',
-    badDesk.status === 400 && badDesk.body.error === 'desk must be one of hebrew, standin' && badKind.status === 400 && badKind.body.error === 'subject.kind must be one of article, card, root' && noRoot.status === 400,
+    badDesk.status === 400 && badDesk.body.error === 'desk must be one of hebrew, thought, standin' && badKind.status === 400 && badKind.body.error === 'subject.kind must be one of article, card, root, walk' && noRoot.status === 400,
     JSON.stringify([badDesk.body, badKind.body, noRoot.body]));
   // a follow-up: the chain's earlier turns before the new question
   const f1 = await api('POST', '/ask', { subject: rootSubject, question: 'Is the Pa\'al used?', parent: r1.body.id });
@@ -215,7 +215,7 @@ try {
     seam.status === 200 && seamAsk.system.startsWith(STANDIN.persona) && !seamAsk.system.includes('Hebrew reference desk') && JSON.stringify(seamAsk.parameters.allowed_domains) === '["sefaria.org"]'
     && seam.body.links.length > 0 && seam.body.links.every((l) => l.reference === 'sefaria') && peek('SELECT desk FROM asks WHERE id = ?', seam.body.id)[0].desk === 'standin',
     JSON.stringify({ body: seam.body, system: seamAsk.system.slice(0, 120), domains: seamAsk.parameters.allowed_domains }));
-  check('…with no change to server.js or lib/ask.js: neither names the stand-in desk', !readFileSync(join(root, 'server.js'), 'utf8').includes('standin') && !readFileSync(join(root, 'lib', 'ask.js'), 'utf8').includes('standin'));
+  check('…with no change to server.js or lib/ask.js: neither names the stand-in desk', !/\bstandin\b/.test(readFileSync(join(root, 'server.js'), 'utf8')) && !/\bstandin\b/.test(readFileSync(join(root, 'lib', 'ask.js'), 'utf8')));
   check('the hebrew desk keeps its own persona and the seven sites', boxAsk.system.startsWith('You are a Hebrew reference desk') && rootAsk.model === 'anthropic/claude-sonnet-4.6' && rootAsk.max_tokens === 900);
 
   // --- step 4: Find more examples ------------------------------------------------------

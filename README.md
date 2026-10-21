@@ -85,6 +85,20 @@ not yet due, then his solid ones, earliest due first, and its note says so
 ("Nothing more is due; this set draws on words not yet due."). On the phone
 the answer choices stand one under another, each fully readable.
 
+The Walks page (`/walks`, "Walks" in the top navigation) is a guide to
+Jewish thought, for self-understanding: Dan writes a question in his own
+words and presses Start, and the guide — one voice from inside the
+tradition, with a stance — chooses one primary passage as the first stop.
+Each stop shows the passage in Hebrew, its transliteration and its English
+(fetched from Sefaria, never written by the model), "Full passage" on
+sefaria.org, why it is the stop, what it says plainly with every name and
+term explained, where the tradition argues with itself (with the Sefaria
+pages cited), and the guide's own opinion; then two or three directions
+for the next stop and a box to push back or ask. Each walk is kept and
+reopens from the record at once. Israel, antisemitism and current politics
+are declined in one line. `/walks?ref=<reference>` starts a walk at a
+passage (the door for a later study tool).
+
 ## Running it
 
 ```
@@ -98,10 +112,10 @@ the environment variables, and how the app talks to the spine.
 ## Layout
 
 - `server.js` — one plain Node server: the passphrase gate, the JSON routes, static files.
-- `lib/` — database, auth, rate limit, article extraction, the word card (OpenRouter), the spine client, the category list, the demand, the ask surface (`ask.js`) and its desks (`ask-desks.js`) and reference list, the lesson sheet, the lesson guide and its rule checks (`guide-checks.js`), the desk and a card's layers (`desk.js`), the two web-search calls that grow a card (`grow.js`), the sheet's writing prompts (`sheet.js`), a caught link's title (`catch.js`), the Look up page (`lookup-page.js`), a reference shown inside the reader (`reference-pages.js`), and Today's daily drills (`today.js`).
-- `public/` — the pages: `index.html` (articles + add form), `today.html` (Today's drills), `lookup.html` (the Look up page; `reference-ui.js` is the reference pane it shares with the desk), `read.html?id=…` (the reader), `phone.html` (the demand and quick lookup), `sheet.html` (the print sheet; `?lesson=` for a lesson's guide), `lesson.html?id=…` (a lesson from Guy and its study guide), `cards.html?lesson=…` (its flashcards), `login.html`; `card-ui.js` is the card shared by the reader, the lesson page and the phone page, with `ask-ui.js` its ask pane, `guide-ui.js` the study guide shared by the lesson page and its print sheet; `desk.html` the desk, with `grow-ui.js` for a card's layers and `ink-ui.js` for drawing; `desk-sheet.html` the sheet for the reMarkable; `manifest.webmanifest`, `sw.js` and `install.js` make the site installable with a share target.
+- `lib/` — database, auth, rate limit, article extraction, the word card (OpenRouter), the spine client, the category list, the demand, the ask surface (`ask.js`) and its desks (`ask-desks.js`) and reference list, the lesson sheet, the lesson guide and its rule checks (`guide-checks.js`), the desk and a card's layers (`desk.js`), the two web-search calls that grow a card (`grow.js`), the sheet's writing prompts (`sheet.js`), a caught link's title (`catch.js`), the Look up page (`lookup-page.js`), a reference shown inside the reader (`reference-pages.js`), Today's daily drills (`today.js`), and the walks with the guide to Jewish thought (`walks.js`) with their passages from Sefaria (`sefaria.js`).
+- `public/` — the pages: `index.html` (articles + add form), `today.html` (Today's drills), `walks.html` (the walks page and one walk, `/walks` and `/walks/<id>`, drawn by `walks.js`), `lookup.html` (the Look up page; `reference-ui.js` is the reference pane it shares with the desk), `read.html?id=…` (the reader), `phone.html` (the demand and quick lookup), `sheet.html` (the print sheet; `?lesson=` for a lesson's guide), `lesson.html?id=…` (a lesson from Guy and its study guide), `cards.html?lesson=…` (its flashcards), `login.html`; `card-ui.js` is the card shared by the reader, the lesson page and the phone page, with `ask-ui.js` its ask pane, `guide-ui.js` the study guide shared by the lesson page and its print sheet; `desk.html` the desk, with `grow-ui.js` for a card's layers and `ink-ui.js` for drawing; `desk-sheet.html` the sheet for the reMarkable; `manifest.webmanifest`, `sw.js` and `install.js` make the site installable with a share target.
 - `scripts/import-lessons.js` — bulk import of Guy's PDFs from a folder into the site (see `PLAN.md`).
-- `scripts/` — local checks: smoke test, screenshots, mock servers for OpenRouter and the spine; sample lesson PDFs in `scripts/fixtures/`, made by `make-fixtures.mjs`.
+- `scripts/` — local checks: smoke test, screenshots, mock servers for OpenRouter, the spine, the reference sites and Sefaria; sample lesson PDFs in `scripts/fixtures/`, made by `make-fixtures.mjs`.
 - `docs/` — screenshots and session reports.
 
 Deploys go through the GitHub Actions workflow in `.github/workflows/deploy.yml`, never from a session.

@@ -66,6 +66,7 @@ The spine was cloned read-only into this session; nothing in it was changed.
 | `SPINE_TOKEN` | optional; the spine's bearer token for recording marks |
 | `SPINE_URL` | optional; default `https://spine-dan.fly.dev` |
 | `OPENROUTER_URL` | optional; default `https://openrouter.ai/api/v1/chat/completions` |
+| `SEFARIA_URL` | optional; Sefaria's base address for the walks' passages, default `https://www.sefaria.org` (the checks point it at `scripts/mock-sefaria.mjs`) |
 | `DATA_DIR` | where `reader.db` lives; `./data` locally, `/data` on Fly |
 | `PORT` | listen port, default 8080 |
 | `COOKIE_INSECURE` | `1` only for local plain-http runs |
@@ -1530,3 +1531,103 @@ answer there, with "Nothing here to look up in a reference."
   card was opened again. Its recheck found the second fix could hand the
   key to a word opened while the put was on its way; fixed, with a check
   that holds the put's answer back.
+
+## hebrew-walks-one (21 Oct 2026, the rented Linux machine, OpenRig team): Walks, the guide to Jewish thought
+
+**Dan's screens changed.** "Walks" joins the top navigation after "Today"
+on every page (on the phone the links now wrap to a second line rather than
+widen the page). `/walks` has a box, "a question to walk with…", and
+"Start", then his walks, newest first, each with the day it started.
+Start makes the first stop and opens the walk at `/walks/<id>`: its title,
+then each stop as a panel — "Stop N · <the passage's title>" with "Full
+passage" (the passage's page on sefaria.org), the passage in Hebrew, its
+transliteration and its English (three columns on the computer, one under
+another on the phone), "Why here", "What it says, plainly", "Where the
+tradition argues with itself" with the Sefaria pages the guide cited, "My
+opinion", and "answered in N s". Under the last stop: two or three
+directions, "Push back, or ask…" and "Go". A direction or Go shows
+"Thinking…" where the buttons were; the stop arrives below and the buttons
+become "You chose: …" or "You wrote: …" at the same height. A failed stop
+says why in that place and the buttons come back. Reopening a walk draws it
+from the record, with no model call. A move about Israel, antisemitism or
+current politics is declined in one line.
+
+- **The desk** `thought` (`lib/ask-desks.js`): the persona (the brief's,
+  sharpened from the approved sample stop: a reason for each stop, names
+  explained with who and when, "You may well disagree. Tell me where."),
+  `www.sefaria.org` as its one site, the guide model (`GUIDE_MODEL`, with the
+  card model as the fallback when OpenRouter has no such model — now also
+  for a call with the search, `chatWithTools`), a stop's limits `{ 3000
+  tokens, 120 s }`, a choosing call's `{ 600 tokens, 60 s }` (the new desk
+  field `choose`), and ten turns (the new desk field `turns`; `hebrew` keeps
+  six, and `chainOf` reads it from the desk).
+- **A stop is two calls through `ask`** (`lib/walks.js`), subject `{ kind:
+  'walk', walk_id, ref? }` (the walk's question, or "The reader is standing
+  at <title>", the stops so far by reference, and with `ref` the passage's
+  Hebrew and English). *Choose*: no search, the guide answers `{ ref, title }`
+  or `{ declined }`; not recorded. The server fetches the passage; a
+  reference Sefaria does not know is sent back once with Sefaria's message
+  for one more choice, and a second miss ends the stop ("the guide twice
+  named a passage Sefaria does not know"). *Teach*: the search on Sefaria,
+  the stop as JSON (`why_here`, `transliteration`, `explanation`, `argues`,
+  `opinion`, `next`); recorded. A walk started from a reference skips
+  *choose*. `ask` takes, beside `keepWithoutLink`, `format` and `record` as
+  the brief named, and three more the two calls needed (named as a
+  divergence in the report): `read` (how the answer is read from the
+  model's JSON), `limits` (the desk's `choose` for the short call) and
+  `search` (off for *choose*). `lookup.chat` now sends `history` on a call
+  without the search too (it was dropped there; no caller passed it before).
+  A failure says which: "the guide did not answer within the time limit of
+  N s" (504), "OpenRouter is unreachable", or "Sefaria could not be reached".
+- **Sefaria** (`lib/sefaria.js`, `passage(ref)`): Sefaria's Texts API v3,
+  `GET <SEFARIA_URL>/api/v3/texts/<ref>?version=hebrew&version=english`,
+  with the 20-second limit of the server's other outside fetches. It answers
+  the canonical `ref`, the title ("Talmud, Shabbat 112b": the book's
+  category and the reference), the Hebrew and the English as plain text — a
+  line per segment, every tag dropped, a footnote's marker and its note
+  removed — and the page's address. A reference it does not know (its 404,
+  `{"error": "Could not find title in reference: …"}`) answers 404 naming it;
+  unreachable or slow, 502 "Sefaria could not be reached". The address rule
+  is in `lib/references.js` (the Sefaria entry's `passage`, beside its search
+  link): spaces to `_`, `:` to `.`, and the space before the sections to `.`
+  — `Shabbat 112b` → `/Shabbat.112b`, `Genesis 1:1-3` → `/Genesis.1.1-3`,
+  `Guide for the Perplexed, Part 3 32` → `/Guide_for_the_Perplexed%2C_Part_3.32`
+  (Sefaria's "Text References" page allows `_` for spaces in addresses; the
+  rest is how its own pages write a reference; each was opened live, 200).
+- **The record** (in `migrate()`, nothing dropped or moved): tables
+  `passages(ref PRIMARY KEY, title, he, en, url, fetched_at)` (found by its
+  reference or by its address, so `Shabbat.112b` finds `Shabbat 112b`; a
+  reference is fetched once) and `walks(id, desk, question, start_ref, title,
+  started_at, last_ask_id)`; columns `asks.walk_id`, `asks.ref`,
+  `asks.took_ms` (both calls together) by `ALTER TABLE … ADD COLUMN`, null
+  for every row before. A stop is its *teach* row: `parent_id` the previous
+  stop, the answer the stop's JSON. A declined first stop writes the walk
+  only.
+- **Routes**: pages `GET /walks`, `GET /walks/<n>` (signed out: 303 to
+  `/login`); data `GET /walks/list`, `POST /walks/start` `{ question } | {
+  ref }`, `GET /walks/:id/stops`, `POST /walks/:id/step` `{ pick } | { text
+  }` (signed out: 401). A failed stop answers `{ error, walk }`. Refusals
+  name the valid values (the walks there are, the directions on offer).
+- **What the study tool needs**: walks and stops are keyed by Sefaria's
+  canonical references (`walks.start_ref`, `asks.ref`, `passages.ref`), and
+  `/walks?ref=<reference>` (or `POST /walks/start { ref }`) starts a walk at
+  a passage; the table of contents and the Daf Yomi calendar come from
+  Sefaria's interface (its index and calendar calls), a reading position
+  would be a small table of its own beside `walks`, and "start a walk here"
+  sends the passage's reference to that address. The walk page shows a walk
+  started at a passage with the passage as its title and no question.
+- **Checks**: `scripts/walks-smoke.mjs` 48 (against a stand-in Sefaria,
+  `scripts/mock-sefaria.mjs`, and the stand-in model's new `thought`
+  answers: *choose* JSON, *teach* JSON with Sefaria citations, by turn),
+  `scripts/walks-pages.mjs` 27 (28 screenshots); totals 718 server checks
+  and 614 page checks. The team's checker found two faults in the first
+  candidate, both fixed with a check each: a stop missing its reason, its
+  transliteration or two explained directions was kept (now no stop: the
+  failure line names what was missing, nothing recorded), and two moves at
+  once on one walk (two tabs) chained both stops to the same parent (now
+  one move at a time per walk: the second answers 409 and says to wait). Four older checks changed in wording only: the
+  refusals now name `thought` and `walk` (`smoke.mjs`, `grow-smoke.mjs`), the
+  seam's "neither names the stand-in desk" matches the word, not "standing"
+  (`grow-smoke.mjs`), the navigation ends with Walks (`today-pages.mjs`,
+  `lookup-pages.mjs`), and the known tables include `passages` and `walks`
+  (`lookup-smoke.mjs`).

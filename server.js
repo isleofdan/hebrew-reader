@@ -25,6 +25,7 @@ const hunt = require('./lib/hunt');
 const referencePages = require('./lib/reference-pages');
 const lookupPage = require('./lib/lookup-page');
 const today = require('./lib/today');
+const walks = require('./lib/walks');
 const { CATEGORIES } = require('./lib/categories');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, readFile, serveStatic } = require('./lib/http');
@@ -433,6 +434,30 @@ route('POST', /^\/today\/undo$/, async (req, res) => sendJson(res, 200, await to
 // it, opened at item 1; or { state: "no data", reason }
 route('POST', /^\/today\/another$/, async (req, res) => sendJson(res, 200, await today.another()));
 
+// --- Walks (hebrew-walks-one) ---------------------------------------------------
+// Walks with the guide to Jewish thought. GET /walks and GET /walks/<id> are
+// the pages (signed out, they redirect to /login); the data is here, under
+// /walks/, never at a bare number. A model call runs only on Start, a
+// direction or Go.
+// A stop that fails answers its failure line and the walk as it stands
+// ({ error, walk }), so the page keeps the earlier stops.
+async function walkMove(res, run) {
+  try {
+    return sendJson(res, 200, await run());
+  } catch (e) {
+    if (!e.walk_id) throw e;
+    return sendJson(res, e.status || 500, { error: e.message, walk: walks.get(e.walk_id) });
+  }
+}
+// -> { items: [{ id, title, started_at, stops }], state }, newest first
+route('GET', /^\/walks\/list$/, (req, res) => sendJson(res, 200, walks.list()));
+// { question } or { ref } -> the walk with its first stop (or `declined`)
+route('POST', /^\/walks\/start$/, async (req, res) => walkMove(res, async () => walks.start(await readJson(req))));
+// -> the walk with its stops, oldest first, each with its passage
+route('GET', /^\/walks\/(?<id>[^/]+)\/stops$/, (req, res, { id }) => sendJson(res, 200, walks.get(id)));
+// { pick: <index of an offered direction> } or { text } -> the walk with its new stop (or `declined`)
+route('POST', /^\/walks\/(?<id>[^/]+)\/step$/, async (req, res, { id }) => walkMove(res, async () => walks.step(id, await readJson(req))));
+
 const GUIDE_TEMPLATE =fs.readFileSync(path.join(PUBLIC, 'guide.html'), 'utf8');
 function guidePage(res, id) {
   let article;
@@ -461,8 +486,10 @@ async function handle(req, res) {
   }
 
   // GET /lookup is the Look up page; POST /lookup the card. /today is a
-  // page; what is under it (/today/set, …) is its data
-  const apiPath = (isApiPath(p) && !(p === '/lookup' && req.method === 'GET')) || p.startsWith('/today/');
+  // page; what is under it (/today/set, …) is its data. /walks and
+  // /walks/<id> are pages; everything else under /walks/ is data
+  const walkPage = p === '/walks' || /^\/walks\/\d+$/.test(p);
+  const apiPath = (isApiPath(p) && !(p === '/lookup' && req.method === 'GET')) || p.startsWith('/today/') || (p.startsWith('/walks/') && !walkPage);
   if (!CONFIGURED) return apiPath ? sendJson(res, 503, { error: NOT_CONFIGURED }) : loginPage(res, 503, NOT_CONFIGURED);
   if (!auth.cookieOk(req, COOKIE_SECRET)) {
     if (p === '/share' || p === '/share/confirm') {
@@ -496,6 +523,7 @@ async function handle(req, res) {
     today.ensureSet().catch((e) => console.error(`today: the day's set could not be made: ${e.message}`));
     return serveStatic(res, PUBLIC, '/today.html') || sendJson(res, 404, { error: 'today.html is missing.' });
   }
+  if (walkPage) return serveStatic(res, PUBLIC, '/walks.html') || sendJson(res, 404, { error: 'walks.html is missing.' });
   // /share is where the installed app receives what another app shares; the
   // desk page saves it (a GET here writes nothing)
   if (p === '/share' && fromAnotherSite(req)) return redirect(res, `/share/confirm${url.search}`);

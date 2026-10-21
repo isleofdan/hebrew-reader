@@ -114,7 +114,7 @@ try {
         navs[p] = await page.locator('.topbar nav a').evaluateAll((as) => as.map((a) => `${a.textContent}=${a.getAttribute('href')}`).join(' '));
       }
       check('desktop: "Today" is in the top navigation beside "Look up" on the articles page, the desk, the phone page and the Look up page',
-        Object.values(navs).every((n) => /Look up=\/lookup Today=\/today$/.test(n)), JSON.stringify(navs));
+        Object.values(navs).every((n) => /Look up=\/lookup Today=\/today( Walks=\/walks)?$/.test(n)), JSON.stringify(navs));
     }
 
     // --- the first item: Give the form, from Guy's lesson --------------------------------

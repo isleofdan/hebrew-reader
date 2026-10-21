@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hebrew reader · Walks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@400;500;700&family=Noto+Serif+Hebrew:wght@400;500;600&display=swap">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="/app.css">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon-192.png">
+<script src="/theme.js"></script>
+<script src="/install.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">Hebrew reader</a>
+  <nav><a href="/">Articles</a><a class="phone" href="/phone">phone</a><a href="/desk">Desk</a><a href="/lookup">Look up</a><a href="/today">Today</a><a class="active" href="/walks">Walks</a></nav>
+  <span class="spacer"></span>
+  <div class="theme" role="group" aria-label="Theme">
+    <button type="button" data-theme-choice="light">Light</button>
+    <button type="button" data-theme-choice="dark">Dark</button>
+    <button type="button" data-theme-choice="device">Device</button>
+  </div>
+  <a href="/logout" style="font-size:13px;color:var(--muted)">Sign out</a>
+</header>
+<main class="page walks-page">
+
+  <!-- /walks: the box, then the saved walks -->
+  <section class="panel walk-start hidden" id="start">
+    <h2>Walks</h2>
+    <p class="walk-from hidden" id="from"></p>
+    <textarea id="question" rows="2" placeholder="a question to walk with…" aria-label="A question to walk with"></textarea>
+    <div class="walk-start-row" id="start-row">
+      <button class="btn primary walk-go" id="start-go" type="button">Start</button>
+    </div>
+    <p class="msg" id="start-msg" role="status"></p>
+  </section>
+  <section class="panel walk-list-panel hidden" id="saved">
+    <h2>Your walks</h2>
+    <ul class="walk-list" id="list"></ul>
+  </section>
+
+  <!-- /walks/<id>: one walk, its stops oldest first -->
+  <section class="walk hidden" id="walk">
+    <a class="walk-back" href="/walks">← Walks</a>
+    <h1 class="walk-title" id="walk-title" dir="auto"></h1>
+    <div class="walk-stops" id="stops"></div>
+  </section>
+
+  <p class="msg" id="state">opening…</p>
+</main>
+<script src="/ask-ui.js"></script>
+<script src="/walks.js"></script>
+</body>
+</html>
