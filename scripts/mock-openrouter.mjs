@@ -291,7 +291,8 @@ function mockArticleGuide(user, fault) {
 // else choose names control.walk_refs by how many stops the walk has made
 // (default Shabbat 112b, Genesis 1:1-3, Ecclesiastes 1:9, round and round).
 // control.walk_teach_ms: teach answers after that many ms; walk_teach_hang:
-// teach never answers; walk_teach_down: teach drops the connection.
+// teach never answers; walk_teach_down: teach drops the connection;
+// walk_teach_thin: teach answers a stop with parts missing.
 let walkChooses = 0;
 const walkAsks = [];
 const WALK_REFS = ['Shabbat 112b', 'Genesis 1:1-3', 'Ecclesiastes 1:9'];
@@ -338,6 +339,9 @@ function thoughtCall(req, res, body, user) {
   };
   const cite = (url, title) => ({ type: 'url_citation', url_citation: { url, title, content: `from ${title}`, start_index: 0, end_index: 10 } });
   const cites = control.walk_no_argues ? [] : [cite('https://www.sefaria.org/Shabbat.112b', 'Shabbat 112b'), cite('https://www.sefaria.org/sheets/12345', 'Descent of the generations — a source sheet')];
+  // walk_teach_thin: a stop missing its reason and transliteration, with one
+  // direction and no reason for it (the checker's case, 0e4948d)
+  if (control.walk_teach_thin) { delete stop.why_here; stop.transliteration = ''; stop.next = [{ label: 'Next' }]; }
   if (control.walk_teach_down) { req.socket.destroy(); return; }
   if (control.walk_teach_hang) return;
   if (control.walk_teach_ms) return setTimeout(() => reply(JSON.stringify(stop), cites), control.walk_teach_ms);

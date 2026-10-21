@@ -1616,11 +1616,16 @@ current politics is declined in one line.
   would be a small table of its own beside `walks`, and "start a walk here"
   sends the passage's reference to that address. The walk page shows a walk
   started at a passage with the passage as its title and no question.
-- **Checks**: `scripts/walks-smoke.mjs` 45 (against a stand-in Sefaria,
+- **Checks**: `scripts/walks-smoke.mjs` 48 (against a stand-in Sefaria,
   `scripts/mock-sefaria.mjs`, and the stand-in model's new `thought`
   answers: *choose* JSON, *teach* JSON with Sefaria citations, by turn),
-  `scripts/walks-pages.mjs` 27 (28 screenshots); totals 715 server checks
-  and 614 page checks. Four older checks changed in wording only: the
+  `scripts/walks-pages.mjs` 27 (28 screenshots); totals 718 server checks
+  and 614 page checks. The team's checker found two faults in the first
+  candidate, both fixed with a check each: a stop missing its reason, its
+  transliteration or two explained directions was kept (now no stop: the
+  failure line names what was missing, nothing recorded), and two moves at
+  once on one walk (two tabs) chained both stops to the same parent (now
+  one move at a time per walk: the second answers 409 and says to wait). Four older checks changed in wording only: the
   refusals now name `thought` and `walk` (`smoke.mjs`, `grow-smoke.mjs`), the
   seam's "neither names the stand-in desk" matches the word, not "standing"
   (`grow-smoke.mjs`), the navigation ends with Walks (`today-pages.mjs`,

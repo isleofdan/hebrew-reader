@@ -242,6 +242,32 @@ try {
   check('the model unreachable: the failure line says so', unreachable.status === 502 && /^The stop could not be made: OpenRouter is unreachable/.test(unreachable.body.error), JSON.stringify(unreachable.body));
   await control({ walk_teach_down: false });
 
+  // --- a stop is kept only whole (dev-check's finding 1 on 0e4948d) -------------------
+  await control({ walk_teach_thin: true });
+  asksBefore = count('asks');
+  const thin = await api('POST', `/walks/${w}/step`, { pick: 2 });
+  check('a teach answer missing the reason, the transliteration or two explained directions is no stop: the failure line names what was missing, no row, the earlier stops kept',
+    thin.status === 502 && thin.body.error === 'The stop could not be made: the guide\'s answer was missing the reason for the stop, the transliteration, two or three directions each with its reason (it gave 0).'
+    && count('asks') === asksBefore && thin.body.walk.stops.length === stopsNow,
+    JSON.stringify({ status: thin.status, body: thin.body.error }));
+  await control({ walk_teach_thin: false });
+
+  // --- one move at a time on a walk (dev-check's finding 2 on 0e4948d) ----------------
+  await control({ walk_teach_ms: 1500 });
+  asksBefore = count('asks');
+  const [tabA, tabB] = await Promise.all([
+    api('POST', `/walks/${w}/step`, { text: 'First tab: and the counter-tradition?' }),
+    (async () => { await wait(200); return api('POST', `/walks/${w}/step`, { text: 'Second tab: and the mystics?' }); })(),
+  ]);
+  await control({ walk_teach_ms: 0 });
+  const chainRows = peek('SELECT id, parent_id FROM asks WHERE walk_id = ? ORDER BY id', w);
+  check('two moves at once on one walk (two tabs): the first makes its stop, the second is refused (409) and says to wait; the saved chain stays one line',
+    tabA.status === 200 && tabB.status === 409 && /already being made on this walk/.test(tabB.body.error) && count('asks') === asksBefore + 1
+    && chainRows.every((r, i) => i === 0 ? r.parent_id === null : r.parent_id === chainRows[i - 1].id),
+    JSON.stringify({ a: tabA.status, b: [tabB.status, tabB.body.error], chain: chainRows }));
+  const afterBusy = await api('POST', `/walks/${w}/step`, { text: 'Second tab again, after the first arrived.' });
+  check('…and once the stop has arrived, the next move goes on from it', afterBusy.status === 200 && peek('SELECT parent_id FROM asks WHERE walk_id = ? ORDER BY id DESC LIMIT 1', w)[0].parent_id === chainRows.at(-1).id, JSON.stringify(afterBusy.body.error || ''));
+
   // --- refusals name the valid values ----------------------------------------------------
   const ids = peek('SELECT id FROM walks ORDER BY id DESC').map((r) => r.id);
   const bad1 = await api('GET', '/walks/abc/stops');
@@ -265,7 +291,7 @@ try {
   const orBefore = (await calls()).calls, sefB = (await sefCalls()).count;
   const re1 = await api('GET', `/walks/${w}/stops`), list = await api('GET', '/walks/list');
   check('reopening a walk (GET /walks/:id/stops) and the list make no request to the stand-in model or the stand-in Sefaria',
-    re1.status === 200 && re1.body.stops.length === stopsNow && (await calls()).calls === orBefore && (await sefCalls()).count === sefB, JSON.stringify({ or: [orBefore, (await calls()).calls], sef: [sefB, (await sefCalls()).count] }));
+    re1.status === 200 && re1.body.stops.length === stopsNow + 2 && (await calls()).calls === orBefore && (await sefCalls()).count === sefB, JSON.stringify({ or: [orBefore, (await calls()).calls], sef: [sefB, (await sefCalls()).count] }));
   check('…every stop comes back with its passage, its parts and its time', re1.body.stops.every((s) => s.passage && s.passage.he && s.passage.url.startsWith('https://www.sefaria.org/') && s.explanation && Number.isInteger(s.took_ms)));
   check('GET /walks/list: newest first, each with its title, the day it started and its stops', list.body.items[0].id === ids[0] && list.body.items.every((x) => x.title && x.started_at && Number.isInteger(x.stops)) && list.body.state === 'ok', JSON.stringify(list.body.items.slice(0, 3)));
 
