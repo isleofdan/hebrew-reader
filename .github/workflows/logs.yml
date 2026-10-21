@@ -1,0 +1,33 @@
+# Reads the live app's recent log lines and the walks list, by hand from the
+# Actions tab, so a chat can see what the server said about a failed walk. It
+# changes nothing: no deploy, no write.
+name: Logs
+
+on:
+  workflow_dispatch:
+
+jobs:
+  logs:
+    name: Recent server log and the walks
+    runs-on: ubuntu-latest
+    env:
+      APP: hebrew-reader-dan
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Recent log lines (walks, asks, errors)
+        run: |
+          flyctl logs --app "$APP" --no-tail 2>&1 | tail -n 400 | grep -iE "walk|ask|error|timed out|sefaria|listening|unhandled" || echo "(no matching lines)"
+      - name: The walks list, signed in through the login form
+        env:
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+        run: |
+          base="https://$APP.fly.dev"; jar=$(mktemp)
+          login=$(curl -s -o /dev/null -w "%{http_code}" -c "$jar" -H 'content-type: application/json' -H 'accept: application/json' \
+            --data "$(jq -cn --arg p "$APP_PASSWORD" '{passphrase: $p}')" "$base/login")
+          echo "sign-in: HTTP $login"
+          curl -s -b "$jar" -H 'accept: application/json' "$base/walks/list" | python3 -c '
+          import json,sys
+          d=json.load(sys.stdin)
+          for w in d.get("items",[]): print(w["id"], w["stops"], "stops |", w["started_at"], "|", (w["title"] or "")[:160].replace("\n"," "))
+          print("state:", d.get("state"))'

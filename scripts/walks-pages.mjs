@@ -209,6 +209,22 @@ try {
   await page.locator('#start-msg').filter({ hasText: 'outside' }).waitFor();
   check('phone: a declined first stop shows the decline line and offers the box again',
     /Current Israeli politics is outside what I do here/.test(await page.locator('#start-msg').innerText()) && (await page.locator('#question').isVisible()) && (await page.locator('#start-go').isVisible()) && /\/walks$/.test(page.url()));
+  check('phone: …and the question stays in the box, with a link to the walk it was saved as',
+    (await page.locator('#question').inputValue()) === 'What should be done about current Israeli politics?' && /^\/walks\/\d+$/.test(await page.locator('#start-msg a').getAttribute('href')) && /saved as a walk/.test(await page.locator('#start-msg a').innerText()));
+
+  // --- the draft survives a reload; a too-long question is refused before sending ----------
+  await page.goto(`${base}/walks`);
+  await page.locator('#question').fill('Does creation move toward something?');
+  await page.reload();
+  await page.locator('#start').waitFor();
+  check('phone: a question typed and not sent is back in the box after a reload, and says so',
+    (await page.locator('#question').inputValue()) === 'Does creation move toward something?' && /kept here/.test(await page.locator('#start-msg').innerText()));
+  await page.locator('#question').fill('x'.repeat(4001));
+  check('phone: the count line shows once the question is long, in red past the limit', /^4,001 \/ 4,000$/.test(await page.locator('#count').innerText()) && (await page.locator('#count').getAttribute('class')).includes('error'));
+  await page.locator('#start-go').click();
+  check('phone: a question over 4,000 characters is refused before sending, the text kept',
+    /4,001 characters; the most is 4,000/.test(await page.locator('#start-msg').innerText()) && (await page.locator('#question').inputValue()).length === 4001 && (await page.locator('#start-go').isVisible()));
+  await page.locator('#question').fill('');
 
   await browser.close();
 } catch (e) {
