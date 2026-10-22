@@ -212,6 +212,9 @@ try {
   const DAY = 24 * 3600 * 1000;
   let at = Date.parse('2026-10-22T03:00:00Z');
   library.setClock(() => at);
+  // dev-check on 988cba8: with no contents kept, no Study page is made up
+  check('in this process, before the contents were ever fetched: no Study page for any passage, in the library (Genesis 1:1-3) or not (Pirkei Avot 1:1)',
+    library.pageHolding('Genesis 1:1-3') === null && library.pageHolding('Pirkei Avot 1:1') === null && library.pageHolding('Shabbat 112b') === null);
   const before = (await sefCalls()).count;
   const k1 = await library.contents();
   const shapes = async () => (await sefCalls()).asked.slice(before).filter((a) => a.startsWith('shape:')).length;

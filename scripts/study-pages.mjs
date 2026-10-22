@@ -165,6 +165,7 @@ try {
     await page.locator('#state').filter({ hasText: 'Genesis' }).waitFor();
     check(`${name}: a chapter past the end says what is valid ("Genesis has chapters 1 to 50…") and keeps the way back to the contents`,
       /^Genesis has chapters 1 to 50; there is no chapter 51\.$/.test(await page.locator('#state').innerText()) && (await page.locator('#back').isVisible()));
+    await both(page, tag('refused'));
 
     // --- /study with places, and a book folded open -----------------------------------------
     await page.goto(`${base}/study`);

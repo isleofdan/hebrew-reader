@@ -447,6 +447,20 @@ try {
   const rw = new Database(join(dataDir, 'reader.db'));
   rw.prepare('UPDATE asks SET answer = ? WHERE id = ?').run(oldAnswer, cRow.id);
   rw.close();
+  // (dev-check on 988cba8: "(cite the source) when x > y" lost its words, and
+  // <cite-note> lost its opening tag) — only the tag named cite goes
+  const walksLib = require(join(root, 'lib', 'walks.js'));
+  const prose = JSON.parse(walksLib.readChoice({ reply: 'Please (cite the source) when x > y.' }));
+  const tags = JSON.parse(walksLib.readStop({ why_here: '<cite>a</cite> and <cite index="2">b</cite>', transliteration: 't', explanation: '<cite-note>x</cite-note> stays', argues: '', opinion: 'Cite (cite index="1-2" lang="en">c</cite>, but (cite me>, please.',
+    next: [{ label: 'One', why: 'One.' }, { label: 'Two', why: 'Two.' }] }));
+  check('only the cite tag goes: "Please (cite the source) when x > y." and "<cite-note>x</cite-note>" untouched; <cite>, <cite index="2"> and (cite index="1-2" lang="en"> stripped; "(cite me>" (no attribute) kept',
+    prose.reply === 'Please (cite the source) when x > y.' && tags.why_here === 'a and b' && tags.explanation === '<cite-note>x</cite-note> stays' && tags.opinion === 'Cite c, but (cite me>, please.',
+    JSON.stringify({ prose: prose.reply, why_here: tags.why_here, explanation: tags.explanation, opinion: tags.opinion }));
+  // dev-check on 988cba8: before Study's contents were ever fetched, a stop
+  // offered a Study page it could not know existed
+  check('Study\'s contents never fetched on this server: no stop offers "Read it in Study" (no page made up), "Full passage" still there',
+    count('library_contents') === 0 && (cw.body.stops || []).every((s) => !s.passage || (s.passage.study === null && /^https:\/\/www\.sefaria\.org\//.test(s.passage.url))),
+    JSON.stringify((cw.body.stops || []).map((s) => s.passage && [s.passage.study, s.passage.url])));
   const citedBefore = (await api('GET', `/walks/${cw.body.id}/stops`)).body.stops[0];
   check('a stop row written with the markers before the change is served clean, its row unchanged',
     citedBefore.why_here === 'Why a great scholar here.' && citedBefore.explanation === 'Plain words.' && citedBefore.argues === 'The day is short' && citedBefore.opinion === 'Mine x' && citedBefore.reading === 'Read x'

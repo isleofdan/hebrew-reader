@@ -113,7 +113,8 @@ at the foot, "Start a walk here", opens the Walks page at what is marked.
 The books, their lengths, the calendar and every line come from Sefaria and
 are kept; nothing on these pages calls a model, counts or reminds. A walk
 stop now says "First 40 of N lines" when its passage was cut for the guide,
-and links "Read it in Study" to the page holding its first line.
+and, for a passage in the Tanakh or the Talmud once Study has been opened,
+links "Read it in Study" to the page holding its first line.
 
 ## Running it
 

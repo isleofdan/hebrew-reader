@@ -1762,8 +1762,13 @@ passage that was cut.
 - **The 40-line cut** (Dan's decision): the guide's passage stays at 40
   lines (`SEGMENTS_MAX`); the passage's full count is kept, and a stop says
   "First 40 of N lines" when it was cut. "Read it in Study" points at the
-  page holding the passage's first line (from the kept contents; none for
-  a text outside the Tanakh and the Talmud).
+  page holding the passage's first line, from the kept contents (reading a
+  walk asks Sefaria nothing). Not every stop has it: none for a text
+  outside the Tanakh and the Talmud (Pirkei Avot, the Guide), and none on
+  any stop until Study's contents were first fetched — before that, which
+  books are in the library is not known, and the team's checker found the
+  first candidate made up a link there (`/study/Pirkei_Avot.1`). "Full
+  passage" (sefaria.org) is always there.
 - **The screenshot check**: a missing Playwright browser now fails `npm
   run check` on every machine, naming the install line;
   `CHECK_SKIP_SCREENSHOTS=1` skips them and says so.
@@ -1780,10 +1785,13 @@ passage that was cut.
   argument, opinion, reply, each direction's label and why, the reading)
   as it is read from the model, so new stops are stored clean; and the same
   when a stored stop is read for the page (`stopOf`), so older walks show
-  clean with their rows unchanged. Sefaria's text keeps its own stripper,
-  `plain`.
-- **Checks**: `study-smoke.mjs` 46, `study-pages.mjs` 50, `walks-smoke.mjs`
-  73 (4 for the cite markers); totals 789 server checks and 675 page checks. Four older checks changed in wording only: the
+  clean with their rows unchanged. Only the tag named `cite` goes, and the
+  `(cite` form only with its attributes (`index="7-8"`): the team's checker
+  found the first candidate also ate prose ("(cite the source) when x > y")
+  and `<cite-note>`. Sefaria's text keeps its own stripper, `plain`.
+- **Checks**: `study-smoke.mjs` 47, `study-pages.mjs` 50, `walks-smoke.mjs`
+  75 (6 for the cite markers and the cold Study link); totals 792 server
+  checks and 675 page checks. Four older checks changed in wording only: the
   navigation now ends with Study (`walks-pages.mjs`, `today-pages.mjs`,
   `lookup-pages.mjs`) and the known tables include the four new ones
   (`lookup-smoke.mjs`).
