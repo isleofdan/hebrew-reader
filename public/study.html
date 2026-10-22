@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hebrew reader · Study</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@400;500;700&family=Noto+Serif+Hebrew:wght@400;500;600&display=swap">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="/app.css">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon-192.png">
+<script src="/theme.js"></script>
+<script src="/install.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">Hebrew reader</a>
+  <nav><a href="/">Articles</a><a class="phone" href="/phone">phone</a><a href="/desk">Desk</a><a href="/lookup">Look up</a><a href="/today">Today</a><a href="/walks">Walks</a><a class="active" href="/study">Study</a></nav>
+  <span class="spacer"></span>
+  <div class="theme" role="group" aria-label="Theme">
+    <button type="button" data-theme-choice="light">Light</button>
+    <button type="button" data-theme-choice="dark">Dark</button>
+    <button type="button" data-theme-choice="device">Device</button>
+  </div>
+  <a href="/logout" style="font-size:13px;color:var(--muted)">Sign out</a>
+</header>
+<main class="page study-page">
+
+  <!-- /study: today's daf, Continue, then the Tanakh and the Talmud -->
+  <section class="panel study-doors hidden" id="doors">
+    <h2>Study</h2>
+    <p class="study-door" id="daf"></p>
+    <p class="study-door hidden" id="portion"></p>
+    <p class="study-door hidden" id="continue"></p>
+    <details class="study-others hidden" id="others">
+      <summary>Other places</summary>
+      <ul id="others-list"></ul>
+    </details>
+  </section>
+  <section class="panel study-books hidden" id="tanakh">
+    <h2>Tanakh</h2>
+  </section>
+  <section class="panel study-books hidden" id="talmud">
+    <h2>Talmud</h2>
+  </section>
+
+  <!-- /study/<page>: one chapter or one side of a daf -->
+  <section class="study-text hidden" id="text">
+    <a class="study-back" id="back" href="/study">← Contents</a>
+    <h1 class="study-title" id="title"><span id="title-en"></span> <span class="study-title-he" id="title-he" lang="he" dir="rtl"></span></h1>
+    <nav class="study-turn" aria-label="Pages"><a class="btn" data-turn="prev">← Previous</a><a class="btn" data-turn="next">Next →</a></nav>
+    <ol class="study-lines" id="lines"></ol>
+    <nav class="study-turn" aria-label="Pages"><a class="btn" data-turn="prev">← Previous</a><a class="btn" data-turn="next">Next →</a></nav>
+  </section>
+  <div class="study-bar hidden" id="bar">
+    <a class="btn primary study-walk" id="walk-here" href="/walks">Start a walk here</a>
+    <span class="study-bar-where" id="bar-where"></span>
+  </div>
+
+  <p class="msg" id="state">opening…</p>
+</main>
+<script src="/study.js"></script>
+</body>
+</html>

@@ -77,10 +77,10 @@ try {
     const { page } = pages[name];
     await page.goto(`${base}/walks`);
     await page.locator('.walk-none').waitFor();
-    check(`${name}: /walks empty: the box with "a question to walk with…", "Start", "No walks yet", Walks marked in the navigation after Today`,
+    check(`${name}: /walks empty: the box with "a question to walk with…", "Start", "No walks yet", Walks marked in the navigation after Today, Study after it`,
       (await page.locator('#question').getAttribute('placeholder')) === 'a question to walk with…' && (await page.locator('#start-go').innerText()) === 'Start'
       && (await page.locator('.walk-none').innerText()) === 'No walks yet.' && (await page.locator('.topbar nav a.active').innerText()) === 'Walks'
-      && /Today=\/today Walks=\/walks$/.test(await page.locator('.topbar nav a').evaluateAll((as) => as.map((a) => `${a.textContent}=${a.getAttribute('href')}`).join(' '))));
+      && /Today=\/today Walks=\/walks Study=\/study$/.test(await page.locator('.topbar nav a').evaluateAll((as) => as.map((a) => `${a.textContent}=${a.getAttribute('href')}`).join(' '))));
     await both(page, `empty-${name}`);
   }
 

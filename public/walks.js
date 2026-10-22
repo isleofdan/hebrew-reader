@@ -246,8 +246,15 @@ function stopPanel(s) {
   head.append(h);
   if (s.reply) panel.classList.add('walk-reply');
   if (s.passage) {
+    const links = el('span', 'walk-passage-links');
+    // the page in Study holding the passage's first line (hebrew-study-one)
+    if (s.passage.study) {
+      const st = el('a', 'walk-study', 'Read it in Study'); st.href = s.passage.study;
+      links.append(st);
+    }
     const a = el('a', 'walk-full', 'Full passage'); a.href = s.passage.url; a.target = '_blank'; a.rel = 'noopener';
-    head.append(a);
+    links.append(a);
+    head.append(links);
   }
   panel.append(head);
   // how the guide read the move it chose this passage for (none on a stop
@@ -265,6 +272,9 @@ function stopPanel(s) {
     const en = el('div', 'walk-en', s.passage.en); en.lang = 'en';
     block.append(he, tr, en);
     panel.append(block);
+    // the guide is given the first 40 lines; say so when there were more (a
+    // passage kept before the count was kept says nothing)
+    if (s.passage.lines && s.passage.lines > s.passage.shown) panel.append(el('p', 'walk-cut', `First ${s.passage.shown} of ${s.passage.lines} lines`));
   }
   if (s.reply) panel.append(section('The guide answers', s.reply, 'walk-reply-text'));
   if (s.why_here) panel.append(section('Why here', s.why_here, 'walk-why'));
