@@ -1772,8 +1772,18 @@ passage that was cut.
   marks (U+0591–U+05AF), so בָּרָ֣א becomes בָּרָ and א; the Talmud's Hebrew
   (vowels only) splits correctly. A word card on Study would need those
   marks counted as part of a word.
-- **Checks**: `study-smoke.mjs` 46, `study-pages.mjs` 50; totals 785 server
-  checks and 675 page checks. Four older checks changed in wording only: the
+- **The guide's cite markers** (step 5b, added by Dan mid-session): a live
+  stop showed the web search's markers as text, `(cite index="7-8">a great
+  scholar …</cite>`. `lib/walks.js` now drops `(cite …>` / `<cite …>` and
+  `</cite>`, keeping the words between and touching nothing else, from every
+  field the guide writes (the reason, transliteration, explanation,
+  argument, opinion, reply, each direction's label and why, the reading)
+  as it is read from the model, so new stops are stored clean; and the same
+  when a stored stop is read for the page (`stopOf`), so older walks show
+  clean with their rows unchanged. Sefaria's text keeps its own stripper,
+  `plain`.
+- **Checks**: `study-smoke.mjs` 46, `study-pages.mjs` 50, `walks-smoke.mjs`
+  73 (4 for the cite markers); totals 789 server checks and 675 page checks. Four older checks changed in wording only: the
   navigation now ends with Study (`walks-pages.mjs`, `today-pages.mjs`,
   `lookup-pages.mjs`) and the known tables include the four new ones
   (`lookup-smoke.mjs`).

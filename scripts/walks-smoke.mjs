@@ -418,6 +418,41 @@ try {
   for (let i = 0; i < 40 && bgGet.pending; i++) { await wait(250); bgGet = (await api('GET', `/walks/${bg.body.id}/stops`)).body; }
   check('…and the stop is made: two stops, failure null', bgGet.stops.length === 2 && bgGet.failure === null && bgGet.pending === false, JSON.stringify(bgGet).slice(0, 200));
 
+  // --- hebrew-study-one, step 5b: the guide's cite markers --------------------------------
+  // (Dan's live stop, 22 Oct 2026: `(cite index="7-8">a great scholar …</cite>` printed as text)
+  const MARK = /cite index=|<\/?cite\b/;
+  await control({ walk_cite: true });
+  const cw = await api('POST', '/walks/start', { question: 'Cite markers: does the law move?' });
+  const cRow = peek('SELECT * FROM asks WHERE walk_id = ?', cw.body.id)[0] || {};
+  const cSaved = (() => { try { return JSON.parse(cRow.answer); } catch { return {}; } })();
+  const cStop = (cw.body.stops || [])[0] || {};
+  check('a stop whose guide answer carries `(cite index="1-2">x</cite>` in its explanation, opinion and a direction\'s why (and the reading) is stored without the tags, "x" kept',
+    cw.status === 200 && !MARK.test(cRow.answer) && /\(The guide was given \d earlier stop\(s\)\.\) x And 3 < 4 stays\.$/.test(cSaved.explanation)
+    && /^x I think this passage is about authority/.test(cSaved.opinion) && /Tell me where\. The day is short$/.test(cSaved.opinion)
+    && cSaved.next[0].why === 'Rav Kook read the whole world as climbing. x' && /\(choice \d+\)\. x$/.test(cSaved.reading),
+    JSON.stringify({ explanation: cSaved.explanation, opinion: cSaved.opinion, why: cSaved.next && cSaved.next[0].why, reading: cSaved.reading }));
+  check('…served clean too, and the literal "3 < 4" (no cite tag) left as it was',
+    !MARK.test(JSON.stringify(cStop)) && /3 < 4 stays\.$/.test(cStop.explanation) && cStop.next[0].why === 'Rav Kook read the whole world as climbing. x' && /\. x$/.test(cStop.reading), JSON.stringify(cStop).slice(0, 400));
+  const cr = await api('POST', `/walks/${cw.body.id}/step`, { text: 'Reflect on what you think my question means before searching.' });
+  const crRow = peek('SELECT answer FROM asks WHERE walk_id = ? ORDER BY id DESC LIMIT 1', cw.body.id)[0].answer;
+  const crStop = (cr.body.stops || []).at(-1) || {};
+  check('a reply with the markers in its words and a direction\'s why: stored and served without them, "x" kept',
+    cr.status === 200 && crStop.reply && !MARK.test(crRow) && /The two come apart\. x$/.test(crStop.reply) && crStop.next[0].why === 'x The prophets on a people learning.' && !MARK.test(JSON.stringify(crStop)),
+    JSON.stringify({ row: crRow.slice(0, 300), reply: crStop.reply }));
+  await control({ walk_cite: false });
+  // a stop stored before this change, with the markers in it (the check writes
+  // the row as the old code kept it; Dan's own rows are never rewritten)
+  const oldAnswer = JSON.stringify({ why_here: 'Why (cite index="7-8">a great scholar</cite> here.', transliteration: 't', explanation: 'Plain <cite index="2-1">words</cite>.', argues: '(cite index="3-1">The day is short</cite>', opinion: 'Mine (cite index="1-2">x</cite>', reading: 'Read (cite index="1-2">x</cite>',
+    next: [{ label: 'Go (cite index="5-5">on</cite>', why: 'Because (cite index="1-2">x</cite>' }, { label: 'Stay', why: 'Since 1 < 2.' }] });
+  const rw = new Database(join(dataDir, 'reader.db'));
+  rw.prepare('UPDATE asks SET answer = ? WHERE id = ?').run(oldAnswer, cRow.id);
+  rw.close();
+  const citedBefore = (await api('GET', `/walks/${cw.body.id}/stops`)).body.stops[0];
+  check('a stop row written with the markers before the change is served clean, its row unchanged',
+    citedBefore.why_here === 'Why a great scholar here.' && citedBefore.explanation === 'Plain words.' && citedBefore.argues === 'The day is short' && citedBefore.opinion === 'Mine x' && citedBefore.reading === 'Read x'
+    && citedBefore.next[0].label === 'Go on' && citedBefore.next[0].why === 'Because x' && citedBefore.next[1].why === 'Since 1 < 2.' && peek('SELECT answer FROM asks WHERE id = ?', cRow.id)[0].answer === oldAnswer,
+    JSON.stringify(citedBefore).slice(0, 400));
+
 
   // --- the hebrew desk is unchanged -------------------------------------------------------
   const heb = await api('POST', '/ask', { subject: { kind: 'root', root: 'ה.מ.ר', lemma: 'הימר' }, question: 'Which words share this root?' });

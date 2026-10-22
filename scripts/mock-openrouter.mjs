@@ -299,6 +299,13 @@ function mockArticleGuide(user, fault) {
 // "I read you as asking …" with the move's first words; walk_no_reading
 // leaves it out, as every choose did before (a stop saved the old way).
 // The reply carries a reading too, which the server must not show.
+// control.walk_cite (hebrew-study-one, step 5b): the guide's words carry the
+// web search's citation markers inline, as Dan saw them live — `(cite
+// index="1-2">x</cite>` in teach's explanation, opinion and first direction's
+// why, `<cite index="3-1">…</cite>` in its opinion, and in a reply, its
+// first direction's why and the reading; the explanation also carries a
+// literal "3 < 4" that is no tag.
+const CITE = '(cite index="1-2">x</cite>';
 let walkChooses = 0;
 const walkAsks = [];
 const reasoningRefused = [];
@@ -336,6 +343,8 @@ function thoughtCall(req, res, body, user) {
       answer = { ref, title: ref, declined: '' };
     }
     if (answer.ref && !control.walk_no_reading) answer = { reading: `I read you as asking what lies beneath "${move.split('\n')[0].slice(0, 50)}" (choice ${walkChooses}).`, ...answer };
+    if (control.walk_cite && answer.reply) answer = { ...answer, reply: `${answer.reply} ${CITE}`, next: answer.next.map((d, i) => (i ? d : { ...d, why: `${CITE} ${d.why}` })) };
+    if (control.walk_cite && answer.ref) answer = { ...answer, reading: `${answer.reading} ${CITE}` };
     return reply(JSON.stringify(answer));
   }
   const ref = (/^The passage for this stop: .* \((.+)\)$/m.exec(user) || [])[1] || '';
@@ -357,6 +366,11 @@ function thoughtCall(req, res, body, user) {
   // walk_teach_thin: a stop missing its reason and transliteration, with one
   // direction and no reason for it (the checker's case, 0e4948d)
   if (control.walk_teach_thin) { delete stop.why_here; stop.transliteration = ''; stop.next = [{ label: 'Next' }]; }
+  if (control.walk_cite) {
+    stop.explanation = `${stop.explanation} ${CITE} And 3 < 4 stays.`;
+    stop.opinion = `${CITE} ${stop.opinion} <cite index="3-1">The day is short</cite>`;
+    stop.next = stop.next.map((d, i) => (i ? d : { ...d, why: `${d.why} ${CITE}` }));
+  }
   if (control.walk_teach_down) { req.socket.destroy(); return; }
   if (control.walk_teach_hang) return;
   if (control.walk_teach_ms) return setTimeout(() => reply(JSON.stringify(stop), cites), control.walk_teach_ms);
