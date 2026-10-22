@@ -57,6 +57,7 @@ On the rented Linux machine (`agent-machine-dan`, Node 24.21.0), 3 Oct
 | `npm run check`, everything (21 Oct 2026, hebrew-ask-one, the ask surface and the ask pane added) | syntax 3.10 s, tests 79.57 s, screenshots 277.79 s | by hand |
 | `npm run check`, everything (21 Oct 2026, hebrew-walks-one, the walks added) | syntax 3.18 s, tests 108.48 s, screenshots 300.22 s | by hand |
 | `npm run check`, everything (22 Oct 2026, hebrew-guide-one, Playwright's browser installed in the session's own cache) | syntax 4.81 s, tests 125.34 s, screenshots 341.69 s | by hand |
+| `npm run check`, everything (22 Oct 2026, hebrew-study-one, Study and the cite markers added) | syntax 7.16 s, tests 147.26 s, screenshots 384.04 s | by hand |
 
 Known flaky (9 Oct 2026, hebrew-lookup-one): `paper-pages.mjs` fails about
 1 run in 10 on this machine, on `main` as well (2 of 20 runs there): "Back
