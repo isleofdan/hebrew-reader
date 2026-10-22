@@ -155,7 +155,7 @@ try {
   const old = '<table class="vocab"><tr><td><div class="flags">⚠️ Prep: ב- (English: in); no spelling trap</div></td></tr><tr><td><div class="flags">⚠️ Spelling: no spelling trap</div></td></tr></table>';
   check('a guide stored before the rule is shown by it: its vocabulary flags are redrawn when served',
     redrawFlags(old) === '<table class="vocab"><tr><td><div class="flags">⚠️ Prep: ב- (English: in)</div></td></tr><tr><td></td></tr></table>', redrawFlags(old));
-  check('the guide was made by the guide model', (await calls()).last_article_guide_model === 'anthropic/claude-opus-4.6');
+  check('the guide was made by the guide model', (await calls()).last_article_guide_model === 'anthropic/claude-fable-5.1');
   check('a signed-out guide page goes to sign-in', (await fetch(`${base}/guide/${art.id}`, { redirect: 'manual' })).status === 303);
 
   // --- a second tap: the same story, and the article already here ---------------------------
