@@ -170,6 +170,7 @@ function webSearch(req, res, body) {
   const user = body.messages.filter((m) => m.role === 'user').at(-1).content;
   const subject = (/^The (card|article|root):/.exec(user) || [])[1] || null;
   searchAsks.push({ tool: tool.type, parameters: tool.parameters || {}, response_format: body.response_format || null, max_tokens: body.max_tokens, model: body.model,
+    reasoning: body.reasoning === undefined ? null : body.reasoning, temperature: body.temperature === undefined ? null : body.temperature, body_keys: Object.keys(body),
     kind: subject ? 'ask' : 'examples', subject, system: body.messages[0].content, user, turns: body.messages.slice(1, -1).map((m) => ({ role: m.role, content: m.content })),
     has_entry: /Root: /.test(user), has_layers: /What the reader has added/.test(user), forms: (/Forms to look for: (.*)/.exec(user) || [])[1] || null });
   let content, cites = [];
@@ -299,7 +300,7 @@ const WALK_REFS = ['Shabbat 112b', 'Genesis 1:1-3', 'Ecclesiastes 1:9'];
 function thoughtCall(req, res, body, user) {
   const teach = Array.isArray(body.tools) && body.tools.length > 0;
   const move = user.split('\n\nQuestion: ')[1] || '';
-  walkAsks.push({ kind: teach ? 'teach' : 'choose', model: body.model, max_tokens: body.max_tokens, system: body.messages[0].content, user, move,
+  walkAsks.push({ kind: teach ? 'teach' : 'choose', model: body.model, max_tokens: body.max_tokens, reasoning: body.reasoning === undefined ? null : body.reasoning, has_temperature: 'temperature' in body, system: body.messages[0].content, user, move,
     turns: body.messages.slice(1, -1).map((m) => ({ role: m.role, content: m.content })),
     allowed_domains: teach ? (body.tools[0].parameters || {}).allowed_domains : null, response_format: body.response_format || null });
   const reply = (content, cites = []) => {

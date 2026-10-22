@@ -91,9 +91,10 @@ try {
   const desks = require(join(root, 'lib', 'ask-desks.js'));
   const lookup = require(join(root, 'lib', 'lookup.js'));
   const t = desks.get('thought'), h = desks.get('hebrew');
-  check('the thought desk: Sefaria its one site, the guide model, a stop of 3000 tokens and 120 s, choose of 600 tokens and 60 s, ten turns; hebrew keeps six',
-    JSON.stringify(t.domains) === '["www.sefaria.org"]' && t.model === lookup.GUIDE_MODEL && t.limits.maxTokens === 3000 && t.limits.timeoutMs === 120000
-    && t.choose.maxTokens === 600 && t.choose.timeoutMs === 60000 && t.turns === 10 && h.turns === 6 && /never give a list, a survey/.test(t.persona) && /Israel, antisemitism and current politics/.test(t.persona),
+  check('the thought desk: Sefaria its one site, the guide model (Fable 5.1), a stop of 9000 tokens and 240 s, choose of 6000 tokens and 150 s, each with 4000 tokens of thinking, ten turns; hebrew keeps six and thinks not',
+    JSON.stringify(t.domains) === '["www.sefaria.org"]' && t.model === lookup.GUIDE_MODEL && lookup.GUIDE_MODEL === 'anthropic/claude-fable-5.1' && t.limits.maxTokens === 9000 && t.limits.timeoutMs === 240000
+    && JSON.stringify(t.limits.reasoning) === '{"max_tokens":4000}' && t.choose.maxTokens === 6000 && t.choose.timeoutMs === 150000 && JSON.stringify(t.choose.reasoning) === '{"max_tokens":4000}'
+    && h.limits.reasoning === undefined && t.turns === 10 && h.turns === 6 && /never give a list, a survey/.test(t.persona) && /Israel, antisemitism and current politics/.test(t.persona),
     JSON.stringify({ domains: t.domains, model: t.model, limits: t.limits, choose: t.choose, turns: t.turns, hebrew: h.turns }));
 
   // --- verify 1: a walk from a question --------------------------------------------------
@@ -110,8 +111,8 @@ try {
     r1.walk_id === w1.body.id && r1.ref === 'Shabbat 112b' && Number.isInteger(r1.took_ms) && r1.took_ms >= 0 && r1.parent_id === null && r1.desk === 'thought' && r1.subject_kind === 'walk' && r1.question === Q,
     JSON.stringify({ walk_id: r1.walk_id, ref: r1.ref, took_ms: r1.took_ms, parent_id: r1.parent_id, desk: r1.desk, kind: r1.subject_kind }));
   check('…passages holds that reference once', count('passages', 'ref = ?', 'Shabbat 112b') === 1 && count('passages') === 1);
-  check('…the stand-in model saw two calls, choose then teach; choose with no search and 600 tokens, teach with the search on www.sefaria.org only and 3000 tokens, both the guide model',
-    wa1.length === 2 && wa1[0].kind === 'choose' && wa1[1].kind === 'teach' && wa1[0].max_tokens === 600 && wa1[1].max_tokens === 3000
+  check('…the stand-in model saw two calls, choose then teach; choose with no search and 6000 tokens, teach with the search on www.sefaria.org only and 9000 tokens, both the guide model',
+    wa1.length === 2 && wa1[0].kind === 'choose' && wa1[1].kind === 'teach' && wa1[0].max_tokens === 6000 && wa1[1].max_tokens === 9000
     && JSON.stringify(wa1[1].allowed_domains) === '["www.sefaria.org"]' && wa1.every((x) => x.model === lookup.GUIDE_MODEL) && wa1[0].system.startsWith(t.persona.split('\n')[0]),
     JSON.stringify(wa1.map((x) => [x.kind, x.max_tokens, x.allowed_domains, x.model])));
   check('…the teach call carried the passage\'s Hebrew and English (as plain text, tags gone), the choose call did not',
