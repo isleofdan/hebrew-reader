@@ -450,12 +450,12 @@ try {
     'להתייבש': { surface: 'להתייבש', lemma: 'התבייש', pos: 'verb', root: 'י.ב.ש', binyan: 'hitpael', tense: 'infinitive', person_gender_number: null, meaning_en: 'to dry out', governs: null, categories: ['letter-order'], note: null },
   } });
   check('the guide is built by the guide model, not the card model',
-    (await orCalls()).last_guide_model === 'anthropic/claude-opus-4.6' && rebuilt.guide.model === 'anthropic/claude-opus-4.6' && rebuilt.guide.built_with === 'guide model' && lookupLib.MODEL === 'anthropic/claude-sonnet-4.6',
+    (await orCalls()).last_guide_model === 'anthropic/claude-fable-5.1' && rebuilt.guide.model === 'anthropic/claude-fable-5.1' && rebuilt.guide.built_with === 'guide model' && lookupLib.MODEL === 'anthropic/claude-sonnet-4.6',
     `${(await orCalls()).last_guide_model} / ${rebuilt.guide.built_with}`);
   check("OpenRouter's two model-not-found answers are recognized, other errors are not",
-    lookupLib.modelMissing(400, 'anthropic/claude-opus-4.6 is not a valid model ID') && lookupLib.modelMissing(404, 'No endpoints found for anthropic/claude-opus-4.6.')
+    lookupLib.modelMissing(400, 'anthropic/claude-fable-5.1 is not a valid model ID') && lookupLib.modelMissing(404, 'No endpoints found for anthropic/claude-fable-5.1.')
     && !lookupLib.modelMissing(400, 'max_tokens is too large') && !lookupLib.modelMissing(429, 'Rate limit exceeded'));
-  await control({ unknown_models: ['anthropic/claude-opus-4.6'] });
+  await control({ unknown_models: ['anthropic/claude-fable-5.1'] });
   await api('POST', `/lessons/${L1.body.id}/guide`, { rebuild: true });
   const fellBack = await until(L1.body.id, (v) => v.guide_state !== 'building' && !v.saving);
   await control({ unknown_models: [] });
@@ -555,7 +555,7 @@ try {
     r = await rebuildWith({ review_format: 'truncated', review_format_again: 'clean' });
     check('a cut-off review answer is refused, asked once more ("cut off"), and the second answer applied; the page notes the second ask',
       r.rv.state === 'applied' && hasFix(r.v) && r.mine.length === 2 && r.mine[1].follow_up && /cut off/.test(r.mine[1].last) && r.rv.asked_twice === true
-      && /the answer from anthropic\/claude-opus-4\.6 was not JSON \(first answer; finish length/.test(server.log), JSON.stringify({ rv: r.rv, mine: r.mine }));
+      && /the answer from anthropic\/claude-fable-5\.1 was not JSON \(first answer; finish length/.test(server.log), JSON.stringify({ rv: r.rv, mine: r.mine }));
     r = await rebuildWith({ review_format: 'garbage', review_format_again: 'garbage' });
     const logged = /The review pass could not run: the answer from \S+ was not JSON \(first answer; finish stop, [3-9]\d{3} characters\)\. Its first 2000 characters:\nI reviewed the guide\./.test(server.log);
     check('a review that twice answers no JSON: asked once more and only once, not run, the reason named; the answer\'s first 2,000 characters logged and kept with the lesson',
@@ -842,7 +842,7 @@ try {
       && r.sent.find((c) => c.word === 'להתבייש').binyan === 'hitpael' && JSON.stringify(cardsNow()) === JSON.stringify(before) && verbs.length === 3,
       JSON.stringify({ vc: r.vc, sent: r.sent, asked: r.asked }));
     check('the verb-card check asks for structured output, on the guide model, with a token limit from its expected output (400 + 150 a verb)',
-      r.ask.type === 'json_schema' && r.ask.schema_name === 'verb_cards_check' && r.ask.max_tokens === 400 + 150 * 3 && r.ask.model === 'anthropic/claude-opus-4.6', JSON.stringify(r.ask));
+      r.ask.type === 'json_schema' && r.ask.schema_name === 'verb_cards_check' && r.ask.max_tokens === 400 + 150 * 3 && r.ask.model === 'anthropic/claude-fable-5.1', JSON.stringify(r.ask));
     const putsB = await putCounts();
     // the לזנק case (session nine, step 1): the review says nothing of the card
     // (its guide gives no binyan for the word), the check proposes a fix

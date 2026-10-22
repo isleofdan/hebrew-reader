@@ -47,7 +47,7 @@ start('node', ['scripts/mock-sefaria.mjs', String(SEF_PORT)]);
 const preload = join(dataDir, 'thought-limit.cjs');
 writeFileSync(preload, `const d = require(${JSON.stringify(join(root, 'lib', 'ask-desks.js'))});
 const t = d.get('thought');
-d.register({ ...t, limits: { ...t.limits, timeoutMs: 5000 } });\n`);
+d.register({ ...t, limits: { ...t.limits, timeoutMs: 5000 }, choose: { ...t.choose, timeoutMs: 3000 } });\n`);
 const server = start('node', ['--require', preload, 'server.js'], {
   PORT: String(PORT), DATA_DIR: dataDir, APP_PASSWORD: PASS, COOKIE_SECRET: 'w'.repeat(64), COOKIE_INSECURE: '1',
   OPENROUTER_API_KEY: 'test-key', OPENROUTER_URL: `http://127.0.0.1:${OR_PORT}/v1/chat/completions`,
@@ -91,9 +91,10 @@ try {
   const desks = require(join(root, 'lib', 'ask-desks.js'));
   const lookup = require(join(root, 'lib', 'lookup.js'));
   const t = desks.get('thought'), h = desks.get('hebrew');
-  check('the thought desk: Sefaria its one site, the guide model, a stop of 3000 tokens and 120 s, choose of 600 tokens and 60 s, ten turns; hebrew keeps six',
-    JSON.stringify(t.domains) === '["www.sefaria.org"]' && t.model === lookup.GUIDE_MODEL && t.limits.maxTokens === 3000 && t.limits.timeoutMs === 120000
-    && t.choose.maxTokens === 600 && t.choose.timeoutMs === 60000 && t.turns === 10 && h.turns === 6 && /never give a list, a survey/.test(t.persona) && /Israel, antisemitism and current politics/.test(t.persona),
+  check('the thought desk: Sefaria its one site, the guide model (Fable 5.1), a stop of 9000 tokens and 240 s, choose of 6000 tokens and 150 s, each with 4000 tokens of thinking, ten turns; hebrew keeps six and thinks not',
+    JSON.stringify(t.domains) === '["www.sefaria.org"]' && t.model === lookup.GUIDE_MODEL && lookup.GUIDE_MODEL === 'anthropic/claude-fable-5.1' && t.limits.maxTokens === 9000 && t.limits.timeoutMs === 240000
+    && JSON.stringify(t.limits.reasoning) === '{"max_tokens":4000}' && t.choose.maxTokens === 6000 && t.choose.timeoutMs === 150000 && JSON.stringify(t.choose.reasoning) === '{"max_tokens":4000}'
+    && h.limits.reasoning === undefined && t.turns === 10 && h.turns === 6 && /never give a list, a survey/.test(t.persona) && /Israel, antisemitism and current politics/.test(t.persona),
     JSON.stringify({ domains: t.domains, model: t.model, limits: t.limits, choose: t.choose, turns: t.turns, hebrew: h.turns }));
 
   // --- verify 1: a walk from a question --------------------------------------------------
@@ -110,13 +111,33 @@ try {
     r1.walk_id === w1.body.id && r1.ref === 'Shabbat 112b' && Number.isInteger(r1.took_ms) && r1.took_ms >= 0 && r1.parent_id === null && r1.desk === 'thought' && r1.subject_kind === 'walk' && r1.question === Q,
     JSON.stringify({ walk_id: r1.walk_id, ref: r1.ref, took_ms: r1.took_ms, parent_id: r1.parent_id, desk: r1.desk, kind: r1.subject_kind }));
   check('…passages holds that reference once', count('passages', 'ref = ?', 'Shabbat 112b') === 1 && count('passages') === 1);
-  check('…the stand-in model saw two calls, choose then teach; choose with no search and 600 tokens, teach with the search on www.sefaria.org only and 3000 tokens, both the guide model',
-    wa1.length === 2 && wa1[0].kind === 'choose' && wa1[1].kind === 'teach' && wa1[0].max_tokens === 600 && wa1[1].max_tokens === 3000
+  check('…the stand-in model saw two calls, choose then teach; choose with no search and 6000 tokens, teach with the search on www.sefaria.org only and 9000 tokens, both the guide model',
+    wa1.length === 2 && wa1[0].kind === 'choose' && wa1[1].kind === 'teach' && wa1[0].max_tokens === 6000 && wa1[1].max_tokens === 9000
     && JSON.stringify(wa1[1].allowed_domains) === '["www.sefaria.org"]' && wa1.every((x) => x.model === lookup.GUIDE_MODEL) && wa1[0].system.startsWith(t.persona.split('\n')[0]),
     JSON.stringify(wa1.map((x) => [x.kind, x.max_tokens, x.allowed_domains, x.model])));
   check('…the teach call carried the passage\'s Hebrew and English (as plain text, tags gone), the choose call did not',
     /Hebrew:\n.*אָמַר רַבִּי זֵירָא/s.test(wa1[1].user) && /English:\n.*Rabbi Zeira said that Rava bar Zimuna said/s.test(wa1[1].user) && !/<b>/.test(wa1[1].user) && !/Hebrew:/.test(wa1[0].user),
     wa1[1].user.slice(0, 500));
+  // --- hebrew-guide-one: Fable 5.1, room to think, the reading -------------------------
+  const [c1, t1r] = wa1;
+  console.log(`     the choose request: ${JSON.stringify({ model: c1.model, max_tokens: c1.max_tokens, reasoning: c1.reasoning, keys: c1.body_keys })}`);
+  console.log(`     the teach request:  ${JSON.stringify({ model: t1r.model, max_tokens: t1r.max_tokens, reasoning: t1r.reasoning, keys: t1r.body_keys })}`);
+  check('the guide\'s requests (choose and teach) name anthropic/claude-fable-5.1',
+    wa1.length === 2 && wa1.every((x) => x.model === 'anthropic/claude-fable-5.1'), JSON.stringify(wa1.map((x) => x.model)));
+  check('choose carries reasoning { max_tokens: 4000 } with max_tokens 6000, teach the same reasoning with max_tokens 9000; neither sends a temperature',
+    JSON.stringify(c1.reasoning) === '{"max_tokens":4000}' && c1.max_tokens === 6000 && JSON.stringify(t1r.reasoning) === '{"max_tokens":4000}' && t1r.max_tokens === 9000
+    && !c1.has_temperature && !t1r.has_temperature && c1.response_format && c1.response_format.type === 'json_object' && t1r.response_format === null,
+    JSON.stringify({ choose: [c1.reasoning, c1.max_tokens, c1.has_temperature, c1.response_format], teach: [t1r.reasoning, t1r.max_tokens, t1r.has_temperature] }));
+  check('choose is asked for the reading first, and for a passage that serves it',
+    /"reading": "<one or two sentences/.test(c1.system) && c1.system.indexOf('"reading"') < c1.system.indexOf('"ref"') && /The passage must serve the reading/.test(c1.system), c1.system.slice(-900));
+  const reading1 = `I read you as asking what lies beneath "${Q.slice(0, 50)}" (choice ${(/\(choice (\d+)\)/.exec(t1r.system) || [])[1]}).`;
+  check('the reading reaches the teach request (in its instructions, which say the stop must answer it), not the reader\'s move',
+    /When you chose this passage you read the reader's move as asking: I read you as asking what lies beneath "Does Jewish thought/.test(t1r.system) && /The stop must answer that reading\./.test(t1r.system) && t1r.move === Q,
+    t1r.system.slice(-400));
+  const saved1 = (() => { try { return JSON.parse(rows1[0].answer); } catch { return {}; } })();
+  check('the reading is kept in the saved stop\'s JSON and comes back on the stop',
+    saved1.reading === reading1 && w1.body.stops && w1.body.stops[0].reading === reading1, JSON.stringify({ saved: saved1.reading, served: w1.body.stops && w1.body.stops[0].reading, expected: reading1 }));
+
   const s1 = w1.body.stops && w1.body.stops[0];
   check('…the answer is the walk with Stop 1: the passage from Sefaria, its sefaria.org page, the guide\'s parts, two or three directions, the cited Sefaria pages',
     s1 && s1.n === 1 && s1.passage.title === 'Talmud, Shabbat 112b' && s1.passage.url === 'https://www.sefaria.org/Shabbat.112b' && /זֵירָא/.test(s1.passage.he)
@@ -154,7 +175,7 @@ try {
   const rpRows = peek('SELECT * FROM asks WHERE walk_id = ? ORDER BY id', w);
   const rpStop = rp.body.stops ? rp.body.stops.at(-1) : null;
   check('a pushback that asks the guide to reflect instead of naming a passage is a stop: the guide\'s reply, no reference, no teaching call, one asks row chained to the stop before',
-    rp.status === 200 && rp.body.new_stop === 4 && rpStop && rpStop.ref === null && rpStop.passage === null && /I read your question as asking/.test(rpStop.reply)
+    rp.status === 200 && rp.body.new_stop === 4 && rpStop && rpStop.ref === null && rpStop.passage === null && /I read your question as asking/.test(rpStop.reply) && rpStop.reading === '' && !/must not show/.test(rpRows.at(-1).answer)
     && rpStop.next.length === 2 && rpStop.next[0].label === 'Take the moral reading' && rpStop.move.kind === 'text'
     && rpRows.length === 4 && rpRows[3].ref === null && rpRows[3].parent_id === rows[2].id && rpRows[3].took_ms >= 0 && (await walkAsks()).length === askedBefore + 1,
     JSON.stringify({ status: rp.status, error: rp.body.error, stop: rpStop && { ref: rpStop.ref, reply: (rpStop.reply || '').slice(0, 40), next: rpStop.next }, rows: rpRows.map((r) => [r.id, r.parent_id, r.ref]) }).slice(0, 600));
@@ -165,6 +186,36 @@ try {
     rp2.status === 200 && rp2.body.stops.length === 5 && rp2.body.stops[4].ref && rp2.body.stops[4].move.kind === 'pick' && rp2.body.stops[4].move.text === 'Take the moral reading'
     && rp2Rows.length === 5 && rp2Rows[4].parent_id === rpRows[3].id && /Its stops so far, oldest first: Shabbat 112b; Genesis 1:1-3; [^;\n]+$/m.test(rp2Teach.user) && !/null/.test((/^Its stops so far.*$/m.exec(rp2Teach.user) || [''])[0]),
     JSON.stringify({ status: rp2.status, error: rp2.body.error, so: (/^Its stops so far.*$/m.exec(rp2Teach.user) || [''])[0], rows: rp2Rows.map((r) => [r.id, r.parent_id, r.ref]) }).slice(0, 600));
+
+  // a stop saved the old way (no reading in its JSON, as every stop before
+  // hebrew-guide-one) still reads back, with the stops around it unchanged
+  await control({ walk_no_reading: true });
+  const old = await api('POST', `/walks/${w}/step`, { text: 'An old-style stop: and the sages after them?' });
+  await control({ walk_no_reading: false });
+  const oldRow = peek('SELECT answer FROM asks WHERE walk_id = ? ORDER BY id DESC LIMIT 1', w)[0];
+  const oldTeach = (await walkAsks()).filter((x) => x.kind === 'teach').at(-1);
+  const reread = await api('GET', `/walks/${w}/stops`);
+  const oldStop = reread.body.stops ? reread.body.stops.at(-1) : null;
+  check('a stop with no reading in its saved JSON (the shape of every stop before) reads back whole with reading "", its teach asked as before, and the earlier stops keep theirs',
+    old.status === 200 && !('reading' in JSON.parse(oldRow.answer)) && oldStop && oldStop.reading === '' && oldStop.explanation && oldStop.passage && oldStop.next.length === 3
+    && !/When you chose this passage/.test(oldTeach.system) && reread.body.stops[0].reading === reading1 && reread.body.stops.length === 6,
+    JSON.stringify({ status: old.status, error: old.body.error, saved: oldRow && oldRow.answer.slice(0, 80), reading: oldStop && oldStop.reading, n: reread.body.stops && reread.body.stops.length }));
+
+  // OpenRouter refusing reasoning (400) on this route: each call is made once
+  // more without it, and the stop is still made (Dan, hebrew-guide-one)
+  const refusedBefore = (await calls()).reasoning_refused.length, askedBeforeR = (await walkAsks()).length;
+  await control({ reasoning_refused: true });
+  const refused = await api('POST', `/walks/${w}/step`, { text: 'A route that refuses reasoning: and the counter-voices?' });
+  await control({ reasoning_refused: false });
+  const refusedReqs = (await calls()).reasoning_refused.slice(refusedBefore);
+  const retried = (await walkAsks()).slice(askedBeforeR);
+  check('OpenRouter refusing a request with reasoning (400): choose and teach are each refused once with reasoning, made once more without it (temperature 0, the same token caps), and the stop is made; the server log names the model and OpenRouter\'s message',
+    refused.status === 200 && refused.body.new_stop === 7
+    && refusedReqs.length === 2 && refusedReqs.every((x) => JSON.stringify(x.reasoning) === '{"max_tokens":4000}' && x.model === 'anthropic/claude-fable-5.1') && !refusedReqs[0].tools && refusedReqs[1].tools
+    && retried.map((x) => x.kind).join() === 'choose,teach' && retried.every((x) => x.reasoning === null && x.temperature === 0 && x.model === 'anthropic/claude-fable-5.1')
+    && retried[0].max_tokens === 6000 && retried[1].max_tokens === 9000
+    && /The stop could not be made: anthropic\/claude-fable-5\.1 refused the request with reasoning \(400: reasoning is not supported with these parameters on this route\); asking once more without it/.test(server.log),
+    JSON.stringify({ status: refused.status, error: refused.body.error, new_stop: refused.body.new_stop, refused: refusedReqs.map((x) => [x.reasoning, x.tools]), retried: retried.map((x) => [x.kind, x.reasoning, x.has_temperature, x.max_tokens]) }));
 
   // a walk of twelve stops: the thirteenth carries the last ten
   const long = (await api('POST', '/walks/start', { question: 'Turn 1: where does authority sit?' })).body;
@@ -246,8 +297,10 @@ try {
   const slow = await api('POST', `/walks/${w}/step`, { pick: 0 });
   const slowMs = Date.now() - t1;
   const slowRow = peek('SELECT took_ms FROM asks ORDER BY id DESC LIMIT 1')[0];
-  check('a teach answering after 4 s is kept under the 5-second limit, and its took_ms counts both calls (at least 4 s)',
-    slow.status === 200 && count('asks') === asksBefore + 1 && slowRow.took_ms >= 4000 && slowMs >= 4000, JSON.stringify({ status: slow.status, error: slow.body.error, took_ms: slowRow.took_ms, slowMs }));
+  const slowTeach = (await walkAsks()).filter((x) => x.kind === 'teach').at(-1);
+  check('a teach answering after 4 s is kept under the 5-second limit (the desk\'s limit replaced from this check, its thinking kept: reasoning 4000, 9000 tokens), and its took_ms counts both calls (at least 4 s)',
+    slow.status === 200 && count('asks') === asksBefore + 1 && slowRow.took_ms >= 4000 && slowMs >= 4000 && JSON.stringify(slowTeach.reasoning) === '{"max_tokens":4000}' && slowTeach.max_tokens === 9000,
+    JSON.stringify({ status: slow.status, error: slow.body.error, took_ms: slowRow.took_ms, slowMs, reasoning: slowTeach.reasoning }));
   await control({ walk_teach_ms: 0, walk_teach_hang: true });
   const stopsNow = (await api('GET', `/walks/${w}/stops`)).body.stops.length;
   asksBefore = count('asks');
@@ -258,7 +311,14 @@ try {
     hung.status === 504 && hung.body.error === 'The stop could not be made: the guide did not answer within the time limit of 5 s.' && hungMs >= 4900 && hungMs < 8000
     && count('asks') === asksBefore && hung.body.walk.stops.length === stopsNow,
     JSON.stringify({ status: hung.status, body: hung.body.error, hungMs }));
-  await control({ walk_teach_hang: false, walk_teach_down: true });
+  await control({ walk_teach_hang: false, walk_choose_hang: true });
+  t1 = Date.now();
+  const chooseHung = await api('POST', `/walks/${w}/step`, { pick: 2 });
+  const chooseHungMs = Date.now() - t1;
+  check('a choose that never answers ends at its own limit (3 s, set from this check), and the failure line names that limit, not the stop\'s',
+    chooseHung.status === 504 && chooseHung.body.error === 'The stop could not be made: the guide did not answer within the time limit of 3 s.' && chooseHungMs >= 2900 && chooseHungMs < 5000 && count('asks') === asksBefore,
+    JSON.stringify({ status: chooseHung.status, body: chooseHung.body.error, chooseHungMs }));
+  await control({ walk_choose_hang: false, walk_teach_down: true });
   const unreachable = await api('POST', `/walks/${w}/step`, { pick: 2 });
   check('the model unreachable: the failure line says so', unreachable.status === 502 && /^The stop could not be made: OpenRouter is unreachable/.test(unreachable.body.error), JSON.stringify(unreachable.body));
   await control({ walk_teach_down: false });
@@ -365,6 +425,9 @@ try {
   check('the hebrew desk still answers the root ask as before: its own persona, the seven sites, the card model, 900 tokens',
     heb.status === 200 && hebAsk.system.startsWith('You are a Hebrew reference desk') && hebAsk.parameters.allowed_domains.length === 7 && hebAsk.model === 'anthropic/claude-sonnet-4.6' && hebAsk.max_tokens === 900 && peek('SELECT walk_id, ref, took_ms FROM asks WHERE id = ?', heb.body.id).every((r) => r.walk_id === null && r.ref === null && r.took_ms === null),
     JSON.stringify({ status: heb.status, model: hebAsk && hebAsk.model }));
+  console.log(`     a card-model request (the root ask): ${JSON.stringify({ model: hebAsk.model, max_tokens: hebAsk.max_tokens, temperature: hebAsk.temperature, reasoning: hebAsk.reasoning, keys: hebAsk.body_keys })}`);
+  check('a card-model call (the root ask) carries no reasoning field and keeps temperature 0, as before',
+    hebAsk.reasoning === null && !hebAsk.body_keys.includes('reasoning') && hebAsk.temperature === 0, JSON.stringify(hebAsk.body_keys));
   check('the server log names each stop made and each refusal of Sefaria', /walk \d+: stop at Shabbat 112b \(ask \d+\) in \d+ ms/.test(server.log) && /sefaria: "Notabook 1" not known/.test(server.log));
 } catch (e) {
   console.error(e);

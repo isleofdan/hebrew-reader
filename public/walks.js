@@ -250,6 +250,14 @@ function stopPanel(s) {
     head.append(a);
   }
   panel.append(head);
+  // how the guide read the move it chose this passage for (none on a stop
+  // saved before it was asked, on a reply, or on a walk begun at a passage)
+  if (s.reading) {
+    const r = el('p', 'walk-reading');
+    r.dir = 'auto';
+    r.append(el('span', 'walk-reading-label', 'Your question, as I read it: '), s.reading);
+    panel.append(r);
+  }
   if (s.passage) {
     const block = el('div', 'walk-passage');
     const he = el('div', 'walk-he', s.passage.he); he.lang = 'he'; he.dir = 'rtl';

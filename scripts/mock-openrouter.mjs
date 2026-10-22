@@ -170,6 +170,7 @@ function webSearch(req, res, body) {
   const user = body.messages.filter((m) => m.role === 'user').at(-1).content;
   const subject = (/^The (card|article|root):/.exec(user) || [])[1] || null;
   searchAsks.push({ tool: tool.type, parameters: tool.parameters || {}, response_format: body.response_format || null, max_tokens: body.max_tokens, model: body.model,
+    reasoning: body.reasoning === undefined ? null : body.reasoning, temperature: body.temperature === undefined ? null : body.temperature, body_keys: Object.keys(body),
     kind: subject ? 'ask' : 'examples', subject, system: body.messages[0].content, user, turns: body.messages.slice(1, -1).map((m) => ({ role: m.role, content: m.content })),
     has_entry: /Root: /.test(user), has_layers: /What the reader has added/.test(user), forms: (/Forms to look for: (.*)/.exec(user) || [])[1] || null });
   let content, cites = [];
@@ -292,14 +293,20 @@ function mockArticleGuide(user, fault) {
 // (default Shabbat 112b, Genesis 1:1-3, Ecclesiastes 1:9, round and round).
 // control.walk_teach_ms: teach answers after that many ms; walk_teach_hang:
 // teach never answers; walk_teach_down: teach drops the connection;
-// walk_teach_thin: teach answers a stop with parts missing.
+// walk_teach_thin: teach answers a stop with parts missing; walk_choose_hang:
+// choose never answers.
+// A choose naming a passage answers its `reading` first (hebrew-guide-one):
+// "I read you as asking …" with the move's first words; walk_no_reading
+// leaves it out, as every choose did before (a stop saved the old way).
+// The reply carries a reading too, which the server must not show.
 let walkChooses = 0;
 const walkAsks = [];
+const reasoningRefused = [];
 const WALK_REFS = ['Shabbat 112b', 'Genesis 1:1-3', 'Ecclesiastes 1:9'];
 function thoughtCall(req, res, body, user) {
   const teach = Array.isArray(body.tools) && body.tools.length > 0;
   const move = user.split('\n\nQuestion: ')[1] || '';
-  walkAsks.push({ kind: teach ? 'teach' : 'choose', model: body.model, max_tokens: body.max_tokens, system: body.messages[0].content, user, move,
+  walkAsks.push({ kind: teach ? 'teach' : 'choose', model: body.model, max_tokens: body.max_tokens, reasoning: body.reasoning === undefined ? null : body.reasoning, has_temperature: 'temperature' in body, temperature: body.temperature === undefined ? null : body.temperature, body_keys: Object.keys(body), system: body.messages[0].content, user, move,
     turns: body.messages.slice(1, -1).map((m) => ({ role: m.role, content: m.content })),
     allowed_domains: teach ? (body.tools[0].parameters || {}).allowed_domains : null, response_format: body.response_format || null });
   const reply = (content, cites = []) => {
@@ -309,11 +316,13 @@ function thoughtCall(req, res, body, user) {
       usage: { prompt_tokens: 2000, completion_tokens: 900, ...(teach ? { server_tool_use: { web_search_requests: 1 } } : {}) } }));
   };
   if (!teach) {
+    if (control.walk_choose_hang) return; // choose never answers
     walkChooses++;
     let answer;
     if (/israeli politics|decline/i.test(move)) answer = { declined: 'Current Israeli politics is outside what I do here; I walk through the texts of the tradition.' };
     // the guide answers the move itself, naming no passage (a pushback that asks it to reflect)
     else if (/what you think my question means|reflect|before searching/i.test(move)) answer = {
+      reading: 'A reading the reply must not show.',
       reply: 'I read your question as asking whether the tradition believes humanity is getting better, not whether it is getting more knowledgeable. The two come apart.',
       next: [{ label: 'Take the moral reading', why: 'The prophets on a people learning.' }, { label: 'Take the knowledge reading', why: 'The dwarfs on giants again.' }],
     };
@@ -326,6 +335,7 @@ function thoughtCall(req, res, body, user) {
       const ref = refs[(so ? so.split('; ').length : 0) % refs.length];
       answer = { ref, title: ref, declined: '' };
     }
+    if (answer.ref && !control.walk_no_reading) answer = { reading: `I read you as asking what lies beneath "${move.split('\n')[0].slice(0, 50)}" (choice ${walkChooses}).`, ...answer };
     return reply(JSON.stringify(answer));
   }
   const ref = (/^The passage for this stop: .* \((.+)\)$/m.exec(user) || [])[1] || '';
@@ -354,7 +364,7 @@ function thoughtCall(req, res, body, user) {
 }
 
 http.createServer((req, res) => {
-  if (req.url === '/calls') { res.end(JSON.stringify({ walk_asks: walkAsks,difficulty_calls: difficultyCalls, last_difficulty_ask: lastDifficultyAsk, passage_calls: passageCalls, sentence_calls: sentenceCalls, misspell_calls: misspellCalls, last_passage_ask: lastPassageAsk, judge_calls: judgeCalls, last_judge_max_tokens: lastJudgeMaxTokens, article_guides: articleGuides, last_article_guide_model: lastArticleGuideModel, sheet_calls: sheetCalls, sheet_asks: sheetAsks, search_calls: searchCalls, search_asks: searchAsks, calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
+  if (req.url === '/calls') { res.end(JSON.stringify({ walk_asks: walkAsks, reasoning_refused: reasoningRefused, difficulty_calls: difficultyCalls, last_difficulty_ask: lastDifficultyAsk, passage_calls: passageCalls, sentence_calls: sentenceCalls, misspell_calls: misspellCalls, last_passage_ask: lastPassageAsk, judge_calls: judgeCalls, last_judge_max_tokens: lastJudgeMaxTokens, article_guides: articleGuides, last_article_guide_model: lastArticleGuideModel, sheet_calls: sheetCalls, sheet_asks: sheetAsks, search_calls: searchCalls, search_asks: searchAsks, calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
   let raw = '';
   req.on('data', (c) => raw += c);
   req.on('end', () => {
@@ -369,6 +379,15 @@ http.createServer((req, res) => {
       return;
     }
     const lastUser = body.messages.filter((m) => m.role === 'user').at(-1).content;
+    // reasoning_refused: any request carrying `reasoning` is answered 400, as
+    // OpenRouter might if a route does not take it beside JSON mode or the
+    // web search (hebrew-guide-one); each refused request is kept
+    if (control.reasoning_refused && body.reasoning) {
+      reasoningRefused.push({ model: body.model, max_tokens: body.max_tokens, reasoning: body.reasoning, tools: Array.isArray(body.tools) && body.tools.length > 0, response_format: body.response_format || null });
+      res.writeHead(400, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: { message: 'reasoning is not supported with these parameters on this route', code: 400 } }));
+      return;
+    }
     if (lastUser.startsWith('The walk:')) return thoughtCall(req, res, body, lastUser);
     const user = body.messages.find((m) => m.role === 'user').content;
     if (Array.isArray(body.tools) && body.tools.length) return webSearch(req, res, body);

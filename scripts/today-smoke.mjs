@@ -123,7 +123,7 @@ try {
   const calls1 = await orCalls();
   check('fresh passages: two, made with the guide model and a JSON schema, each using at least three of the words given',
     p1.kind === 'passage' && p2.kind === 'passage' && p1.words_used.length >= 3 && p2.words_used.length >= 3 && calls1.passage_calls === 2
-    && calls1.last_passage_ask.model === 'anthropic/claude-opus-4.6' && calls1.last_passage_ask.schema_name === 'today_passage', JSON.stringify(calls1.last_passage_ask && calls1.last_passage_ask.model));
+    && calls1.last_passage_ask.model === 'anthropic/claude-fable-5.1' && calls1.last_passage_ask.schema_name === 'today_passage', JSON.stringify(calls1.last_passage_ask && calls1.last_passage_ask.model));
   check('…the subjects in turn, the questions alternating (a verb blanked, then a comprehension question with three choices)',
     p1.subject.startsWith('energy') && p2.subject === 'business and markets' && p1.question.type === 'form' && p1.question.text.includes('…')
     && p2.question.type === 'choice' && p2.question.choices.length === 3 && p2.question.answer === 'על החלטה של הממשלה');
