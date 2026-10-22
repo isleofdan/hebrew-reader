@@ -66,7 +66,7 @@ The spine was cloned read-only into this session; nothing in it was changed.
 | `SPINE_TOKEN` | optional; the spine's bearer token for recording marks |
 | `SPINE_URL` | optional; default `https://spine-dan.fly.dev` |
 | `OPENROUTER_URL` | optional; default `https://openrouter.ai/api/v1/chat/completions` |
-| `SEFARIA_URL` | optional; Sefaria's base address for the walks' passages, default `https://www.sefaria.org` (the checks point it at `scripts/mock-sefaria.mjs`) |
+| `SEFARIA_URL` | optional; Sefaria's base address for the walks' passages and Study's library, default `https://www.sefaria.org` (the checks point it at `scripts/mock-sefaria.mjs`) |
 | `DATA_DIR` | where `reader.db` lives; `./data` locally, `/data` on Fly |
 | `PORT` | listen port, default 8080 |
 | `COOKIE_INSECURE` | `1` only for local plain-http runs |
@@ -1691,3 +1691,89 @@ failure line says the guide did not answer.
   before); totals 739 server checks and 625 page checks. Seven older checks
   changed in their model id only (`smoke.mjs` four, `hunt-smoke.mjs`,
   `today-smoke.mjs`), and two walks checks in the desk's numbers.
+
+## hebrew-study-one (22 Oct 2026, the rented Linux machine, OpenRig team): Study, the library from Sefaria
+
+The step Dan parked until Walks existed: a structured way into the library
+beside the question-led walks. Doors into the text, never a reading plan:
+no count, streak, percentage or badge anywhere.
+
+**Dan's screens changed.** "Study" joins the top navigation after "Walks"
+on every page that carries it. `/study`: "Today's daf: <tractate page>"
+and "This week's portion: <name>", "Continue: <the page opened last>" (the
+other books' places, at most five, under a closed "Other places"); then the
+Tanakh (Torah, Prophets, Writings) and the Talmud (by Seder), each book a
+row with its Hebrew title and its size ("50 chapters", "2a – 64a"). A row
+opens in place to a grid of its chapters, or its pages with each daf once
+and its a and b sides (a side with no text left blank); the row stays at
+the same height. `/study/<page>` (`/study/Genesis.1`, `/study/Berakhot.2a`):
+the title with its Hebrew, "← Contents" (back to `/study` with that book
+open), Previous and Next at the top and the bottom, and every line, Hebrew
+beside English on the computer and stacked on the phone. Tapping a line
+marks it, a second marks the run between them, a marked line clears; a bar
+fixed at the foot, "Start a walk here" with the marked lines' reference
+("Genesis 1:3–5", or the page's when nothing is marked), opens the Walks
+page at that passage, where Start makes the first stop. A walk stop gains
+"Read it in Study" beside "Full passage", and "First 40 of N lines" under a
+passage that was cut.
+
+- **Sefaria** (`lib/library.js`; sizes measured from the build machine):
+  the contents from `GET /api/shape/Tanakh` (9 KB) and `GET
+  /api/shape/Bavli` (26 KB): each book's `title`, `heTitle`, `section` (the
+  group) and `length`. Chosen over the whole-library `GET /api/index`
+  (4.0 MB, no lengths) and the per-book `GET /api/v2/index/<title>` (14–16
+  KB a book, 76 calls; its `schema.lengths[0]` is the same length). The
+  shapes' order is `/api/index`'s (compared book by book). A book's length
+  is `length`: its chapters for the Tanakh; for a tractate, its daf sides
+  counted from 1a (index 0 = 1a, 2 = 2a), with `chapters[i]` the lines on
+  side i, 0 for none — Berakhot 127, so 2a to 64a (Sefaria: "Berakhot ends
+  at Daf 64a"); Tamid begins at 25b; Nazir 33b is empty. Today from `GET
+  /api/calendars?timezone=Asia/Tokyo&year=&month=&day=` (4.9 KB):
+  `calendar_items[]` with `title.en` "Daf Yomi" (a whole daf, "Bekhorot 34";
+  opened at its side a) and "Parashat Hashavua" (`ref` "Genesis
+  12:1-17:27", `displayValue.en` "Lech-Lecha"). A page from the Texts API
+  v3 (`lib/sefaria.js`, now with `getJson` shared): `ref`, `heRef`,
+  `versions[].text`, `next`, `prev`; `next` is null at a book's last chapter
+  and a tractate's last page (live: Genesis 50, Malachi 3, Berakhot 64a,
+  Niddah 73a), so Next then goes to the next book's first page from the
+  contents, never from the Tanakh into the Talmud. Lines are `plain` from
+  `lib/sefaria.js`, each with its own reference (`Genesis 1:3`, `Berakhot
+  2a:5`). A Daf Yomi outside the Tanakh and the Bavli would link to its
+  sefaria.org page and say "(on sefaria.org)"; it cannot happen with the
+  Daf Yomi as Sefaria gives it (always a Bavli daf), but the calendar's
+  other cycles (Yerushalmi, Mishnah) would, so it is handled.
+- **The record** (in `migrate()`, nothing dropped or moved):
+  `library_contents(corpus, books_json, fetched_at)` (refetched by the
+  first request more than 30 days after `fetched_at`; a failed refresh
+  serves the kept copy), `library_pages(ref, book, title, he_title,
+  lines_json, prev, next, fetched_at)` (a page is fetched once, never
+  again), `library_calendar(day, json, fetched_at)` (by the Tokyo day),
+  `study_places(book, ref, opened_at)` (written only by opening a page);
+  the column `passages.lines` (`ALTER TABLE … ADD COLUMN`; null for
+  passages kept before).
+- **Routes**: pages `GET /study`, `GET /study/<page>` (signed out: 303 to
+  `/login`); data `GET /study/data/contents`, `/study/data/today`,
+  `/study/data/places`, `/study/data/page/<page>` (signed out: 401). The
+  refusals name what is valid: an unknown book lists the books, "Genesis
+  has chapters 1 to 50; there is no chapter 51.", "Berakhot has pages 2a to
+  64a; there is no page 65a.", "Sefaria has no text for Shabbat 3a; …".
+  Sefaria down: 502 "Sefaria could not be reached", the kept copy served
+  when there is one. No model call anywhere in Study.
+- **The 40-line cut** (Dan's decision): the guide's passage stays at 40
+  lines (`SEGMENTS_MAX`); the passage's full count is kept, and a stop says
+  "First 40 of N lines" when it was cut. "Read it in Study" points at the
+  page holding the passage's first line (from the kept contents; none for
+  a text outside the Tanakh and the Talmud).
+- **The screenshot check**: a missing Playwright browser now fails `npm
+  run check` on every machine, naming the install line;
+  `CHECK_SKIP_SCREENSHOTS=1` skips them and says so.
+- **Found for a later session**: `public/tokenize.js` splits Sefaria's
+  Tanakh Hebrew inside words — its letter class leaves out the cantillation
+  marks (U+0591–U+05AF), so בָּרָ֣א becomes בָּרָ and א; the Talmud's Hebrew
+  (vowels only) splits correctly. A word card on Study would need those
+  marks counted as part of a word.
+- **Checks**: `study-smoke.mjs` 46, `study-pages.mjs` 50; totals 785 server
+  checks and 675 page checks. Four older checks changed in wording only: the
+  navigation now ends with Study (`walks-pages.mjs`, `today-pages.mjs`,
+  `lookup-pages.mjs`) and the known tables include the four new ones
+  (`lookup-smoke.mjs`).

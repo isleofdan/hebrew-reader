@@ -28,7 +28,7 @@
 //                      ends at Chapter 50."
 // POST /control { lengths: { Genesis: 51 } } changes a book's length in the
 // shape (the contents' refresh), { daf: "<ref>" } today's Daf Yomi. These
-// are counted in /calls as "shape:<corpus>" and "calendars".
+// are counted in /calls as "shape:<corpus>" and "calendars?<query>".
 //   node scripts/mock-sefaria.mjs [port]
 import http from 'node:http';
 
@@ -126,7 +126,7 @@ http.createServer((req, res) => {
   const m = /^\/api\/v3\/texts\/(.+)$/.exec(url.pathname);
   if (!m && !sh && !cal) return json(404, { error: `nothing at ${url.pathname}` });
   const tref = m ? decodeURIComponent(m[1]) : '';
-  asked.push(sh ? `shape:${sh[1]}` : cal ? 'calendars' : tref);
+  asked.push(sh ? `shape:${sh[1]}` : cal ? `calendars${url.search}` : tref);
   const answer = () => {
     if (sh) return json(200, shape(sh[1]));
     if (cal) {

@@ -11,9 +11,10 @@
 //       (.claude/settings.json): silent when they pass; when one fails,
 //       its output goes to stderr and the exit code is 2, which is how a
 //       PostToolUse hook shows a failure to the session.
-// Screenshots need Playwright's browser. Where it is missing (some
-// machines) they are skipped and the verdict says so; in GitHub Actions
-// (CI set) a missing browser is a failure.
+// Screenshots need Playwright's browser. A missing browser is a failure on
+// every machine, naming how to install it (hebrew-study-one; before, only in
+// GitHub Actions), unless CHECK_SKIP_SCREENSHOTS=1 is set: then they are
+// skipped and the verdict says so.
 import { spawnSync } from 'node:child_process';
 import { existsSync, openSync, closeSync, statSync, unlinkSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -83,8 +84,8 @@ const checks = [
       let browser = null;
       try { browser = (await import('playwright')).chromium.executablePath(); } catch {}
       if (!browser || !existsSync(browser)) {
-        if (process.env.CI) return { ok: false, output: '', detail: "Playwright's browser is missing (npx playwright install chromium)" };
-        return { ok: true, skipped: 'no browser on this machine; the Checks workflow runs them' };
+        if (process.env.CHECK_SKIP_SCREENSHOTS === '1') return { ok: true, skipped: "CHECK_SKIP_SCREENSHOTS=1 and Playwright's browser is missing; the Checks workflow runs them" };
+        return { ok: false, output: '', detail: `Playwright's browser is missing${browser ? ` (${browser})` : ''}: install it with npx playwright install chromium, or set CHECK_SKIP_SCREENSHOTS=1 to skip the screenshots` };
       }
       const r = run('npm', ['run', 'screenshots', '--silent']);
       const output = r.stdout + r.stderr;
