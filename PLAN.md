@@ -1644,8 +1644,11 @@ under "Stop N · …", with a quiet line: "Your question, as I read it: …",
 one or two sentences in the guide's voice saying what it takes his move to
 be asking. Stops saved before have no such line and draw as before; a stop
 where the guide answers him itself (no passage) shows none; a walk begun at
-a passage shows none on its first stop. A stop may take longer: up to
-about four minutes before the failure line says the guide did not answer.
+a passage shows none on its first stop. A stop may take longer: choosing
+the passage may take up to 150 s and teaching it up to 240 s, each with its
+own limit (and a call OpenRouter refuses with reasoning gets a fresh limit
+for its second try), so a slow stop can run past six minutes before the
+failure line says the guide did not answer.
 
 - **The guide model** (`lib/lookup.js`): `GUIDE_MODEL` defaults to
   `anthropic/claude-fable-5.1`; the environment override and the fallback
