@@ -201,6 +201,22 @@ try {
     && !/When you chose this passage/.test(oldTeach.system) && reread.body.stops[0].reading === reading1 && reread.body.stops.length === 6,
     JSON.stringify({ status: old.status, error: old.body.error, saved: oldRow && oldRow.answer.slice(0, 80), reading: oldStop && oldStop.reading, n: reread.body.stops && reread.body.stops.length }));
 
+  // OpenRouter refusing reasoning (400) on this route: each call is made once
+  // more without it, and the stop is still made (Dan, hebrew-guide-one)
+  const refusedBefore = (await calls()).reasoning_refused.length, askedBeforeR = (await walkAsks()).length;
+  await control({ reasoning_refused: true });
+  const refused = await api('POST', `/walks/${w}/step`, { text: 'A route that refuses reasoning: and the counter-voices?' });
+  await control({ reasoning_refused: false });
+  const refusedReqs = (await calls()).reasoning_refused.slice(refusedBefore);
+  const retried = (await walkAsks()).slice(askedBeforeR);
+  check('OpenRouter refusing a request with reasoning (400): choose and teach are each refused once with reasoning, made once more without it (temperature 0, the same token caps), and the stop is made; the server log names the model and OpenRouter\'s message',
+    refused.status === 200 && refused.body.new_stop === 7
+    && refusedReqs.length === 2 && refusedReqs.every((x) => JSON.stringify(x.reasoning) === '{"max_tokens":4000}' && x.model === 'anthropic/claude-fable-5.1') && !refusedReqs[0].tools && refusedReqs[1].tools
+    && retried.map((x) => x.kind).join() === 'choose,teach' && retried.every((x) => x.reasoning === null && x.temperature === 0 && x.model === 'anthropic/claude-fable-5.1')
+    && retried[0].max_tokens === 6000 && retried[1].max_tokens === 9000
+    && /The stop could not be made: anthropic\/claude-fable-5\.1 refused the request with reasoning \(400: reasoning is not supported with these parameters on this route\); asking once more without it/.test(server.log),
+    JSON.stringify({ status: refused.status, error: refused.body.error, new_stop: refused.body.new_stop, refused: refusedReqs.map((x) => [x.reasoning, x.tools]), retried: retried.map((x) => [x.kind, x.reasoning, x.has_temperature, x.max_tokens]) }));
+
   // a walk of twelve stops: the thirteenth carries the last ten
   const long = (await api('POST', '/walks/start', { question: 'Turn 1: where does authority sit?' })).body;
   for (let i = 2; i <= 12; i++) await api('POST', `/walks/${long.id}/step`, { text: `Turn ${i}: and then?` });

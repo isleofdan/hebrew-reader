@@ -1667,9 +1667,13 @@ about four minutes before the failure line says the guide did not answer.
   limits through unchanged. The `thought` desk: *choose* `{ 6000 tokens,
   150 s, reasoning 4000 }`, a stop (*teach*) `{ 9000 tokens, 240 s,
   reasoning 4000 }`. *Choose* keeps JSON mode (`json_object`) and *teach*
-  the web search, each with reasoning; not yet tried against the live
-  route (the checks use the stand-in model), so the first live walk is the
-  test of that combination.
+  the web search, each with reasoning. That combination could not be tried
+  against the live route from the build machine, so (Dan's ask) a request
+  with reasoning that OpenRouter refuses with 400 or 422 — but not "no such
+  model", which keeps its own fallback — is logged in one line naming the
+  model and OpenRouter's message, and made once more without reasoning, at
+  temperature 0 as before. A walk then still gets its stop, without the
+  room to think; the log line is the sign to look at.
 - **The reading** (`lib/walks.js`): `CHOOSE_FORMAT` asks for `reading`
   first, then the passage, which must serve it. The reading of the choice
   that made the stop goes to *teach* in its instructions ("The stop must
@@ -1680,7 +1684,7 @@ about four minutes before the failure line says the guide did not answer.
 - **A time-out names its own limit**: the failure line for a *choose* that
   timed out named the stop's limit; it now names the limit of the call that
   was running.
-- **Checks**: `walks-smoke.mjs` 68 (60 before), `walks-pages.mjs` 38 (34
-  before); totals 738 server checks and 625 page checks. Seven older checks
+- **Checks**: `walks-smoke.mjs` 69 (60 before), `walks-pages.mjs` 38 (34
+  before); totals 739 server checks and 625 page checks. Seven older checks
   changed in their model id only (`smoke.mjs` four, `hunt-smoke.mjs`,
   `today-smoke.mjs`), and two walks checks in the desk's numbers.
