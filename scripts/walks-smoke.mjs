@@ -419,14 +419,14 @@ try {
   check('…and the stop is made: two stops, failure null', bgGet.stops.length === 2 && bgGet.failure === null && bgGet.pending === false, JSON.stringify(bgGet).slice(0, 200));
 
   // --- hebrew-study-one, step 5b: the guide's cite markers --------------------------------
-  // (Dan's live stop, 22 Oct 2026: `(cite index="7-8">a great scholar …</cite>` printed as text)
+  // (Dan's live stop, 22 Oct 2026: `<cite index="7-8">a great scholar …</cite>` printed as text)
   const MARK = /cite index=|<\/?cite\b/;
   await control({ walk_cite: true });
   const cw = await api('POST', '/walks/start', { question: 'Cite markers: does the law move?' });
   const cRow = peek('SELECT * FROM asks WHERE walk_id = ?', cw.body.id)[0] || {};
   const cSaved = (() => { try { return JSON.parse(cRow.answer); } catch { return {}; } })();
   const cStop = (cw.body.stops || [])[0] || {};
-  check('a stop whose guide answer carries `(cite index="1-2">x</cite>` in its explanation, opinion and a direction\'s why (and the reading) is stored without the tags, "x" kept',
+  check('a stop whose guide answer carries `<cite index="1-2">x</cite>` in its explanation, opinion and a direction\'s why (and the reading) is stored without the tags, "x" kept',
     cw.status === 200 && !MARK.test(cRow.answer) && /\(The guide was given \d earlier stop\(s\)\.\) x And 3 < 4 stays\.$/.test(cSaved.explanation)
     && /^x I think this passage is about authority/.test(cSaved.opinion) && /Tell me where\. The day is short$/.test(cSaved.opinion)
     && cSaved.next[0].why === 'Rav Kook read the whole world as climbing. x' && /\(choice \d+\)\. x$/.test(cSaved.reading),
@@ -442,8 +442,8 @@ try {
   await control({ walk_cite: false });
   // a stop stored before this change, with the markers in it (the check writes
   // the row as the old code kept it; Dan's own rows are never rewritten)
-  const oldAnswer = JSON.stringify({ why_here: 'Why (cite index="7-8">a great scholar</cite> here.', transliteration: 't', explanation: 'Plain <cite index="2-1">words</cite>.', argues: '(cite index="3-1">The day is short</cite>', opinion: 'Mine (cite index="1-2">x</cite>', reading: 'Read (cite index="1-2">x</cite>',
-    next: [{ label: 'Go (cite index="5-5">on</cite>', why: 'Because (cite index="1-2">x</cite>' }, { label: 'Stay', why: 'Since 1 < 2.' }] });
+  const oldAnswer = JSON.stringify({ why_here: 'Why <cite index="7-8">a great scholar</cite> here.', transliteration: 't', explanation: 'Plain <cite index="2-1">words</cite>.', argues: '<cite index="3-1">The day is short</cite>', opinion: 'Mine <cite index="1-2">x</cite>', reading: 'Read <cite index="1-2">x</cite>',
+    next: [{ label: 'Go <cite index="5-5">on</cite>', why: 'Because <cite index="1-2">x</cite>' }, { label: 'Stay', why: 'Since 1 < 2.' }] });
   const rw = new Database(join(dataDir, 'reader.db'));
   rw.prepare('UPDATE asks SET answer = ? WHERE id = ?').run(oldAnswer, cRow.id);
   rw.close();
@@ -451,9 +451,9 @@ try {
   // <cite-note> lost its opening tag) — only the tag named cite goes
   const walksLib = require(join(root, 'lib', 'walks.js'));
   const prose = JSON.parse(walksLib.readChoice({ reply: 'Please (cite the source) when x > y.' }));
-  const tags = JSON.parse(walksLib.readStop({ why_here: '<cite>a</cite> and <cite index="2">b</cite>', transliteration: 't', explanation: '<cite-note>x</cite-note> stays', argues: '', opinion: 'Cite (cite index="1-2" lang="en">c</cite>, but (cite me>, please.',
+  const tags = JSON.parse(walksLib.readStop({ why_here: '<cite>a</cite> and <cite index="2">b</cite>', transliteration: 't', explanation: '<cite-note>x</cite-note> stays', argues: '', opinion: 'Cite <cite index="1-2" lang="en">c</cite>, but (cite me>, please.',
     next: [{ label: 'One', why: 'One.' }, { label: 'Two', why: 'Two.' }] }));
-  check('only the cite tag goes: "Please (cite the source) when x > y." and "<cite-note>x</cite-note>" untouched; <cite>, <cite index="2"> and (cite index="1-2" lang="en"> stripped; "(cite me>" (no attribute) kept',
+  check('only the cite tag goes: "Please (cite the source) when x > y." and "<cite-note>x</cite-note>" untouched; <cite>, <cite index="2"> and <cite index="1-2" lang="en"> stripped; "(cite me>" (a parenthesis, not a tag) kept',
     prose.reply === 'Please (cite the source) when x > y.' && tags.why_here === 'a and b' && tags.explanation === '<cite-note>x</cite-note> stays' && tags.opinion === 'Cite c, but (cite me>, please.',
     JSON.stringify({ prose: prose.reply, why_here: tags.why_here, explanation: tags.explanation, opinion: tags.opinion }));
   // dev-check on 988cba8: before Study's contents were ever fetched, a stop

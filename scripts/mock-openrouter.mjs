@@ -300,12 +300,12 @@ function mockArticleGuide(user, fault) {
 // leaves it out, as every choose did before (a stop saved the old way).
 // The reply carries a reading too, which the server must not show.
 // control.walk_cite (hebrew-study-one, step 5b): the guide's words carry the
-// web search's citation markers inline, as Dan saw them live — `(cite
+// web search's citation markers inline, as Dan saw them live — `<cite
 // index="1-2">x</cite>` in teach's explanation, opinion and first direction's
 // why, `<cite index="3-1">…</cite>` in its opinion, and in a reply, its
 // first direction's why and the reading; the explanation also carries a
 // literal "3 < 4" that is no tag.
-const CITE = '(cite index="1-2">x</cite>';
+const CITE = '<cite index="1-2">x</cite>';
 let walkChooses = 0;
 const walkAsks = [];
 const reasoningRefused = [];

@@ -1778,17 +1778,18 @@ passage that was cut.
   (vowels only) splits correctly. A word card on Study would need those
   marks counted as part of a word.
 - **The guide's cite markers** (step 5b, added by Dan mid-session): a live
-  stop showed the web search's markers as text, `(cite index="7-8">a great
-  scholar …</cite>`. `lib/walks.js` now drops `(cite …>` / `<cite …>` and
+  stop showed the web search's markers as text, `<cite index="7-8">a great
+  scholar …</cite>`. `lib/walks.js` now drops `<cite …>` and
   `</cite>`, keeping the words between and touching nothing else, from every
   field the guide writes (the reason, transliteration, explanation,
   argument, opinion, reply, each direction's label and why, the reading)
   as it is read from the model, so new stops are stored clean; and the same
   when a stored stop is read for the page (`stopOf`), so older walks show
-  clean with their rows unchanged. Only the tag named `cite` goes, and the
-  `(cite` form only with its attributes (`index="7-8"`): the team's checker
-  found the first candidate also ate prose ("(cite the source) when x > y")
-  and `<cite-note>`. Sefaria's text keeps its own stripper, `plain`.
+  clean with their rows unchanged. Only the tag named exactly `cite` goes:
+  the team's checker found the first candidate also ate prose ("(cite the
+  source) when x > y") and `<cite-note>`'s opening tag, through a `(cite`
+  form copied from a typo in the brief; the guide writes only `<cite`, and
+  that form is gone. Sefaria's text keeps its own stripper, `plain`.
 - **Checks**: `study-smoke.mjs` 47, `study-pages.mjs` 50, `walks-smoke.mjs`
   75 (6 for the cite markers and the cold Study link); totals 792 server
   checks and 675 page checks. Four older checks changed in wording only: the
