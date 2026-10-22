@@ -26,6 +26,7 @@ const referencePages = require('./lib/reference-pages');
 const lookupPage = require('./lib/lookup-page');
 const today = require('./lib/today');
 const walks = require('./lib/walks');
+const library = require('./lib/library');
 const { CATEGORIES } = require('./lib/categories');
 const ratelimit = require('./lib/ratelimit');
 const { sendJson, sendHtml, redirect, readJson, readFile, serveStatic } = require('./lib/http');
@@ -461,6 +462,24 @@ route('GET', /^\/walks\/(?<id>[^/]+)\/stops$/, (req, res, { id }) => sendJson(re
 // { pick: <index of an offered direction> } or { text } -> the walk with its new stop (or `declined`)
 route('POST', /^\/walks\/(?<id>[^/]+)\/step$/, async (req, res, { id }) => walkMove(res, async () => walks.step(id, await readJson(req), { wait: waits(req) })));
 
+// --- Study (hebrew-study-one) -----------------------------------------------------
+// The library from Sefaria (lib/library.js). GET /study and GET /study/<page>
+// (Sefaria's address form: /study/Genesis.1, /study/Berakhot.2a) are the
+// pages; the data is under /study/data/. Nothing here calls a model.
+// -> { tanakh, talmud }: each { label, groups: [{ name, books }] } in Sefaria's order
+route('GET', /^\/study\/data\/contents$/, async (req, res) => sendJson(res, 200, await library.contents()));
+// -> { day, daf, portion }: today's Daf Yomi in Tokyo and the week's portion
+route('GET', /^\/study\/data\/today$/, async (req, res) => sendJson(res, 200, await library.today()));
+// -> { items: [{ book, ref, path, opened_at }] }, newest first
+route('GET', /^\/study\/data\/places$/, (req, res) => sendJson(res, 200, library.places()));
+// -> the page, uncut: { ref, title, lines: [{ ref, he, en }], prev, next, … };
+// opening it writes Dan's place in its book
+route('GET', /^\/study\/data\/page\/(?<ref>.+)$/, async (req, res, { ref }) => {
+  let r;
+  try { r = decodeURIComponent(ref); } catch { throw new db.ReaderError(400, `"${ref}" is not a page; a page is a book and its place, such as Genesis.1 or Berakhot.2a.`); }
+  return sendJson(res, 200, await library.open(r));
+});
+
 const GUIDE_TEMPLATE =fs.readFileSync(path.join(PUBLIC, 'guide.html'), 'utf8');
 function guidePage(res, id) {
   let article;
@@ -492,7 +511,9 @@ async function handle(req, res) {
   // page; what is under it (/today/set, …) is its data. /walks and
   // /walks/<id> are pages; everything else under /walks/ is data
   const walkPage = p === '/walks' || /^\/walks\/\d+$/.test(p);
-  const apiPath = (isApiPath(p) && !(p === '/lookup' && req.method === 'GET')) || p.startsWith('/today/') || (p.startsWith('/walks/') && !walkPage);
+  // /study and /study/<page> are pages; /study/data/… is their data
+  const studyPage = p === '/study' || (p.startsWith('/study/') && !p.startsWith('/study/data/'));
+  const apiPath = (isApiPath(p) && !(p === '/lookup' && req.method === 'GET')) || p.startsWith('/today/') || (p.startsWith('/walks/') && !walkPage) || p.startsWith('/study/data/');
   if (!CONFIGURED) return apiPath ? sendJson(res, 503, { error: NOT_CONFIGURED }) : loginPage(res, 503, NOT_CONFIGURED);
   if (!auth.cookieOk(req, COOKIE_SECRET)) {
     if (p === '/share' || p === '/share/confirm') {
@@ -527,6 +548,7 @@ async function handle(req, res) {
     return serveStatic(res, PUBLIC, '/today.html') || sendJson(res, 404, { error: 'today.html is missing.' });
   }
   if (walkPage) return serveStatic(res, PUBLIC, '/walks.html') || sendJson(res, 404, { error: 'walks.html is missing.' });
+  if (studyPage && req.method === 'GET') return serveStatic(res, PUBLIC, '/study.html') || sendJson(res, 404, { error: 'study.html is missing.' });
   // /share is where the installed app receives what another app shares; the
   // desk page saves it (a GET here writes nothing)
   if (p === '/share' && fromAnotherSite(req)) return redirect(res, `/share/confirm${url.search}`);
