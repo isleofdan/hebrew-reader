@@ -555,7 +555,7 @@ try {
     r = await rebuildWith({ review_format: 'truncated', review_format_again: 'clean' });
     check('a cut-off review answer is refused, asked once more ("cut off"), and the second answer applied; the page notes the second ask',
       r.rv.state === 'applied' && hasFix(r.v) && r.mine.length === 2 && r.mine[1].follow_up && /cut off/.test(r.mine[1].last) && r.rv.asked_twice === true
-      && /the answer from anthropic\/claude-opus-4\.6 was not JSON \(first answer; finish length/.test(server.log), JSON.stringify({ rv: r.rv, mine: r.mine }));
+      && /the answer from anthropic\/claude-fable-5\.1 was not JSON \(first answer; finish length/.test(server.log), JSON.stringify({ rv: r.rv, mine: r.mine }));
     r = await rebuildWith({ review_format: 'garbage', review_format_again: 'garbage' });
     const logged = /The review pass could not run: the answer from \S+ was not JSON \(first answer; finish stop, [3-9]\d{3} characters\)\. Its first 2000 characters:\nI reviewed the guide\./.test(server.log);
     check('a review that twice answers no JSON: asked once more and only once, not run, the reason named; the answer\'s first 2,000 characters logged and kept with the lesson',
