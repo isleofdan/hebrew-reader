@@ -106,6 +106,32 @@ try {
       await s1.innerText());
     check(`${name}: under the last stop: three directions, the box "Push back, or ask…" and "Go"`,
       (await page.locator('.walk-dir').count()) === 3 && (await page.locator('.walk-push').getAttribute('placeholder')) === 'Push back, or ask…' && (await page.locator('.walk-move .walk-go').innerText()) === 'Go');
+    // the reading (hebrew-guide-one): under "Stop 1 · …", above the passage, quiet
+    const rd = await s1.evaluate((p) => {
+      const box = (sel) => { const e = p.querySelector(sel); if (!e) return null; const r = e.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right }; };
+      const line = p.querySelector('.walk-reading');
+      return { text: line ? line.textContent : null, head: box('.walk-stop-head'), line: box('.walk-reading'), passage: box('.walk-passage'), panel: p.getBoundingClientRect().toJSON(),
+        color: line ? getComputedStyle(line).color : null, size: line ? getComputedStyle(line).fontSize : null, bodyColor: getComputedStyle(p.querySelector('.walk-text')).color };
+    });
+    console.log(`     ${name}: the reading line "${rd.text}" — top ${rd.line && rd.line.top.toFixed(1)} px, ${rd.line && (rd.line.top - rd.head.bottom).toFixed(1)} px under the stop's title line, ${rd.line && (rd.passage.top - rd.line.bottom).toFixed(1)} px above the passage, ${rd.line && (rd.line.left - rd.panel.left).toFixed(1)} px from the panel's left edge; ${rd.size}, ${rd.color}`);
+    check(`${name}: the stop shows "Your question, as I read it: …" under "Stop 1 · …" and above the passage, smaller and quieter than the guide's words, with no word Dan should not see`,
+      rd.text && rd.text.startsWith('Your question, as I read it: I read you as asking what lies beneath') && rd.line.top >= rd.head.bottom && rd.line.bottom <= rd.passage.top
+      && parseFloat(rd.size) < 17 && rd.color !== rd.bodyColor && !/\b(desk|subject|chain|ref|model|reasoning|thinking)\b/i.test(rd.text),
+      JSON.stringify(rd));
+    const shade = [];
+    for (const theme of ['light', 'dark']) {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.waitForTimeout(80);
+      shade.push(await s1.evaluate((p, theme) => {
+        const line = p.querySelector('.walk-reading'), r = line.getBoundingClientRect();
+        let bg = 'rgba(0, 0, 0, 0)';
+        for (let e = line; e && /rgba\(0, 0, 0, 0\)|transparent/.test(bg); e = e.parentElement) bg = getComputedStyle(e).backgroundColor;
+        return { theme, color: getComputedStyle(line).color, bg, visible: r.width > 0 && r.height > 0 };
+      }, theme));
+    }
+    await page.emulateMedia({ colorScheme: 'light' });
+    check(`${name}: the reading line is drawn in light and in dark, its text never the colour of what is behind it (${shade.map((s) => `${s.theme} ${s.color} on ${s.bg}`).join('; ')})`,
+      shade.every((s) => s.visible && s.color !== s.bg) && shade[0].color !== shade[1].color, JSON.stringify(shade));
     const cols = await s1.locator('.walk-passage > div').evaluateAll((ds) => ds.map((d) => { const r = d.getBoundingClientRect(); return { top: Math.round(r.top), left: Math.round(r.left) }; }));
     check(mobile ? `${name}: the passage stacked: Hebrew, transliteration, English, one under another` : `${name}: the passage in three columns: Hebrew, transliteration, English side by side`,
       mobile ? cols[0].top < cols[1].top && cols[1].top < cols[2].top && cols.every((c) => c.left === cols[0].left)
@@ -191,8 +217,8 @@ try {
     await page.locator('.walk-move .walk-go').click();
     await page.locator('.walk-stop').nth(3).waitFor();
     const replyStop = page.locator('.walk-stop').nth(3);
-    check(`${name}: a pushback the guide answers itself draws "Stop 4 · the guide answers" with its reply, no passage, and its two directions`,
-      /^Stop 4 · the guide answers$/i.test(await replyStop.locator('.walk-stop-title').innerText()) && (await replyStop.locator('.walk-passage').count()) === 0
+    check(`${name}: a pushback the guide answers itself draws "Stop 4 · the guide answers" with its reply, no passage, no reading line, and its two directions`,
+      /^Stop 4 · the guide answers$/i.test(await replyStop.locator('.walk-stop-title').innerText()) && (await replyStop.locator('.walk-passage').count()) === 0 && (await replyStop.locator('.walk-reading').count()) === 0
       && /^I read your question as asking/.test(await replyStop.locator('.walk-reply-text p, .walk-reply-text').last().innerText()) && (await page.locator('.walk-dir:visible').count()) === 2
       && (await page.locator('.walk-chose').last().innerText()) === 'You wrote: Tell me what you think my question means before searching the texts further.',
       JSON.stringify({ title: await replyStop.locator('.walk-stop-title').innerText(), dirs: await page.locator('.walk-dir:visible').count(), text: (await replyStop.innerText()).slice(0, 200) }));

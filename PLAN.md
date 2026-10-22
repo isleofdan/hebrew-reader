@@ -1631,3 +1631,56 @@ current politics is declined in one line.
   (`grow-smoke.mjs`), the navigation ends with Walks (`today-pages.mjs`,
   `lookup-pages.mjs`), and the known tables include `passages` and `walks`
   (`lookup-smoke.mjs`).
+
+## hebrew-guide-one (22 Oct 2026, the rented Linux machine, OpenRig team): the guide on Fable 5.1, and a question-reading step that thinks
+
+Dan, after his first live walk: the guide read his question shallowly. Two
+causes: the guide model was Claude Opus 4.6, and the *choose* call (the one
+that reads his move and picks the passage) had 600 tokens and no room to
+think.
+
+**Dan's screens changed.** A stop the guide chose a passage for now opens,
+under "Stop N · …", with a quiet line: "Your question, as I read it: …",
+one or two sentences in the guide's voice saying what it takes his move to
+be asking. Stops saved before have no such line and draw as before; a stop
+where the guide answers him itself (no passage) shows none; a walk begun at
+a passage shows none on its first stop. A stop may take longer: up to
+about four minutes before the failure line says the guide did not answer.
+
+- **The guide model** (`lib/lookup.js`): `GUIDE_MODEL` defaults to
+  `anthropic/claude-fable-5.1`; the environment override and the fallback
+  to the card model on a missing model are unchanged. Today's passage, the
+  lesson guide and its review, the verb-card check and the hunt guide use
+  the same constant and move with it.
+- **Room to think**: `chat` and `chatWithTools` take `reasoning`, sent as
+  OpenRouter's `reasoning` request field (`{ max_tokens: N }`). OpenRouter's
+  reasoning-tokens page: for Anthropic models the value is the thinking
+  budget (at least 1024, at most 128,000), the request's `max_tokens`
+  covers thinking and answer together and must be strictly higher than the
+  budget, and the thinking comes back apart from `message.content` (in
+  `message.reasoning` / `reasoning_details`), so reading the answer is
+  unchanged. A call with `reasoning` sends no `temperature` (Anthropic's
+  models take only their default while they think, and OpenRouter's page
+  for Fable 5.1 does not list `temperature` among its request fields); a
+  call without it sends `temperature: 0` and no `reasoning`, as before. A
+  desk's limits (and its `choose`) may carry `reasoning`; `ask` passes the
+  limits through unchanged. The `thought` desk: *choose* `{ 6000 tokens,
+  150 s, reasoning 4000 }`, a stop (*teach*) `{ 9000 tokens, 240 s,
+  reasoning 4000 }`. *Choose* keeps JSON mode (`json_object`) and *teach*
+  the web search, each with reasoning; not yet tried against the live
+  route (the checks use the stand-in model), so the first live walk is the
+  test of that combination.
+- **The reading** (`lib/walks.js`): `CHOOSE_FORMAT` asks for `reading`
+  first, then the passage, which must serve it. The reading of the choice
+  that made the stop goes to *teach* in its instructions ("The stop must
+  answer that reading"), never into the move Dan made, and is kept in the
+  stop's JSON answer (`reading`): no schema change. `GET /walks/:id/stops`
+  serves it on each stop (`""` when none). A reply carries none, even if
+  the guide wrote one.
+- **A time-out names its own limit**: the failure line for a *choose* that
+  timed out named the stop's limit; it now names the limit of the call that
+  was running.
+- **Checks**: `walks-smoke.mjs` 68 (60 before), `walks-pages.mjs` 38 (34
+  before); totals 738 server checks and 625 page checks. Seven older checks
+  changed in their model id only (`smoke.mjs` four, `hunt-smoke.mjs`,
+  `today-smoke.mjs`), and two walks checks in the desk's numbers.

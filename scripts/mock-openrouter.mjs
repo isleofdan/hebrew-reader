@@ -293,14 +293,19 @@ function mockArticleGuide(user, fault) {
 // (default Shabbat 112b, Genesis 1:1-3, Ecclesiastes 1:9, round and round).
 // control.walk_teach_ms: teach answers after that many ms; walk_teach_hang:
 // teach never answers; walk_teach_down: teach drops the connection;
-// walk_teach_thin: teach answers a stop with parts missing.
+// walk_teach_thin: teach answers a stop with parts missing; walk_choose_hang:
+// choose never answers.
+// A choose naming a passage answers its `reading` first (hebrew-guide-one):
+// "I read you as asking …" with the move's first words; walk_no_reading
+// leaves it out, as every choose did before (a stop saved the old way).
+// The reply carries a reading too, which the server must not show.
 let walkChooses = 0;
 const walkAsks = [];
 const WALK_REFS = ['Shabbat 112b', 'Genesis 1:1-3', 'Ecclesiastes 1:9'];
 function thoughtCall(req, res, body, user) {
   const teach = Array.isArray(body.tools) && body.tools.length > 0;
   const move = user.split('\n\nQuestion: ')[1] || '';
-  walkAsks.push({ kind: teach ? 'teach' : 'choose', model: body.model, max_tokens: body.max_tokens, reasoning: body.reasoning === undefined ? null : body.reasoning, has_temperature: 'temperature' in body, system: body.messages[0].content, user, move,
+  walkAsks.push({ kind: teach ? 'teach' : 'choose', model: body.model, max_tokens: body.max_tokens, reasoning: body.reasoning === undefined ? null : body.reasoning, has_temperature: 'temperature' in body, body_keys: Object.keys(body), system: body.messages[0].content, user, move,
     turns: body.messages.slice(1, -1).map((m) => ({ role: m.role, content: m.content })),
     allowed_domains: teach ? (body.tools[0].parameters || {}).allowed_domains : null, response_format: body.response_format || null });
   const reply = (content, cites = []) => {
@@ -310,11 +315,13 @@ function thoughtCall(req, res, body, user) {
       usage: { prompt_tokens: 2000, completion_tokens: 900, ...(teach ? { server_tool_use: { web_search_requests: 1 } } : {}) } }));
   };
   if (!teach) {
+    if (control.walk_choose_hang) return; // choose never answers
     walkChooses++;
     let answer;
     if (/israeli politics|decline/i.test(move)) answer = { declined: 'Current Israeli politics is outside what I do here; I walk through the texts of the tradition.' };
     // the guide answers the move itself, naming no passage (a pushback that asks it to reflect)
     else if (/what you think my question means|reflect|before searching/i.test(move)) answer = {
+      reading: 'A reading the reply must not show.',
       reply: 'I read your question as asking whether the tradition believes humanity is getting better, not whether it is getting more knowledgeable. The two come apart.',
       next: [{ label: 'Take the moral reading', why: 'The prophets on a people learning.' }, { label: 'Take the knowledge reading', why: 'The dwarfs on giants again.' }],
     };
@@ -327,6 +334,7 @@ function thoughtCall(req, res, body, user) {
       const ref = refs[(so ? so.split('; ').length : 0) % refs.length];
       answer = { ref, title: ref, declined: '' };
     }
+    if (answer.ref && !control.walk_no_reading) answer = { reading: `I read you as asking what lies beneath "${move.split('\n')[0].slice(0, 50)}" (choice ${walkChooses}).`, ...answer };
     return reply(JSON.stringify(answer));
   }
   const ref = (/^The passage for this stop: .* \((.+)\)$/m.exec(user) || [])[1] || '';
