@@ -14,7 +14,7 @@ This is the session's own report, written on the machine on 21 Oct, completed an
   - Checker's closing note to the builder: `qitem-20261021145459-a9b281a3`, done.
 - **The checker's final verdict line, verbatim:** "PASS for candidate 5a73251eea24980c568c44e5c4dd0ba8de920e3c in /data/home/dan/work/hebrew-walks-one. Both prior findings resolved. Independent node scripts/walks-smoke.mjs: all 48 checks passed."
 - **Pull request:** https://github.com/isleofdan/hebrew-reader/pull/18, branch `claude/hebrew-walks-one`, 6 commits on base 2c3a4a4, head 5a73251. MERGED on Dan's yes (15:01 UTC), merge commit 309f865, at 15:14 UTC. LIVE: Deploy run 39623883094 is green.
-- **Step 1, Sefaria and the passages** (commit d4cbf5d). `lib/sefaria.js` `passage(ref)` fetches through Sefaria's Texts API v3, `GET <SEFARIA_URL>/api/v3/texts/<ref>?version=hebrew&version=english`, within the 20-second limit the server's other outside fetches use. It answers `{ ref, title, he, en, url }`, with tags and footnotes stripped and one line per segment. An unknown reference answers 404 naming it; Sefaria unreachable or slow answers 502 "Sefaria could not be reached". New table `passages` (inside `migrate()`); a reference is fetched once. The stand-in Sefaria is `scripts/mock-sefaria.mjs`.
+- **Step 1, Sefaria and the passages** (commit d4cbf5d). `lib/sefaria.js` `passage(ref)` fetches through Sefaria's Texts API v3, `GET <SEFARIA_URL>/api/v3/texts/<ref>?version=hebrew&version=english`, within the 20-second limit the server's other outside fetches use. It answers `{ ref, title, he, en, url }`, with tags and footnotes stripped and one line per segment. An unknown reference answers 404 naming it; Sefaria unreachable or slow answers 502 "Sefaria could not be reached". New table `passages` (inside `migrate()`); a reference is fetched once. A passage is kept to its first 40 segments in each language (see Deliberate divergences, 9). The stand-in Sefaria is `scripts/mock-sefaria.mjs`.
 - **Step 2, the desk and the walk's records** (commit f63e922). The `thought` desk is in `lib/ask-desks.js`:
   - the persona, sharpened from the sample stop;
   - `www.sefaria.org` as its one site;
@@ -81,6 +81,7 @@ Source: the session's own runs on 5a73251 of `node scripts/walks-smoke.mjs` (all
 6. This session was the third start. An earlier start set up the clone and team and sent the job (13:26–13:27 UTC), then went silent with the builder stuck on a prompt. The session took the team over as it stood rather than restarting it.
 7. (thread) Pull requests #19 and #20 were made by the supervising cloud thread directly, not through the team on the machine: the machine's disk had been full that morning, the build session was closing out, and Dan was testing live and wanted the fixes fast.
 8. (thread) This report is filed by the supervising thread, with the session's file read off the machine, because the session's report push waited on a prompt from 20:58 UTC on 21 Oct past 01:05 UTC on 22 Oct.
+9. (thread) The brief's step 1 asked for the passage's Hebrew and English with the segment breaks kept. `lib/sefaria.js` keeps the segment breaks but cuts each language to its first 40 segments (`SEGMENTS_MAX`, commit d4cbf5d, with the comment "a long reference (a whole chapter) is cut here; 'Full passage' has the rest"). The reason: a stop's teaching call carries the passage inside a 3,000-token answer and 120-second limit, and the walk carries the last ten stops' JSON on every later call, so a whole chapter or daf would crowd out the teaching and the chain. The guide names a passage of a few verses or lines, which is under the cut; a long reference is cut and the "Full passage" link under every stop opens the whole text on sefaria.org. The session's report did not say this; the result check on 22 Oct found it. Not yet decided: whether to raise the cut, or to show "first 40 of N segments" on the stop when it applies.
 
 ## Asks
 
@@ -114,7 +115,8 @@ None.
 4. Team check 2, queue `qitem-20261021145204-eacc5d9d`, candidate 5a73251: PASS.
 5. The session's full `npm run check` on 5a73251: all passed. (thread) Checks workflow green on 2cdb218 (#19) and 487c7a4 (#20); Deploy green after each merge.
 6. Result check, job `20261022-011056-23f4bc`, on the thread's first version of this report (card event 1824): FINDINGS, one: the seat names, queue item ids and the checker's verdict line were missing, because the session's file was unpushed. Fixed in this version by reading the file off the machine.
-7. Result check: run on this version of the report. Its verdict is named in the closing message, per Dan's rule that only the final version's verdict stays outside the report.
+7. Result check, job `20261022-012130-08cb4b`, on the second version (card event 1826): FINDINGS, one: the 40-segment cut on a passage was not reported. Added as deliberate divergence 9 in this version.
+8. Result check: run on this version of the report. Its verdict is named in the closing message, per Dan's rule that only the final version's verdict stays outside the report.
 
 ## Fly machine and OpenRig lessons
 
