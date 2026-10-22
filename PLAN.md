@@ -1789,9 +1789,10 @@ passage that was cut.
   the team's checker found the first candidate also ate prose ("(cite the
   source) when x > y") and `<cite-note>`'s opening tag, through a `(cite`
   form copied from a typo in the brief; the guide writes only `<cite`, and
-  that form is gone. Sefaria's text keeps its own stripper, `plain`.
+  that form is gone. A cite tag goes whatever its attributes (single or
+  double quotes, unquoted, spaces around "="; the checker's second round). Sefaria's text keeps its own stripper, `plain`.
 - **Checks**: `study-smoke.mjs` 47, `study-pages.mjs` 50, `walks-smoke.mjs`
-  75 (6 for the cite markers and the cold Study link); totals 792 server
+  76 (7 for the cite markers and the cold Study link); totals 793 server
   checks and 675 page checks. Four older checks changed in wording only: the
   navigation now ends with Study (`walks-pages.mjs`, `today-pages.mjs`,
   `lookup-pages.mjs`) and the known tables include the four new ones

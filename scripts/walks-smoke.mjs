@@ -456,6 +456,10 @@ try {
   check('only the cite tag goes: "Please (cite the source) when x > y." and "<cite-note>x</cite-note>" untouched; <cite>, <cite index="2"> and <cite index="1-2" lang="en"> stripped; "(cite me>" (a parenthesis, not a tag) kept',
     prose.reply === 'Please (cite the source) when x > y.' && tags.why_here === 'a and b' && tags.explanation === '<cite-note>x</cite-note> stays' && tags.opinion === 'Cite c, but (cite me>, please.',
     JSON.stringify({ prose: prose.reply, why_here: tags.why_here, explanation: tags.explanation, opinion: tags.opinion }));
+  // (dev-check on efb32a6: other attribute spellings left the opening tag)
+  const forms = [`<cite index='2'>x</cite>`, '<cite index=2>x</cite>', '<cite index = "2">x</cite>', '<CITE INDEX="2" data-a=\'b > c\'>x</cite>'].map((r) => JSON.parse(walksLib.readChoice({ reply: r })).reply);
+  check('a cite tag goes whatever its attributes: single quotes, unquoted, spaces around "=", capitals, a ">" inside a quoted value — "x" each time',
+    forms.every((f) => f === 'x'), JSON.stringify(forms));
   // dev-check on 988cba8: before Study's contents were ever fetched, a stop
   // offered a Study page it could not know existed
   check('Study\'s contents never fetched on this server: no stop offers "Read it in Study" (no page made up), "Full passage" still there',
