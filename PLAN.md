@@ -1881,10 +1881,16 @@ does.
   listed none. Both fixed, with the stand-in "trustiness" (its only
   translations a trans-see to trust, so the Hebrew comes from there and the
   model is not asked), "credence" (complete overlap), and two entries naming
-  each other (followed one step).
+  each other (followed one step). Its recheck of that fix (5bd1871) found
+  one more: a linked entry that failed threw away the words the entry itself
+  had given, and the model was then asked. Now a subpage or a linked entry
+  that fails is named on the group ("Wiktionary's page trust did not
+  answer; the words it gave are shown."), the words read stay, the partial
+  answer is not kept for 30 days (a full kept copy wins), and the group fails
+  only when nothing was read ("probe", "probesub" in the stand-in).
 - **Not done** (out of scope): Morfix for English, a near-synonym note,
   English look-up anywhere but the Look up page.
-- **Checks**: `english-smoke.mjs` 61, `english-pages.mjs` 48; totals 854
+- **Checks**: `english-smoke.mjs` 66, `english-pages.mjs` 48; totals 859
   server checks and 723 page checks (793 and 675 before). One older check
   changed in wording: the known tables include the two new ones
   (`lookup-smoke.mjs`).

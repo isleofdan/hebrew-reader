@@ -138,7 +138,12 @@ Hebrew. Its words stand under the pointing gloss, their label opening the
 entry they came from. For run, `{{trans-see|to smuggle illegal goods|smuggle}}`,
 `{{trans-see|voyage}}` and `{{trans-see|trial}}` give הבריח, הַפְלָגָה and
 נִסָּיוֹן (an `alt=` of two spellings, "ניסיון \ נִסָּיוֹן", gives the pointed
-one).
+one). A page beyond the entry itself (its `/translations` subpage, or an
+entry a trans-see names) that does not answer leaves the words already read
+standing, with the line "Wiktionary's page <page> did not answer; the words
+it gave are shown."; such an answer is not kept for 30 days (a full copy kept
+before is shown instead), and only when nothing at all was read does the
+group say "Wiktionary did not answer".
 
 ### The frame test for English Wiktionary (23 Oct 2026, the rented Linux machine)
 

@@ -60,6 +60,12 @@ const WIKT = {
   credence: JSON.stringify({ parse: { title: 'credence', pageid: 3, wikitext: '==English==\n===Noun===\n====Translations====\n{{trans-top|acceptance of a belief}}\n* Hebrew: {{t|he|אמון|m|tr=emún}}\n{{trans-bottom}}\n' } }),
   loopa: JSON.stringify({ parse: { title: 'loopa', pageid: 4, wikitext: '==English==\n====Translations====\n{{trans-see|a loop|loopb}}\n' } }),
   loopb: JSON.stringify({ parse: { title: 'loopb', pageid: 5, wikitext: '==English==\n====Translations====\n{{trans-see|a loop|loopa}}\n' } }),
+  // built: probe's own table gives אמינות and its trans-see names trust;
+  // probesub's own table gives מהימנות and it points to probesub/translations
+  // (a check makes trust or the subpage fail: the entry's own word stays)
+  probe: JSON.stringify({ parse: { title: 'probe', pageid: 6, wikitext: '==English==\n====Translations====\n{{trans-top|a reliable thing}}\n* Hebrew: {{t|he|אמינות}}\n{{trans-bottom}}\n{{trans-see|confidence in or reliance on some person or quality|trust}}\n' } }),
+  probesub: JSON.stringify({ parse: { title: 'probesub', pageid: 7, wikitext: '==English==\n====Translations====\n{{see translation subpage|Noun}}\n{{trans-top|dependability}}\n* Hebrew: {{t|he|מְהֵימָנוּת|tr=mehemanut}}\n{{trans-bottom}}\n' } }),
+  'probesub/translations': JSON.stringify({ parse: { title: 'probesub/translations', pageid: 8, wikitext: '==English==\n{{trans-top|a test}}\n* Hebrew: {{t|he|בְּדִיקָה|tr=bdika}}\n{{trans-bottom}}\n' } }),
   trustiness: JSON.stringify({ parse: { title: 'trustiness', pageid: 2, wikitext: '==English==\n===Noun===\n{{en-noun}}\n# The quality of being trusted.\n====Translations====\n{{trans-see|confidence in or reliance on some person or quality|trust}}\n' } }),
   Knesset: JSON.stringify({ parse: { title: 'Knesset', pageid: 1, wikitext: '==English==\n===Proper noun===\n{{en-prop}}\n# The parliament of Israel.\n====Translations====\n{{trans-top|parliament of Israel}}\n* Hebrew: {{t+|he|כְּנֶסֶת|alt=כְּנֶסֶת|tr=k\'néset}}\n{{trans-bottom}}\n' } }),
 };
@@ -111,7 +117,8 @@ http.createServer((req, res) => {
   const counted = english && id === 'pealim' ? 'pealim:english' : id;
   calls[counted] = (calls[counted] || 0) + 1;
   if (english) (calls.english_asked ||= []).push(`${id}:${term}`);
-  const mode = how[id] || 'page';
+  // one page of a site may be set apart: POST /control { "enwiktionary:trust": "reset" }
+  const mode = how[`${id}:${term}`] || how[id] || 'page';
   const send = () => {
     if (id === 'enwiktionary') { res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' }); return res.end(WIKT[term] || missing); }
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });

@@ -169,6 +169,24 @@ try {
   check('"trustiness", whose only translations are {{trans-see|confidence in or reliance on some person or quality|trust}}: trust\'s matching sense gives אֵמוּן, kept under that gloss and linked to trust',
     tw.state === 'ok' && words(tw).join() === nfc('אֵמוּן') && tw.rows[0].sense === 'confidence in or reliance on some person or quality' && tw.rows[0].sources[0].url === 'https://en.wiktionary.org/wiki/trust' && tw.rows[0].translit === "'emún", JSON.stringify(tw));
   check('…so the model is not asked (Pealim lists none; the word came from the entry Wiktionary names)', (await orCalls()).english_calls === nOr && !groupOf(tr, 'model') && groupOf(tr, 'pealim').state === 'none');
+  // dev-check on 5bd1871: a linked page that fails keeps the words already read
+  await control({ 'enwiktionary:trust': 'reset' });
+  const nOr2 = (await orCalls()).english_calls;
+  const pr = (await look('probe')).body;
+  const pw = groupOf(pr, 'wiktionary');
+  check('a {{trans-see}} entry that fails (trust down): the entry\'s own word (אמינות) still shows, the group saying "Wiktionary\'s page trust did not answer; the words it gave are shown."; the model is not asked',
+    pw.state === 'ok' && words(pw).join() === 'אמינות' && pw.message === 'Wiktionary\'s page trust did not answer; the words it gave are shown.' && (await orCalls()).english_calls === nOr2 && !groupOf(pr, 'model'), JSON.stringify(pr.groups));
+  check('…and the partial answer is not kept as Wiktionary\'s answer (no english_sites row for probe)', count('english_sites', "site = 'wiktionary' AND text = 'probe'") === 0);
+  await control({ 'enwiktionary:trust': 'page' });
+  const pr2 = (await look('probe')).body;
+  check('…trust back: the next look-up reads it again and gives both words (אמינות, אֵמוּן), kept now, no line about a missing page',
+    words(groupOf(pr2, 'wiktionary')).join() === nfc('אמינות,אֵמוּן') && !groupOf(pr2, 'wiktionary').message && count('english_sites', "site = 'wiktionary' AND text = 'probe'") === 1, JSON.stringify(groupOf(pr2, 'wiktionary')));
+  await control({ 'enwiktionary:probesub/translations': 'reset' });
+  const ps = (await look('probesub')).body;
+  check('a /translations subpage that fails: the entry\'s own word (מְהֵימָנוּת) still shows, saying the subpage did not answer; not kept; no model call',
+    words(groupOf(ps, 'wiktionary')).join() === nfc('מְהֵימָנוּת') && groupOf(ps, 'wiktionary').message === 'Wiktionary\'s page probesub/translations did not answer; the words it gave are shown.'
+    && count('english_sites', "site = 'wiktionary' AND text = 'probesub'") === 0 && (await orCalls()).english_calls === nOr2, JSON.stringify(groupOf(ps, 'wiktionary')));
+  await control({ 'enwiktionary:probesub/translations': 'page' });
   const la = (await look('loopa')).body;
   check('two entries that name each other (loopa -> loopb -> loopa): each read once, the second\'s trans-see not followed; no word, so the model group',
     (await asked()).filter((a) => /^enwiktionary:loop/.test(a)).join() === 'enwiktionary:loopa,enwiktionary:loopb' && groupOf(la, 'wiktionary').state === 'none' && groupOf(la, 'model'), JSON.stringify(await asked()));
@@ -309,6 +327,15 @@ try {
   check('31 days more with Pealim down: its kept copy shown (10 rows), saying so with its day; Wiktionary fetched afresh',
     sp.state === 'ok' && sp.rows.length === 10 && sp.message === `Pealim did not answer; shown from the copy kept on ${new Date(at - 31 * DAY).toISOString().slice(0, 10)}.` && groupOf(stale, 'wiktionary').state === 'ok', JSON.stringify({ ...sp, rows: sp.rows.length }));
   await control({ pealim: 'page' });
+  // a partial answer past the 30 days, with a full copy kept: the kept copy wins
+  await english.find('probe');
+  at += 31 * DAY;
+  await control({ 'enwiktionary:trust': 'reset' });
+  const keptAt = db.getEnglishSite('wiktionary', 'probe').fetched_at;
+  const pk = groupOf(await english.find('probe'), 'wiktionary');
+  check('31 days on, trust down while probe\'s own page answers: the full copy kept is shown (both words), saying what did not answer and the day kept; the kept copy not replaced',
+    words(pk).join() === nfc('אמינות,אֵמוּן') && pk.message === `Wiktionary's page trust did not answer; shown from the copy kept on ${keptAt.slice(0, 10)}.` && db.getEnglishSite('wiktionary', 'probe').fetched_at === keptAt, JSON.stringify(pk));
+  await control({ 'enwiktionary:trust': 'page' });
 } catch (e) {
   console.error(e);
   failed++;
