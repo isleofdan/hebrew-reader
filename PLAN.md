@@ -1994,6 +1994,13 @@ look-up, which decides everything else.
   the WebM recording of אמת, and hand-written English "run", empty, noise
   and refusal answers; `speech_delay_ms` holds it). One older check changed
   in wording: the known tables include `recordings` (`lookup-smoke.mjs`).
+- **Hebrew in Hebrew letters** (added at close-out, after the team's
+  checker passed): live, the first instruction wrote the spoken אמת as
+  "Emet" in 3 of 43 calls on the WebM fixture, which the page would then
+  look up as an English word. The instruction now says a Hebrew word is
+  always written in Hebrew letters, never in Latin letters, with that
+  example; 0 of 35 calls missed with it. A Latin-letter answer is not
+  caught in code, because it cannot be told apart from English speech.
 
 ## hebrew-save-one (23 Oct 2026, the rented Linux machine, OpenRig team): every look-up keepable, a phrase's meaning, a forgiving card
 

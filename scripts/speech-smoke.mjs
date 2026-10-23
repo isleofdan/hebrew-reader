@@ -97,8 +97,8 @@ try {
   check('the phone\'s WebM/Opus recording (its type with ;codecs=opus) answers { id, text: "אמת", ms }', he.status === 200 && he.body.id === 1 && he.body.text === 'אמת' && he.body.ms === 1840, JSON.stringify(he));
   check('…sent as it is: one request to google/gemini-3.8-flash with the recording\'s bytes as an input_audio part, format "webm", and the text "Write down what is said in this recording."',
     ask && ask.model === 'google/gemini-3.8-flash' && ask.format === 'webm' && ask.bytes === webm.length && ask.text === 'Write down what is said in this recording.', JSON.stringify(ask));
-  check('…with the system text that only writes down (script spoken, no nikud, no translation, no correction, empty when nothing intelligible), reasoning { effort: minimal }, temperature 0, no response format',
-    ask.system === 'You write down speech. Return only the words spoken, in the script they were spoken in: Hebrew letters for Hebrew, Latin letters for English. Add no nikud, translate nothing, correct nothing. If nothing intelligible was said, return an empty answer.'
+  check('…with the system text that only writes down (script of the language spoken, Hebrew never in Latin letters, no nikud, no translation, no correction, empty when nothing intelligible), reasoning { effort: minimal }, temperature 0, no response format',
+    ask.system === 'You write down speech. Return only the words spoken, in the script of the language spoken: a Hebrew word is always written in Hebrew letters, never spelled out in Latin letters (for a spoken אמת, write אמת, never "Emet"); an English word in Latin letters. Add no nikud, translate nothing, correct nothing. If nothing intelligible was said, return an empty answer.'
     && JSON.stringify(ask.reasoning) === '{"effort":"minimal"}' && ask.temperature === 0 && !ask.body_keys.includes('response_format'), JSON.stringify(ask));
   const r1 = peek('SELECT * FROM recordings WHERE id = 1')[0];
   check('the recording kept as DATA_DIR/recordings/1.webm, byte for byte, with its row: row_key null, audio/webm, its size, 1840 ms, "אמת", the model, the time',
