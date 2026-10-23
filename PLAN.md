@@ -2102,7 +2102,8 @@ sure it is, rather than refuse.
   attaches it to the kept note's row (`note:<id>`, which the speech side's
   attach already took); `phrase.keep` answers `recordings` as a look-up
   does, and the row shows the play button like a word's. Checks for it:
-  `save-smoke.mjs` and `save-pages.mjs` two each (58 and 68).
+  `save-smoke.mjs` and `save-pages.mjs` two each (58 and 68). Totals after
+  the merge: 962 server checks and 875 page checks.
 - **Not done** (out of scope): a full card for a phrase, dictionaries for a
   phrase, phrases anywhere but the Look up page, tints for kept phrases,
   rebuilding cached cards. The reader's and lesson page's own card errors
