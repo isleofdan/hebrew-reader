@@ -19,7 +19,8 @@ import { fileURLToPath } from 'node:url';
 // control.speech: 'hebrew' (the default; the real answer to the WebM
 // recording of אמת, 23 Oct 2026), 'english' ("run"), 'empty' (content ""),
 // 'noise' ("[noise]"), 'refusal' (HTTP 400 in OpenRouter's error shape),
-// 'down' (the connection dropped). Each request is kept in speech_asks.
+// 'down' (the connection dropped); control.speech_delay_ms holds the answer
+// that long. Each request is kept in speech_asks.
 const SPEECH_DIR = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'speech');
 const speechFixture = (name) => readFileSync(join(SPEECH_DIR, `answer-${name}.json`), 'utf8');
 const speechAsks = [];
@@ -422,12 +423,16 @@ http.createServer((req, res) => {
       speechAsks.push({ model: body.model, format: audio.format, bytes: Buffer.from(audio.data, 'base64').length, text: (lastUser.find((p) => p.type === 'text') || {}).text || null,
         system: body.messages[0].content, reasoning: body.reasoning === undefined ? null : body.reasoning, temperature: body.temperature === undefined ? null : body.temperature, max_tokens: body.max_tokens, body_keys: Object.keys(body) });
       const mode = control.speech || 'hebrew';
-      if (mode === 'down') { req.socket.destroy(); return; }
-      if (mode === 'refusal') { res.writeHead(400, { 'content-type': 'application/json' }); res.end(speechFixture('refusal')); return; }
-      let text = speechFixture(mode === 'noise' ? 'empty' : mode);
-      if (mode === 'noise') text = JSON.stringify({ ...JSON.parse(text), choices: [{ ...JSON.parse(text).choices[0], message: { role: 'assistant', content: '[noise]' } }] });
-      res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(text);
+      // speech_delay_ms: the answer held that long (the page's "Writing it down…")
+      const answer = () => {
+        if (mode === 'down') { req.socket.destroy(); return; }
+        if (mode === 'refusal') { res.writeHead(400, { 'content-type': 'application/json' }); res.end(speechFixture('refusal')); return; }
+        let text = speechFixture(mode === 'noise' ? 'empty' : mode);
+        if (mode === 'noise') text = JSON.stringify({ ...JSON.parse(text), choices: [{ ...JSON.parse(text).choices[0], message: { role: 'assistant', content: '[noise]' } }] });
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(text);
+      };
+      if (control.speech_delay_ms) setTimeout(answer, control.speech_delay_ms); else answer();
       return;
     }
     // reasoning_refused: any request carrying `reasoning` is answered 400, as

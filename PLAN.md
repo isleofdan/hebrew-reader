@@ -66,6 +66,7 @@ The spine was cloned read-only into this session; nothing in it was changed.
 | `SPINE_TOKEN` | optional; the spine's bearer token for recording marks |
 | `SPINE_URL` | optional; default `https://spine-dan.fly.dev` |
 | `OPENROUTER_URL` | optional; default `https://openrouter.ai/api/v1/chat/completions` |
+| `SPEECH_MODEL` | optional; the model that writes a spoken word down on the Look up page, default `google/gemini-3.8-flash` (`lib/speech.js`) |
 | `SEFARIA_URL` | optional; Sefaria's base address for the walks' passages and Study's library, default `https://www.sefaria.org` (the checks point it at `scripts/mock-sefaria.mjs`) |
 | `DATA_DIR` | where `reader.db` lives; `./data` locally, `/data` on Fly |
 | `PORT` | listen port, default 8080 |
@@ -1894,3 +1895,91 @@ does.
   server checks and 723 page checks (793 and 675 before). One older check
   changed in wording: the known tables include the two new ones
   (`lookup-smoke.mjs`).
+
+## hebrew-speech-one (23 Oct 2026, the rented Linux machine, OpenRig team): speech on the Look up page
+
+Dan wants to say a word on the Look up page rather than type it, and to
+keep what he said. A round **Speak** button beside "Look up" records it;
+the recording is written down and the text goes through the existing
+look-up, which decides everything else.
+
+- **The model**: `google/gemini-3.8-flash` on OpenRouter (`SPEECH_MODEL`
+  in `lib/speech.js`, overridable by env `SPEECH_MODEL`), through the card
+  model's own address, key and request helper (`lookup.post`, now exported
+  with `contentOf` and `errorDetail`; `postOnce` takes a `temperature` that
+  is sent beside `reasoning`). `reasoning: { effort: 'minimal' }`,
+  temperature 0, no response format, 60-second limit; the system text only
+  writes down: the words spoken, in the script spoken, no nikud added,
+  nothing translated or corrected, empty when nothing intelligible was
+  said. Price as measured by Dan's environment check: about 25 audio tokens
+  a second (about 1,500 a minute) at US$0.825 per million, about
+  US$0.0012 per minute of audio, plus the short answer; one-word recordings
+  measured at US$0.00009–0.0003 each (US$0.000086 with minimal reasoning,
+  0 reasoning tokens).
+- **The format route**: the phone's own recording is uploaded as it is, the
+  raw request body of `POST /lookup/speech` (its `Content-Type` the
+  recorder's: `audio/webm`, `audio/ogg`, `audio/mp4` or `audio/wav`,
+  parameters such as `;codecs=opus` allowed; anything else 415 naming the
+  four), and sent as an `input_audio` part in that format. Both WebM/Opus
+  and 16 kHz WAV were accepted live. No conversion in the page, no
+  multipart. At most 2 MB (`readBuffer`'s limit; over it 413 "A recording
+  can be at most 30 seconds.").
+- **The table** (`migrate()`, `CREATE TABLE IF NOT EXISTS`; nothing of
+  Dan's touched): `recordings (id, row_key, file, mime, bytes, ms, text,
+  model, at)`, the file at `DATA_DIR/recordings/<id>.<ext>`. `ms` is the
+  recording's length as the page measured it (`?ms=`), null when not given.
+  `row_key` is the "Looked up" row's key as text (`word:<id>`,
+  `english:<text>`, and `note:<id>` once hebrew-save-one merges), no
+  foreign key, null until attached.
+- **The routes** (all behind the passphrase; `isApiPath` covers
+  `recordings`): `POST /lookup/speech?ms=` -> `{ id, text, ms }`; nothing
+  heard (empty, or only bracketed noise) -> 200 `{ id: null, text: '',
+  message: 'Nothing was heard. Try again.' }`, no file, no row; the model
+  down or refusing -> 502 "The recording could not be written down; try
+  again or type it.", nothing kept (the detail in the server log).
+  `POST /recordings/<id>/attach { row_key }` once (409 on a recording
+  already attached); `GET /recordings/<id>` streams the file with its type
+  and `Accept-Ranges`, a ranged request answering 206 (416 past the end);
+  `DELETE /recordings/<id>` deletes the row and the file. `POST /lookup`
+  from the page now names its row's `key` (English too, from
+  `db.englishKey`, SQLite's own `lower()` so it matches "Looked up") and
+  carries `recordings`; `GET /lookups` rows carry `recordings: [{ id, ms,
+  at }]`, newest first.
+- **The seven-day sweep**: at start-up (`speech.init`), recordings with a
+  null key older than seven days are deleted with their files, logged once
+  with the count. A look-up that makes no row (a refused text) leaves its
+  recording to the sweep.
+- **The page** (`public/mic-ui.js`, mountable on any text box; only the
+  Look up page mounts it): tap Speak, `getUserMedia({ audio: true })`,
+  `MediaRecorder` in the first of `audio/webm;codecs=opus`,
+  `audio/ogg;codecs=opus`, `audio/mp4` the browser takes; "Stop · 0:04"
+  counting up with a level meter and "Listening…"; Stop, or 30 seconds,
+  uploads ("Writing it down…"); the text goes in the box with "Heard:
+  <text> · Play your recording" under it, and the page's own search runs at
+  once; when it answers, the recording is attached to its row. Leaving the
+  page or the app going to the background stops the recording and drops it
+  (nothing is sent); every stop ends the stream's tracks. Microphone
+  refused: "The reader may not use the microphone. Allow it in the
+  browser's site settings for hebrew-reader-dan.fly.dev, then tap Speak
+  again." No microphone API or no `MediaRecorder`: no button. The button
+  keeps one width in every state; on the phone the box takes the first line
+  and "Look up" and Speak share the second.
+- **Playing back**: a "Looked up" row with recordings has a small play
+  button (the newest) with their count when more than one, and "…" (or a
+  long press on play) opening the list: each one's day and length, Play,
+  and "Delete recording" with `delete-ui.js`'s in-page confirm ("Delete
+  this recording? Saved words stay."; `DeleteUI.wire` now takes `done`, and
+  opens the confirm without scrolling). The card on the Look up page
+  carries the same play button beside the word. The service worker does
+  not handle `/recordings/` (it caches nothing anyway).
+- **Nothing new is saved as Dan's word**: writing a recording down makes no
+  spot, touch, lookup or mark; the look-up of its text saves exactly what
+  typing it saves.
+- **Not done** (out of scope): the mic on any other page, long speech,
+  pronunciation feedback, the browser's own `SpeechRecognition`.
+- **Checks**: `speech-smoke.mjs` 46, `speech-pages.mjs` 75; totals 905
+  server checks and 798 page checks (859 and 723 before); the stand-in (`mock-openrouter.mjs`) answers an
+  `input_audio` request from `scripts/fixtures/speech/` (the real answer to
+  the WebM recording of אמת, and hand-written English "run", empty, noise
+  and refusal answers; `speech_delay_ms` holds it). One older check changed
+  in wording: the known tables include `recordings` (`lookup-smoke.mjs`).
