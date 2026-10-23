@@ -70,6 +70,10 @@
 
     let run = null; // { stream, recorder, chunks, started, timer, tick, audio, keep }
     let busy = false;
+    // the microphone asked for and not yet given: leaving the page or the app
+    // going to the background meanwhile cancels it, and a stream that still
+    // arrives is ended at once — recording needs a fresh tap
+    let asking = null; // { cancelled }
 
     const say = (text, cls = '') => { line.className = `mic-line ${cls}`.trim(); line.textContent = text; };
 
@@ -121,14 +125,23 @@
 
     async function begin() {
       busy = true; draw();
+      const ask = asking = { cancelled: false };
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       } catch (e) {
+        if (asking === ask) asking = null;
         busy = false; draw();
+        if (ask.cancelled) return;
         if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError')) say(REFUSED, 'error');
         else if (e && e.name === 'NotFoundError') say('No microphone was found on this device.', 'error');
         else say(`The microphone could not be started${e && e.message ? `: ${e.message}` : ''}.`, 'error');
+        return;
+      }
+      if (asking === ask) asking = null;
+      if (ask.cancelled || document.visibilityState === 'hidden') {
+        for (const t of stream.getTracks()) t.stop();
+        busy = false; draw();
         return;
       }
       const type = TYPES.find((t) => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || '';
@@ -195,7 +208,10 @@
       else if (!busy) begin();
     });
     // leaving the page or the app going to the background: stopped, dropped
-    const away = (why) => { if (run) { stop(false); say(why); } };
+    const away = (why) => {
+      if (asking) { asking.cancelled = true; asking = null; say(why); }
+      if (run) { stop(false); say(why); }
+    };
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') away('Stopped: the reader went to the background. Tap Speak to try again.'); });
     window.addEventListener('pagehide', () => away('Stopped.'));
     draw();

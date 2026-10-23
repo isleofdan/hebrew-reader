@@ -1977,8 +1977,19 @@ look-up, which decides everything else.
   typing it saves.
 - **Not done** (out of scope): the mic on any other page, long speech,
   pronunciation feedback, the browser's own `SpeechRecognition`.
-- **Checks**: `speech-smoke.mjs` 46, `speech-pages.mjs` 75; totals 905
-  server checks and 798 page checks (859 and 723 before); the stand-in (`mock-openrouter.mjs`) answers an
+- **The team's checker** (dev-check, FINDINGS on the first candidate,
+  4dc0d83): the page going to the background, or being left, while the
+  browser was still giving the microphone did not cancel that request, so
+  the stream arriving after it started a recording in a hidden page. Now a
+  request still pending then is cancelled, a stream that arrives anyway is
+  ended at once, and recording needs a fresh tap (checked for hidden,
+  hidden then visible again, and `pagehide`).
+- **Two departures from the job, disclosed**: steps 2 and 3 are one commit
+  (they share `public/lookup.js`); and Speak is a pill with rounded ends,
+  52 px high (as "Look up" beside it), half the form's width on the phone,
+  not a 44 px circle, because its label must show "Stop · 0:04".
+- **Checks**: `speech-smoke.mjs` 46, `speech-pages.mjs` 81; totals 905
+  server checks and 804 page checks (859 and 723 before); the stand-in (`mock-openrouter.mjs`) answers an
   `input_audio` request from `scripts/fixtures/speech/` (the real answer to
   the WebM recording of אמת, and hand-written English "run", empty, noise
   and refusal answers; `speech_delay_ms` holds it). One older check changed

@@ -330,6 +330,33 @@ try {
       (await refused.page.locator('#mic-line').innerText()) === "The reader may not use the microphone. Allow it in the browser's site settings for hebrew-reader-dan.fly.dev, then tap Speak again." && (await refused.page.locator('.btn.mic .mic-label').innerText()) === 'Speak');
     await both(refused.page, `refused-${name}`);
     await refused.ctx.close();
+    // the microphone still being asked for when the page goes away (dev-check's
+    // finding on 4dc0d83): the stream that arrives late is ended at once and
+    // nothing is recorded — for hidden, hidden then visible again, and pagehide
+    const slow = await context(viewport, mobile, () => {
+      const md = navigator.mediaDevices;
+      const g = md.getUserMedia.bind(md);
+      md.getUserMedia = (c) => new Promise((res, rej) => { window.__release = () => g(c).then(res, rej); });
+    });
+    for (const away of ['hidden', 'hidden-then-visible', 'pagehide']) {
+      const asks0 = await speechAsks();
+      await slow.page.goto(`${base}/lookup`);
+      await slow.page.locator('.btn.mic').click();
+      await slow.page.waitForFunction(() => typeof window.__release === 'function');
+      await slow.page.evaluate((how) => {
+        const vis = (v) => { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => v }); document.dispatchEvent(new Event('visibilitychange')); };
+        if (how === 'hidden') vis('hidden');
+        if (how === 'hidden-then-visible') { vis('hidden'); vis('visible'); }
+        if (how === 'pagehide') window.dispatchEvent(new Event('pagehide'));
+        window.__release();
+      }, away);
+      await slow.page.waitForFunction(() => window.__streams.length === 1, null, { timeout: 5000 });
+      await slow.page.waitForTimeout(1500);
+      const st = await slow.page.evaluate(() => ({ live: window.__streams.flatMap((s) => s.getTracks()).filter((t) => t.readyState !== 'ended').length, recording: Boolean(document.querySelector('.btn.mic.recording')), label: document.querySelector('.btn.mic .mic-label').textContent, disabled: document.querySelector('.btn.mic').disabled }));
+      check(`${name}: the page going away (${away}) while the microphone is still being asked for: the stream that arrives after is ended at once, nothing is recorded or sent, and Speak waits for a fresh tap`,
+        st.live === 0 && !st.recording && st.label === 'Speak' && !st.disabled && (await speechAsks()) === asks0, JSON.stringify(st));
+    }
+    await slow.ctx.close();
     const bare = await context(viewport, mobile, () => { delete window.MediaRecorder; window.MediaRecorder = undefined; });
     await bare.page.goto(`${base}/lookup`);
     await bare.page.locator('#word').waitFor();
