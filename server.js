@@ -24,6 +24,7 @@ const caught = require('./lib/catch');
 const hunt = require('./lib/hunt');
 const referencePages = require('./lib/reference-pages');
 const lookupPage = require('./lib/lookup-page');
+const english = require('./lib/english');
 const today = require('./lib/today');
 const walks = require('./lib/walks');
 const library = require('./lib/library');
@@ -115,7 +116,9 @@ route('GET', /^\/marks-for-article\/(?<id>\d+)$/, (req, res, { id }) => {
 
 // { surface, sentence, article_id | lesson_id } -> { card, spot, cached }.
 // From the Look up page, { surface, origin: 'lookup' }: the same card, the
-// word saved, and the search recorded on the card (lib/lookup-page.js).
+// word saved, and the search recorded on the card (lib/lookup-page.js); an
+// English word there answers { mode: 'english', text, groups, at }
+// (lib/english.js, hebrew-english-one).
 route('POST', /^\/lookup$/, async (req, res) => {
   const body = await readJson(req);
   if (body.origin === 'lookup') return sendJson(res, 200, await lookupPage.search(body));
@@ -416,6 +419,10 @@ route('POST', new RegExp(`^/card/${CARD}/cut$`), async (req, res, { key }) => {
 // The Look up page's "Looked up" list: ?limit=200&before=<time>&before_key=<card> -> { items, more, next, next_key }
 route('GET', /^\/lookups$/, (req, res, g, url) => sendJson(res, 200, lookupPage.list({ limit: url.searchParams.get('limit'), before: url.searchParams.get('before'), before_key: url.searchParams.get('before_key') })));
 route('GET', /^\/reference\/(?<id>[a-z]+)$/, async (req, res, { id }, url) => sendJson(res, 200, await referencePages.pane(id, url.searchParams.get('term'))));
+// hebrew-english-one: an English look-up reopened from "Looked up" (its kept
+// answer, no site asked), and a row's source label shown inside the page
+route('GET', /^\/english$/, (req, res, g, url) => sendJson(res, 200, english.kept(url.searchParams.get('text'))));
+route('GET', /^\/english\/entry$/, async (req, res, g, url) => sendJson(res, 200, await english.entry({ site: url.searchParams.get('site'), path: url.searchParams.get('path'), page: url.searchParams.get('page') })));
 
 // --- Today (hebrew-today-one) --------------------------------------------------
 // The day's drills. GET /today is the page (a page route: signed out, it
@@ -490,7 +497,7 @@ function guidePage(res, id) {
 }
 
 function isApiPath(p) {
-  return /^\/(articles|lookup|spots|marks-for-article|marks-for-lesson|categories|demand|ask|make|lessons|desks|notes|card|sheets|reference|lookups)(\/|$)/.test(p);
+  return /^\/(articles|lookup|spots|marks-for-article|marks-for-lesson|categories|demand|ask|make|lessons|desks|notes|card|sheets|reference|lookups|english)(\/|$)/.test(p);
 }
 
 async function handle(req, res) {
