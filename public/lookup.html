@@ -30,10 +30,21 @@
   <section class="panel lookup-search">
     <form id="search" autocomplete="off">
       <label for="word" class="visually-hidden">A word to look up</label>
-      <input id="word" type="search" lang="he" dir="rtl" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="הקלידו או הדביקו מילה">
+      <input id="word" type="search" dir="auto" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="A Hebrew word, or an English one">
       <button class="btn primary" id="go" type="submit">Look up</button>
     </form>
     <p class="msg" id="search-msg"></p>
+  </section>
+
+  <section class="panel lookup-english hidden" id="english">
+    <div class="en-spacer" id="en-spacer" aria-hidden="true"></div>
+    <button type="button" class="en-fold hidden" id="en-fold"><span class="en-fold-title"></span> · <span class="en-back">Back to the list</span></button>
+    <div class="en-list" id="en-list">
+      <h2 class="en-title">Hebrew words for <span id="en-text"></span></h2>
+      <p class="msg" id="en-msg"></p>
+      <div class="en-groups" id="en-groups"></div>
+    </div>
+    <div class="ref-pane hidden" id="en-pane"></div>
   </section>
 
   <section class="panel lookup-entry hidden" id="entry">
@@ -68,6 +79,7 @@
     <p class="empty" id="looked-empty">The words you look up here will be listed here, newest first.</p>
     <button class="btn small" id="more" type="button" hidden>Show more</button>
   </section>
+  <div class="en-tail" id="en-tail" aria-hidden="true"></div>
 
 </main>
 <script src="/card-ui.js"></script>
