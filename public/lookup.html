@@ -47,6 +47,22 @@
     <div class="en-pane hidden" id="en-pane"></div>
   </section>
 
+  <section class="panel lookup-phrase hidden" id="phrase">
+    <div class="en-spacer" id="ph-spacer" aria-hidden="true"></div>
+    <button type="button" class="en-fold hidden" id="ph-fold"><span class="ph-fold-title" dir="rtl" lang="he"></span> · <span class="en-back">Back to the phrase</span></button>
+    <div class="ph-body" id="ph-body">
+      <h2 class="ph-text" id="ph-text" dir="rtl" lang="he"></h2>
+      <h3 class="ph-head">What it means</h3>
+      <p class="ph-meaning" id="ph-meaning"></p>
+      <p class="ph-literal" id="ph-literal"></p>
+      <p class="ph-note" id="ph-note"></p>
+      <p class="ph-source" id="ph-source">Meaning from the model; no dictionary was asked</p>
+      <h3 class="ph-head">Look up each word</h3>
+      <div class="ph-words" id="ph-words" dir="rtl"></div>
+      <div class="keep" id="ph-keep"></div>
+    </div>
+  </section>
+
   <section class="panel lookup-entry hidden" id="entry">
     <p class="saved-line" id="saved-line"></p>
     <section class="card idle" id="card-lookup">
@@ -67,6 +83,7 @@
     <div class="refused hidden" id="refused">
       <h3 class="dym-title" id="dym-title">Did you mean</h3>
       <div class="dym" id="dym"></div>
+      <div class="keep" id="word-keep"></div>
     </div>
     <p class="looked-line" id="looked-line"></p>
     <div class="lookup-tabs" id="tabs" role="group" aria-label="Look it up in"></div>
