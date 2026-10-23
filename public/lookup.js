@@ -99,12 +99,27 @@ function drawCount() {
   $('#looked-line').textContent = n ? `Looked up ${n === 1 ? 'once' : `${n} times`}, here and on the desk.` : '';
 }
 
+// hebrew-english-one: text with Latin letters is an English look-up (the
+// server decides and refuses what the box does not take; this only picks
+// what the page shows while it runs).
+const LATIN = /\p{Script=Latin}/u;
+
 async function search(ev) {
   if (ev) ev.preventDefault();
   const word = $('#word').value.trim();
   const msg = $('#search-msg');
   msg.className = 'msg';
   if (!word) { msg.className = 'msg error'; msg.textContent = 'Type a word first.'; return; }
+  if (LATIN.test(word)) return searchEnglish(word);
+  hideEnglish();
+  return lookUp(word);
+}
+
+// A Hebrew word looked up, as typed — or tapped in an English look-up's list,
+// which then stays above the card, folded to one line.
+async function lookUp(word) {
+  const msg = $('#search-msg');
+  msg.className = 'msg';
   const seq = ++searching;
   msg.textContent = 'looking up…';
   $('#go').disabled = true;
@@ -137,6 +152,180 @@ async function search(ev) {
 }
 
 $('#search').addEventListener('submit', search);
+
+// --- an English look-up: "Hebrew words for <text>" ----------------------------------------
+// The groups as the server sends them (Yours, From Pealim, From Wiktionary,
+// and the model's only when no dictionary had a word). Tapping a Hebrew word
+// looks it up as a Hebrew word: its card, saved, its tabs, under the list
+// folded to one line, "Hebrew words for <text> · Back to the list". The
+// tapped row and the folded line each keep Dan's place on the screen.
+
+const en = { box: $('#english'), list: $('#en-list'), fold: $('#en-fold'), groups: $('#en-groups'), pane: $('#en-pane'), spacer: $('#en-spacer'), tail: $('#en-tail') };
+let shownEnglish = null; // the answer drawn
+let tapped = null; // the bare word of the row tapped
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined && text !== null) e.textContent = text;
+  return e;
+}
+
+// Scroll so `node` sits at `top` on the screen, where Dan's finger was. When
+// the page cannot scroll that far (at its top, or its foot), room is made
+// above the list or below the page so it still can.
+function keepAt(node, top) {
+  let now = node.getBoundingClientRect().top;
+  if (Math.abs(now - top) >= 0.5) window.scrollBy(0, now - top);
+  now = node.getBoundingClientRect().top;
+  if (now < top - 0.5) en.spacer.style.height = `${en.spacer.offsetHeight + (top - now)}px`;
+  else if (now > top + 0.5) { en.tail.style.height = `${en.tail.offsetHeight + (now - top)}px`; window.scrollBy(0, now - top); }
+}
+function resetPlace() { en.spacer.style.height = '0px'; en.tail.style.height = '0px'; }
+
+function closeEnPane() {
+  en.box.append(en.pane);
+  // closed, it is no reference pane (the tabs' pane stays the page's one ref-pane)
+  en.pane.innerHTML = ''; en.pane.className = 'en-pane hidden'; delete en.pane.dataset.ref; delete en.pane.dataset.word; delete en.pane.dataset.mode;
+}
+
+function hideEnglish() {
+  closeEnPane();
+  resetPlace();
+  en.box.classList.add('hidden');
+  shownEnglish = null; tapped = null;
+}
+
+async function searchEnglish(text) {
+  const msg = $('#search-msg');
+  const seq = ++searching;
+  msg.textContent = 'looking up…';
+  $('#go').disabled = true;
+  try {
+    const data = await api('POST', '/lookup', { surface: text, sentence: '', origin: 'lookup' });
+    if (seq !== searching) return;
+    msg.textContent = '';
+    drawEnglish(data);
+    document.dispatchEvent(new CustomEvent('looked-up', { detail: data }));
+  } catch (e) {
+    if (seq !== searching) return;
+    msg.className = 'msg error'; msg.textContent = e.message;
+  } finally {
+    if (seq === searching) $('#go').disabled = false;
+  }
+}
+
+function drawEnglish(data) {
+  // the Hebrew card, if one was open, goes
+  current = null;
+  closePane(); tabs.innerHTML = '';
+  $('#entry').classList.add('hidden');
+  closeEnPane();
+  resetPlace();
+  shownEnglish = data; tapped = null;
+  en.box.classList.remove('hidden');
+  en.list.classList.remove('hidden');
+  en.fold.classList.add('hidden');
+  $('#en-text').textContent = data.text;
+  en.fold.querySelector('.en-fold-title').textContent = `Hebrew words for ${data.text}`;
+  const n = data.groups.reduce((k, g) => k + g.rows.length, 0);
+  $('#en-msg').textContent = n ? '' : `No Hebrew word was found for “${data.text}”.`;
+  en.groups.innerHTML = '';
+  for (const g of data.groups) {
+    if (g.id === 'yours' && !g.rows.length) continue; // none of Dan's words: nothing to say
+    const sec = el('section', `en-group en-${g.id}`);
+    sec.dataset.group = g.id;
+    sec.append(el('h3', 'en-heading', g.heading));
+    if (g.message) sec.append(el('p', `en-note${g.state === 'failed' ? ' bad' : ''}`, g.message));
+    if (g.rows.length) {
+      const ol = el('ol', 'en-rows');
+      let sense = null;
+      for (const r of g.rows) {
+        if (g.id === 'wiktionary' && r.sense && r.sense !== sense) { sense = r.sense; ol.append(el('li', 'en-sense', sense)); }
+        ol.append(enRow(r));
+      }
+      sec.append(ol);
+    }
+    en.groups.append(sec);
+  }
+}
+
+function enRow(r) {
+  const li = el('li', 'en-row');
+  li.dataset.word = r.word;
+  const b = el('button', 'en-word');
+  b.type = 'button';
+  const he = el('span', 'he', r.he); he.dir = 'rtl'; he.lang = 'he';
+  b.append(he);
+  b.title = `Look up ${r.word}`;
+  b.addEventListener('click', () => tapWord(r, b));
+  const info = el('div', 'en-info');
+  if (r.translit) info.append(el('span', 'en-translit', r.translit));
+  if (r.pos) info.append(el('span', 'en-pos', r.pos));
+  info.append(el('span', 'en-meaning', r.meaning));
+  const src = el('div', 'en-sources');
+  for (const s of r.sources) {
+    if (s.id === 'yours') { src.append(el('span', 'en-src yours', r.status ? `Yours · ${r.status}` : 'Yours')); continue; }
+    const sb = el('button', `en-src ${s.id}`, s.label);
+    sb.type = 'button';
+    sb.title = `Open ${s.label} here`;
+    sb.addEventListener('click', () => openSource(r, s, li));
+    src.append(sb);
+  }
+  li.append(b, info, src);
+  return li;
+}
+
+// A row's Pealim or Wiktionary label: the entry opened inside the page,
+// under the row, as the tabs open (Pealim as a copy, Wiktionary framed).
+function openSource(r, s, li) {
+  if (en.pane.dataset.ref === s.id && en.pane.dataset.word === r.word) { closeEnPane(); return; }
+  li.append(en.pane);
+  const request = s.id === 'pealim' ? `/english/entry?site=pealim&path=${encodeURIComponent(s.path)}` : `/english/entry?site=wiktionary&page=${encodeURIComponent(s.page)}`;
+  window.ReferenceUI.open(en.pane, { api, reference: s.id, term: s.id === 'pealim' ? r.he : s.page, label: s.label, request, onClose: closeEnPane });
+  en.pane.dataset.word = r.word;
+}
+
+// Tapping a Hebrew word: the list folds to one line where the word was,
+// and the word is looked up as a Hebrew word under it.
+function tapWord(r, button) {
+  const top = button.getBoundingClientRect().top;
+  tapped = r.word;
+  closeEnPane();
+  en.list.classList.add('hidden');
+  en.fold.classList.remove('hidden');
+  keepAt(en.fold, top);
+  return lookUp(r.word);
+}
+
+// "Back to the list": the list unfolds with the tapped row where the line was.
+en.fold.addEventListener('click', () => {
+  const top = en.fold.getBoundingClientRect().top;
+  resetPlace();
+  en.fold.classList.add('hidden');
+  en.list.classList.remove('hidden');
+  const row = tapped && [...en.groups.querySelectorAll('li.en-row')].find((li) => li.dataset.word === tapped);
+  const button = row ? row.querySelector('.en-word') : en.list;
+  keepAt(button, top);
+  if (row) button.focus({ preventScroll: true });
+});
+
+// An English look-up reopened from "Looked up": its kept answer, no site asked.
+async function reopenEnglish(text) {
+  const msg = $('#search-msg');
+  msg.className = 'msg';
+  const seq = ++searching;
+  try {
+    const data = await api('GET', `/english?text=${encodeURIComponent(text)}`);
+    if (seq !== searching) return;
+    $('#word').value = data.text;
+    msg.textContent = '';
+    drawEnglish(data);
+    window.scrollTo({ top: 0 });
+  } catch (e) {
+    if (seq === searching) { msg.className = 'msg error'; msg.textContent = e.message; }
+  }
+}
 
 // --- "Looked up": every word looked up here, newest first ------------------------
 // 200 at a time, "Show more" for the next 200, so every word stays reachable.
@@ -171,6 +360,7 @@ function addOpened(item, more) {
 }
 
 function row(item) {
+  if (item.kind === 'english') return englishRow(item);
   const li = document.createElement('li');
   li.dataset.key = item.key;
   const box = document.createElement('input');
@@ -191,6 +381,23 @@ function row(item) {
   meta.textContent = metaLine(item);
   shown.set(item.key, item);
   li.append(box, word, gloss, meta);
+  return li;
+}
+
+// An English look-up in "Looked up": the English text, "<n> Hebrew words",
+// the day; tapping it reopens the list from the kept answer. It has no
+// card, so no tick for "Put on a desk".
+function englishRow(item) {
+  const li = el('li', 'english');
+  li.dataset.key = item.key;
+  const word = el('button', 'linklike looked-word');
+  word.type = 'button';
+  word.append(el('span', 'en-text', item.text));
+  word.title = `Hebrew words for ${item.text}`;
+  word.addEventListener('click', () => reopenEnglish(item.text));
+  const gloss = el('span', 'gloss', `${item.count} Hebrew word${item.count === 1 ? '' : 's'}`);
+  const meta = el('span', 'meta', item.day);
+  li.append(el('span', 'no-tick'), word, gloss, meta);
   return li;
 }
 

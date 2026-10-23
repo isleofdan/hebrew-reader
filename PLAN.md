@@ -1797,3 +1797,100 @@ passage that was cut.
   navigation now ends with Study (`walks-pages.mjs`, `today-pages.mjs`,
   `lookup-pages.mjs`) and the known tables include the four new ones
   (`lookup-smoke.mjs`).
+
+## hebrew-english-one (23 Oct 2026, the rented Linux machine, OpenRig team): English to Hebrew on the Look up page
+
+Dan, in the thread "English to Hebrew lookup": "I want to be able to look up
+English words to get Hebrew definitions in Hebrew Reader." The Look up box
+now takes an English word, or a phrase of up to three words, and answers the
+Hebrew words for it; tapping one looks it up as a Hebrew word, as typing it
+does.
+
+- **The tables** (`migrate()`, `CREATE TABLE IF NOT EXISTS`; nothing of
+  Dan's touched): `english_sites (site, text, answer_json, fetched_at)`,
+  one row per site ('pealim', 'wiktionary') and lower-cased text, each
+  site's parsed answer, reused for 30 days (`KEEP_MS` in `lib/english.js`)
+  and served past them when the site is down; `english_lookups (id, text,
+  at, answer_json)`, each English look-up with the merged answer as it was
+  shown, which "Looked up" reopens. A failure is never kept.
+- **The route**: `POST /lookup` with `{ surface, origin: 'lookup' }`
+  (`lib/lookup-page.js` `scriptOf`): text with no Latin letter goes the
+  Hebrew way, unchanged; Latin letters with spaces, hyphens and apostrophes
+  only, up to three words and 60 characters, answer `{ mode: 'english',
+  text, groups, at }` from `english.find`; Hebrew and Latin together, a
+  fourth word, over 60 characters, or any other character answer 400 saying
+  what the box takes. `GET /lookups` carries English look-ups as `{ key:
+  'english:<text>', kind: 'english', text, count, at, day }` in the same
+  newest-first order and paging (`db.pageLookups` unions them in, one per
+  text, any case). `GET /english?text=` reopens the kept answer;
+  `GET /english/entry?site=pealim&path=…|site=wiktionary&page=…` shows a
+  row's label inside the page.
+- **The sites** (`ENGLISH` in `lib/references.js`; fetched with
+  `fetchFrom` in `lib/reference-pages.js`, the copies' own request, limit and
+  redirect gate, which now reads a reference's own domain so the English
+  sites are gated too): Pealim's English search,
+  `https://www.pealim.com/search/?q=<text>` — `table.dict-table-t`, each
+  `tbody tr`: `span.dict-lemma a[href^="/dict/"] span.menukad` (the word
+  with nikud), `span.dict-transcription`, the second cell's root ("ר - ו -
+  ץ" -> ר.ו.ץ), the third cell's part of speech and binyan ("Verb –
+  pa'al"), `td.dict-meaning`, the entry's path; "No results for" in
+  `h3.page-header` is no word; any other shape "Pealim's page could not be
+  read". English Wiktionary's API,
+  `https://en.wiktionary.org/w/api.php?action=parse&page=<page>&prop=wikitext&format=json&formatversion=2`
+  — the `==English==` section only, `{{trans-top|gloss}}` /
+  `{{trans-top-see|gloss|…}}` to `{{trans-bottom}}`, the `* Hebrew:` line's
+  `{{t}}`/`{{t+}}`/`{{tt}}`/`{{tt+}}` with `alt=` and `tr=`;
+  `{{checktrans-top}}` tables passed by; the `/translations` subpage read
+  when the entry points there; the word lower-cased first, then as typed;
+  `{{trans-see|gloss|entry…}}` followed one step (each entry once, six at
+  most), taking the entry's sense whose gloss best matches, kept under the
+  pointing gloss and linked to that entry (run: smuggle, voyage, trial).
+  docs/REFERENCES.md has both, and the frame test: English Wiktionary's
+  pages frame, so a row's Wiktionary label frames its page; Pealim's label
+  shows the entry from a copy, kept seven days in `reference_pages`.
+- **The merge**: one row per bare word (`lookup.bare`, now exported), its
+  sources listed together; the meaning from Pealim first, else the
+  Wiktionary sense's gloss (Yours keeps Dan's own). Order: Yours (Dan's
+  cards whose `meaning_en` has every word of the text as a whole word, any
+  case, newest first, ten at most), then words both sites list, then
+  Pealim's order, then Wiktionary's by sense. A word of Dan's that a site
+  lists stays in Yours naming both. Merging is by the bare word only, so a
+  verb card's headword (its past form, ברח) and Pealim's infinitive
+  (לִבְרוֹחַ) are two rows.
+- **The model fallback**: only when Yours, Pealim and Wiktionary give no
+  word at all (a site that failed counts as none): one call to the card
+  model through `chat`, JSON only, at most five words used in Israeli news
+  and business Hebrew with nikud and a short meaning; an answer that is not
+  Hebrew letters is dropped; its rows carry no label or link and stand last
+  under "Suggested by the model; no dictionary listed it". It is asked again
+  on each such look-up (only the sites' answers are kept 30 days).
+- **The page**: the hint "A Hebrew word, or an English one" (the box now
+  `dir="auto"`); "Hebrew words for <text>" and its groups; a tap folds the
+  list to "Hebrew words for <text> · Back to the list" where the row was,
+  and the card opens under it; "Back to the list" puts the row where the
+  line was. When the page cannot scroll that far (at its top or its foot),
+  room is made above the list or below the page, so a tap near the top
+  leaves blank space above the folded line.
+- **A group's line**: "lists no Hebrew word" only when the site's own
+  answer has none; a site whose words all stand above (merged with Dan's or
+  the other site's) says "<site> lists one word for “<text>”, shown above",
+  and one with some there "<site> lists N more, shown above".
+- **The team's checker** (dev-check, FINDINGS on the first candidate,
+  53de2d3): `{{trans-see}}` senses were dropped, though the brief names
+  them; and a site whose words had all merged into a group above said it
+  listed none. Both fixed, with the stand-in "trustiness" (its only
+  translations a trans-see to trust, so the Hebrew comes from there and the
+  model is not asked), "credence" (complete overlap), and two entries naming
+  each other (followed one step). Its recheck of that fix (5bd1871) found
+  one more: a linked entry that failed threw away the words the entry itself
+  had given, and the model was then asked. Now a subpage or a linked entry
+  that fails is named on the group ("Wiktionary's page trust did not
+  answer; the words it gave are shown."), the words read stay, the partial
+  answer is not kept for 30 days (a full kept copy wins), and the group fails
+  only when nothing was read ("probe", "probesub" in the stand-in).
+- **Not done** (out of scope): Morfix for English, a near-synonym note,
+  English look-up anywhere but the Look up page.
+- **Checks**: `english-smoke.mjs` 66, `english-pages.mjs` 48; totals 859
+  server checks and 723 page checks (793 and 675 before). One older check
+  changed in wording: the known tables include the two new ones
+  (`lookup-smoke.mjs`).

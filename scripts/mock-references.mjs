@@ -10,13 +10,67 @@
 // 'redirect:<path>' (a 302 to that path on the stand-in). A path
 // /site/<scheme>/<host>/<rest> stands for <scheme>://<host>/<rest> (the
 // server reads it back so: its redirect gate) and answers a page. GET /calls counts the requests per reference.
+//
+// hebrew-english-one: the two English sites, from pages saved live on 23 Oct
+// 2026 (scripts/fixtures/english/). /pealim/<English text> answers Pealim's
+// English search: its results page for "run" (ten rows, לָרוּץ the
+// second), a results page for "credibility" made from the same markup with
+// one row, אֲמִינוּת (built here, not saved: Wiktionary lists the word too,
+// so it shows the merge), one for "credence" the same way with אֵמוּן, and
+// its "No results for" page for anything else;
+// 'changed' (POST /control { pealim: 'changed' }) answers a page with no
+// results table and no "No results". /enwiktionary/<page> answers
+// Wiktionary's API (action=parse, the wikitext as JSON): the saved answers
+// for credibility, reliability, run, run/translations and trust, and (saved
+// the same day, for run's {{trans-see}} senses) smuggle, voyage and trial;
+// Knesset (built here: a page found only as typed, capitalised); trustiness
+// (built here: its only translations a {{trans-see}} to trust's first
+// sense, so the Hebrew comes from the entry it names); and the saved
+// "missingtitle" answer for any other page. /calls counts them as
+// pealim:english and enwiktionary, apart from the Hebrew tabs' pealim.
 //   node scripts/mock-references.mjs [port]
 import http from 'node:http';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const port = Number(process.argv[2]) || 8853;
 const how = {};
 let slowMs = 10000;
 const calls = {};
+
+const fixtures = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'english');
+const saved = (name) => readFileSync(join(fixtures, name), 'utf8');
+const pealimRun = saved('pealim-run.html');
+const pealimNone = saved('pealim-reliability.html');
+// the run page's markup with one row of its own
+const tbody = /<tbody>[\s\S]*<\/tbody>/;
+const pealimRow = (path, he, tr, root, pos, meaning) => `<tr onclick="javascript:window.document.location=&quot;${path}&quot;" style="cursor:pointer"><td><span class="dict-lemma"><span><a href="${path}"><span class="menukad">${he}</span></a></span></span><span class="dict-transcription">${tr}</span></td><td><a href="/dict/?num-radicals=3">${root}</a></td><td>${pos}</td><td class="dict-meaning">${meaning}</td></tr>`;
+const PEALIM = {
+  run: pealimRun,
+  credence: pealimRun.replace(tbody, `<tbody>${pealimRow('/dict/9002-emun/', 'אֵמוּן', 'em<b>u</b>n', 'א - מ - ן', 'Noun – <i>masculine</i>', 'trust, faith, credence')}</tbody>`).replace(/Results for run/g, 'Results for credence'),
+  credibility: pealimRun.replace(tbody, `<tbody>${pealimRow('/dict/9001-aminut/', 'אֲמִינוּת', 'amin<b>u</b>t', 'א - מ - ן', 'Noun – <i>feminine</i>', 'reliability, credibility')}</tbody>`).replace(/Results for run/g, 'Results for credibility'),
+};
+const WIKT = {
+  run: saved('wikt-run.json'), 'run/translations': saved('wikt-run_translations.json'), credibility: saved('wikt-credibility.json'),
+  reliability: saved('wikt-reliability.json'), trust: saved('wikt-trust.json'),
+  smuggle: saved('wikt-smuggle.json'), voyage: saved('wikt-voyage.json'), trial: saved('wikt-trial.json'),
+  // built: credence's only Hebrew word is Pealim's too (every word shown above);
+  // loopa and loopb point at each other ({{trans-see}} followed one step only)
+  credence: JSON.stringify({ parse: { title: 'credence', pageid: 3, wikitext: '==English==\n===Noun===\n====Translations====\n{{trans-top|acceptance of a belief}}\n* Hebrew: {{t|he|אמון|m|tr=emún}}\n{{trans-bottom}}\n' } }),
+  loopa: JSON.stringify({ parse: { title: 'loopa', pageid: 4, wikitext: '==English==\n====Translations====\n{{trans-see|a loop|loopb}}\n' } }),
+  loopb: JSON.stringify({ parse: { title: 'loopb', pageid: 5, wikitext: '==English==\n====Translations====\n{{trans-see|a loop|loopa}}\n' } }),
+  // built: probe's own table gives אמינות and its trans-see names trust;
+  // probesub's own table gives מהימנות and it points to probesub/translations
+  // (a check makes trust or the subpage fail: the entry's own word stays)
+  probe: JSON.stringify({ parse: { title: 'probe', pageid: 6, wikitext: '==English==\n====Translations====\n{{trans-top|a reliable thing}}\n* Hebrew: {{t|he|אמינות}}\n{{trans-bottom}}\n{{trans-see|confidence in or reliance on some person or quality|trust}}\n' } }),
+  probesub: JSON.stringify({ parse: { title: 'probesub', pageid: 7, wikitext: '==English==\n====Translations====\n{{see translation subpage|Noun}}\n{{trans-top|dependability}}\n* Hebrew: {{t|he|מְהֵימָנוּת|tr=mehemanut}}\n{{trans-bottom}}\n' } }),
+  'probesub/translations': JSON.stringify({ parse: { title: 'probesub/translations', pageid: 8, wikitext: '==English==\n{{trans-top|a test}}\n* Hebrew: {{t|he|בְּדִיקָה|tr=bdika}}\n{{trans-bottom}}\n' } }),
+  trustiness: JSON.stringify({ parse: { title: 'trustiness', pageid: 2, wikitext: '==English==\n===Noun===\n{{en-noun}}\n# The quality of being trusted.\n====Translations====\n{{trans-see|confidence in or reliance on some person or quality|trust}}\n' } }),
+  Knesset: JSON.stringify({ parse: { title: 'Knesset', pageid: 1, wikitext: '==English==\n===Proper noun===\n{{en-prop}}\n# The parliament of Israel.\n====Translations====\n{{trans-top|parliament of Israel}}\n* Hebrew: {{t+|he|כְּנֶסֶת|alt=כְּנֶסֶת|tr=k\'néset}}\n{{trans-bottom}}\n' } }),
+};
+const missing = saved('wikt-Zzqxnotaword.json');
+const latin = (t) => /[A-Za-z]/.test(t) && !/[א-ת]/.test(t);
 
 function page(id, term) {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${id}: ${term}</title>
@@ -59,9 +113,18 @@ http.createServer((req, res) => {
   const m = /^\/([a-z]+)\/(.+)$/.exec(url.pathname);
   if (!m) return json(404, { error: `nothing at ${url.pathname}` });
   const id = m[1], term = decodeURIComponent(m[2]);
-  calls[id] = (calls[id] || 0) + 1;
-  const mode = how[id] || 'page';
-  const send = () => { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(page(id, term)); };
+  const english = id === 'enwiktionary' || (id === 'pealim' && latin(term));
+  const counted = english && id === 'pealim' ? 'pealim:english' : id;
+  calls[counted] = (calls[counted] || 0) + 1;
+  if (english) (calls.english_asked ||= []).push(`${id}:${term}`);
+  // one page of a site may be set apart: POST /control { "enwiktionary:trust": "reset" }
+  const mode = how[`${id}:${term}`] || how[id] || 'page';
+  const send = () => {
+    if (id === 'enwiktionary') { res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' }); return res.end(WIKT[term] || missing); }
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    if (english && mode !== 'changed') return res.end(PEALIM[term] || pealimNone.replace(/reliability/g, term.replace(/[<>&"]/g, '')));
+    res.end(page(id, term));
+  };
   if (mode === 'hang') return; // never answers
   if (mode.startsWith('redirect:')) { res.writeHead(302, { location: mode.slice(9) }); return res.end(); }
   if (mode === 'reset') return req.socket.destroy();

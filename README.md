@@ -51,6 +51,23 @@ page; one that does not is shown from a cleaned copy the reader fetches on
 the tap and keeps seven days (`docs/REFERENCES.md` says which is which, and
 why).
 
+The same box takes an English word too, or a phrase of up to three words
+("A Hebrew word, or an English one"), and answers "Hebrew words for <word>":
+first **Yours**, his own cards whose English meaning has the word; then
+**From Pealim** (its English search's results: the word with nikud, its
+transliteration, part of speech and binyan, and meaning) and **From
+Wiktionary** (the Hebrew translations in the English entry, under each
+sense). A word both sites list is one row naming both. Only when none of the
+three has a word is the model asked, and its words stand under their own
+heading, "Suggested by the model; no dictionary listed it". The list saves
+nothing. Tapping a Hebrew word looks it up as typing it in Hebrew does — its
+card, saved as his, its seven tabs — with the list folded above it to one
+line, "Hebrew words for <word> · Back to the list"; the row and the line each
+stay where his finger was. A row's Pealim or Wiktionary label opens that
+entry inside the page. Each site's answer is kept 30 days (and shown from
+the kept copy when the site is down), and an English look-up stands in
+"Looked up" with its number of Hebrew words, reopening from what was kept.
+
 Every question is answered in one place, the ask surface (`lib/ask.js`,
 since hebrew-ask-one): the reader's Ask box, "Ask here" on a desk card, and
 "Ask about this root" on a word card. Each question goes to a desk

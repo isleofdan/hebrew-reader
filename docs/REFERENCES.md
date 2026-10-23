@@ -91,3 +91,70 @@ Why each landed where it did:
 
 The sites change; run the script again before trusting this table, and
 change `embed` only from a recorded run.
+
+## English to Hebrew: Pealim and English Wiktionary (hebrew-english-one)
+
+An English word on the Look up page is looked up in two sites, which are
+not tabs (`ENGLISH` in `lib/references.js`; `lib/english.js` reads them):
+
+| Site | Asked at | Read | A row's label opens | `embed` |
+| - | - | - | - | - |
+| Pealim | `https://www.pealim.com/search/?q={English}` (the Pealim tab's link) | the results table, `table.dict-table-t` (below) | the word's entry, `https://www.pealim.com/dict/{n}-{name}/` | copy |
+| English Wiktionary | `https://en.wiktionary.org/w/api.php?action=parse&page={page}&prop=wikitext&format=json&formatversion=2` | the English section's translation tables (below) | the entry's page, `https://en.wiktionary.org/wiki/{page}` | frame |
+
+Both are fetched with the copies' own request (`fetchFrom` in
+`lib/reference-pages.js`: the browser-like headers, the 20-second limit, the
+redirect gate on the site's own domain).
+
+**Pealim's results page** (saved 23 Oct 2026 for "run" and "reliability";
+`scripts/fixtures/english/`): `table.table.table-hover.dict-table-t`, one
+`tbody tr[onclick]` per word. First cell: `span.dict-lemma a[href^="/dict/"]`
+holding `span.menukad` (the word with nikud) and `span.dict-transcription`
+(the transliteration, its stressed vowel in `<b>`); second cell: the root's
+link, "ר - ו - ץ"; third cell: part of speech and binyan, "Verb – <i>pa'al</i>";
+`td.dict-meaning`: the English. For "run", ten rows; לָרוּץ "to run",
+`/dict/11-larutz/`, is the second. With no word the page has no table and an
+`h3.page-header` "No results for <i>reliability</i>." Any other page — no
+table and no "No results", or a row missing its word, link or meaning — is
+"Pealim's page could not be read", never an empty list.
+
+**English Wiktionary's wikitext**: only the `==English==` section (to the next
+level-two heading). A sense is a table opened by `{{trans-top|gloss}}` (or
+`{{trans-top-see|gloss|…}}`) and closed by `{{trans-bottom}}`; its Hebrew line
+is `* Hebrew: {{t+|he|אמינות|f|tr=aminút}}, …` (`{{t}}`, `{{t+}}`, `{{tt}}`,
+`{{tt+}}`), each word with its `alt=` (a pointed form) and `tr=`. Tables of
+translations still to be checked (`{{checktrans-top}}`) are passed by. An
+entry that points to `{{see translation subpage|…}}` (run) is read with its
+`/translations` page (run/translations: 75 tables, four Hebrew lines). A
+missing page answers HTTP 200 with `{"error":{"code":"missingtitle"}}`; the
+lower-cased word is tried first, then the word as typed. A
+`{{trans-see|gloss|entry…}}` (a sense whose translations live on another
+entry; the entry is the gloss itself when none is named, "#…" dropped) is
+followed: each entry named is read once (with its `/translations` subpage
+when it points there), one step only — a trans-see inside it is not followed
+again — and at most six entries a look-up; from it, the table whose gloss
+shares the most words with the pointing gloss, else its first table with
+Hebrew. Its words stand under the pointing gloss, their label opening the
+entry they came from. For run, `{{trans-see|to smuggle illegal goods|smuggle}}`,
+`{{trans-see|voyage}}` and `{{trans-see|trial}}` give הבריח, הַפְלָגָה and
+נִסָּיוֹן (an `alt=` of two spellings, "ניסיון \ נִסָּיוֹן", gives the pointed
+one). A page beyond the entry itself (its `/translations` subpage, or an
+entry a trans-see names) that does not answer leaves the words already read
+standing, with the line "Wiktionary's page <page> did not answer; the words
+it gave are shown."; such an answer is not kept for 30 days (a full copy kept
+before is shown instead), and only when nothing at all was read does the
+group say "Wiktionary did not answer".
+
+### The frame test for English Wiktionary (23 Oct 2026, the rented Linux machine)
+
+`node scripts/reference-frames.mjs --only enwiktionary`, the same two
+requests per page as the test above:
+
+| Site | Word | Status (browser / plain) | X-Frame-Options | frame-ancestors | Word in the page | Can be framed |
+| - | - | - | - | - | - | - |
+| English Wiktionary | run | 200 / 200 (`https://en.wiktionary.org/wiki/run`, "run - Wiktionary, the free dictionary") | — | — | yes | yes |
+
+So a row's Wiktionary label frames the entry's page, as the Hebrew
+Wiktionary tab does. Pealim's pages send `X-Frame-Options: SAMEORIGIN` (the
+test above), so its label shows the entry from a copy, kept seven days in
+`reference_pages` under the entry's path.

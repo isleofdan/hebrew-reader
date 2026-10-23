@@ -6,8 +6,11 @@
 // sandboxed frame under one line saying so, or the failure line. Every way
 // out to the live site opens a new tab; nothing else does.
 //
-//   ReferenceUI.open(box, { api, reference, term, label, onClose })
-// fills `box` (emptied first) and answers the server's reply.
+//   ReferenceUI.open(box, { api, reference, term, label, onClose, request })
+// fills `box` (emptied first) and answers the server's reply. `request`
+// (hebrew-english-one) is the address asked instead of /reference/<id>: a
+// row of an English look-up opens its Pealim entry or its Wiktionary page
+// through GET /english/entry, which answers the same shapes.
 
 (function () {
   function el(tag, cls, text) {
@@ -23,7 +26,7 @@
     return a;
   }
 
-  async function open(box, { api, reference, term, label, onClose }) {
+  async function open(box, { api, reference, term, label, onClose, request }) {
     const seq = String(Number(box.dataset.refSeq || 0) + 1);
     box.dataset.refSeq = seq;
     box.innerHTML = '';
@@ -42,7 +45,7 @@
     box.append(head, body);
     let got;
     try {
-      got = await api('GET', `/reference/${encodeURIComponent(reference)}?term=${encodeURIComponent(term)}`);
+      got = await api('GET', request || `/reference/${encodeURIComponent(reference)}?term=${encodeURIComponent(term)}`);
     } catch (e) {
       got = { mode: 'failed', url: null, reason: e.message };
     }
