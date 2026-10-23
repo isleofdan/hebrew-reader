@@ -131,6 +131,11 @@ try {
       && (await card.locator('.meaning').innerText()) === 'to gamble, to bet');
     check(`${name}: the word is saved at once, and the page says so (${phone ? '"In your words." — the computer saved it' : '"Saved to your words."'}); the card's status line says shaky`,
       (await page.locator('#saved-line').innerText()) === (phone ? 'In your words.' : 'Saved to your words.') && /^shaky · seen/.test(await card.locator('.status').innerText()), await page.locator('#saved-line').innerText());
+    // Dan, 23 Oct: "Save to vocab not working here" — the word was already saved, the button disabled but looking pressable
+    check(`${name}: the save button says the word is already in the vocab, and Mark solid stays pressable`,
+      (await card.locator('[data-act=shaky]').innerText()) === 'In your vocab ✓' && await card.locator('[data-act=shaky]').isDisabled()
+      && (await card.locator('[data-act=solid]').innerText()) === 'Mark solid' && await card.locator('[data-act=solid]').isEnabled(),
+      await card.locator('[data-act=shaky]').innerText());
     check(`${name}: the saved line is legible`, contrast(await paint(page.locator('#saved-line'), 'color'), await ground(page.locator('#saved-line'))) >= 4.5);
     const tabs = await page.locator('#tabs button.ref').allTextContents();
     check(`${name}: the seven tabs under the card, in the references' order; no reference asked for before a tap`,
