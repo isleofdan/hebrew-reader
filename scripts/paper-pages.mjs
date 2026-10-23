@@ -268,7 +268,8 @@ try {
     const sheetUrl = tab.url();
     await tab.waitForFunction(() => document.body.dataset.pages, null, { timeout: 15000 });
     const closing = tab.waitForEvent('close', { timeout: 5000 }).catch(() => null);
-    await tab.locator('#back').click();
+    // the click closes the tab; Playwright may report the closed page as the click's error
+    await tab.locator('#back').click().catch((e) => { if (!tab.isClosed()) throw e; });
     await closing;
     check(`${name}: "Back to the desk" on the sheet closes its tab`, tab.isClosed());
     await page.goto(sheetUrl);
