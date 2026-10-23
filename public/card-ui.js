@@ -101,8 +101,14 @@
     el(card, 'error').textContent = '';
     const actions = el(card, 'actions');
     actions.classList.toggle('hidden', !spot);
-    actions.querySelector('[data-act=shaky]').disabled = !spot || spot.status === 'shaky';
-    actions.querySelector('[data-act=solid]').disabled = !spot || spot.status === 'solid';
+    // a button whose status the word already has says so, rather than
+    // looking pressable and doing nothing (the Look up page saves at once)
+    const shaky = actions.querySelector('[data-act=shaky]');
+    const solid = actions.querySelector('[data-act=solid]');
+    shaky.disabled = !spot || spot.status === 'shaky';
+    solid.disabled = !spot || spot.status === 'solid';
+    shaky.textContent = spot && spot.status === 'shaky' ? 'In your vocab ✓' : 'Save to vocab';
+    solid.textContent = spot && spot.status === 'solid' ? 'Solid ✓' : 'Mark solid';
     actions.querySelector('[data-act=ask]').disabled = !c.root && !c.lemma;
     el(card, 'foot').textContent = spineLine(data.spine) || (data.cached ? 'from the cache' : '');
   }
