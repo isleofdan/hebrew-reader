@@ -317,6 +317,18 @@ try {
       await page.waitForFunction(() => /^Heard: /.test(document.querySelector('#mic-line').textContent), null, { timeout: 8000 });
       console.log(`     ${name}: left recording, it stopped by itself after ${took.toFixed(1)} s`);
       check(`${name}: left recording, it stops by itself at 30 seconds (${took.toFixed(1)} s), its tracks ended, and is written down as any other`, took >= 29.5 && took < 33 && (await live(page)) === 0);
+      // Its look-up attaches it to the word's row a moment after "Heard:"
+      // shows. Wait for that, then remove it, so the phone's counts below
+      // start from the same rows on any machine (before, a fast machine
+      // closed the page before the attach landed and a slower one did not).
+      const longKey = (await page.evaluate(() => window.Lookup.current)).key;
+      let longRec = null;
+      for (let i = 0; i < 50 && !longRec; i++) {
+        longRec = ((await rowOf(longKey))?.recordings || []).find((r) => r.ms >= 29000) || null;
+        if (!longRec) await page.waitForTimeout(100);
+      }
+      check(`${name}: the 30-second recording is attached to its look-up's row (${longKey}) like any other`, !!longRec);
+      if (longRec) await api('DELETE', `/recordings/${longRec.id}`);
     }
     check(`${name}: no screen shows "transcribe", "audio", "model", "API", "blob" or the reader's inside words`, page.words.length === 0, page.words.join(' | '));
     await ctx.close();
