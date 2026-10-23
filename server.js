@@ -28,9 +28,10 @@ const english = require('./lib/english');
 const today = require('./lib/today');
 const walks = require('./lib/walks');
 const library = require('./lib/library');
+const speech = require('./lib/speech');
 const { CATEGORIES } = require('./lib/categories');
 const ratelimit = require('./lib/ratelimit');
-const { sendJson, sendHtml, redirect, readJson, readFile, serveStatic } = require('./lib/http');
+const { sendJson, sendHtml, redirect, readJson, readFile, readBuffer, serveStatic } = require('./lib/http');
 
 const PORT = Number(process.env.PORT) || 8080;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -424,6 +425,25 @@ route('GET', /^\/reference\/(?<id>[a-z]+)$/, async (req, res, { id }, url) => se
 route('GET', /^\/english$/, (req, res, g, url) => sendJson(res, 200, english.kept(url.searchParams.get('text'))));
 route('GET', /^\/english\/entry$/, async (req, res, g, url) => sendJson(res, 200, await english.entry({ site: url.searchParams.get('site'), path: url.searchParams.get('path'), page: url.searchParams.get('page') })));
 
+// --- speech on the Look up page (hebrew-speech-one) -----------------------------
+// The raw recording (audio/webm, audio/ogg, audio/mp4 or audio/wav, at most
+// 2 MB), ?ms=<its length> -> { id, text, ms } (lib/speech.js), or { id: null,
+// text: '', message } when nothing was heard. The page then looks the text
+// up as typed text and attaches the recording to the row the look-up made.
+route('POST', /^\/lookup\/speech$/, async (req, res, g, url) => {
+  const type = speech.typeOf(req.headers['content-type']);
+  const tooLong = () => new db.ReaderError(413, speech.TOO_LONG);
+  if (Number(req.headers['content-length']) > speech.MAX_BYTES) throw tooLong();
+  let bytes;
+  try { bytes = await readBuffer(req, speech.MAX_BYTES); } catch (e) { throw e.status === 413 ? tooLong() : e; }
+  return sendJson(res, 200, await speech.hear(bytes, type, { ms: url.searchParams.get('ms') }));
+});
+// { row_key } -> { id, row_key }; once only (409 on an attached recording)
+route('POST', /^\/recordings\/(?<id>\d+)\/attach$/, async (req, res, { id }) => sendJson(res, 200, speech.attach(id, (await readJson(req)).row_key)));
+// the file, with its type; a Range request answers 206
+route('GET', /^\/recordings\/(?<id>\d+)$/, (req, res, { id }) => speech.serve(req, res, id));
+route('DELETE', /^\/recordings\/(?<id>\d+)$/, (req, res, { id }) => sendJson(res, 200, speech.remove(id)));
+
 // --- Today (hebrew-today-one) --------------------------------------------------
 // The day's drills. GET /today is the page (a page route: signed out, it
 // redirects to /login); its data is here, under /today/.
@@ -497,7 +517,7 @@ function guidePage(res, id) {
 }
 
 function isApiPath(p) {
-  return /^\/(articles|lookup|spots|marks-for-article|marks-for-lesson|categories|demand|ask|make|lessons|desks|notes|card|sheets|reference|lookups|english)(\/|$)/.test(p);
+  return /^\/(articles|lookup|spots|marks-for-article|marks-for-lesson|categories|demand|ask|make|lessons|desks|notes|card|sheets|reference|lookups|english|recordings)(\/|$)/.test(p);
 }
 
 async function handle(req, res) {
@@ -570,6 +590,8 @@ async function handle(req, res) {
 
 db.open(DATA_DIR);
 console.log(`database: ${path.join(DATA_DIR, 'reader.db')}`);
+// recordings under DATA_DIR/recordings/; those never attached, past seven days, go
+speech.init(DATA_DIR);
 // one-time steps on the data; each is recorded and never runs twice
 // one after the other: the second undoes one card of the first
 guyLesson.restoreContradicted().catch((e) => console.error(`one-time step failed, to be tried at the next start: ${e.message}`))
