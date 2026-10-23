@@ -128,8 +128,9 @@ try {
       yoursRows.map(nfc).join() === nfc(phone ? 'רָץ,רִיצָה,מֵרוֹץ' : 'רִיצָה,מֵרוֹץ')
       && yourLabels.join('|') === (phone ? 'Yours · shaky+Wiktionary|Yours · new+Wiktionary|Yours · shaky' : 'Yours · new+Wiktionary|Yours · shaky'), JSON.stringify([yoursRows, yourLabels]));
     const senses = await page.locator('.en-wiktionary .en-sense').allTextContents();
-    check(`${name}: Wiktionary's words under each sense's gloss${phone ? ' (רָץ now in Yours)' : ''}`,
-      senses.join('|') === `${phone ? '' : 'to move quickly on two feet|'}to be in charge of|instance or period of fleeing`, senses.join('|'));
+    check(`${name}: Wiktionary's words under each sense's gloss, the {{trans-see}} senses (smuggle, voyage, trial) included${phone ? ' (רָץ now in Yours)' : ''}; its note says the words standing in Yours are shown above`,
+      senses.join('|') === `${phone ? '' : 'to move quickly on two feet|'}to be in charge of|to smuggle illegal goods|instance or period of fleeing|voyage|trial`
+      && (await page.locator('.en-wiktionary .en-note').innerText()) === `Wiktionary lists ${phone ? 2 : 1} more, shown above.`, JSON.stringify([senses, await page.locator('.en-wiktionary .en-note').allTextContents()]));
     const heights = await page.locator('.en-row .en-word').evaluateAll((bs) => bs.map((b) => Math.round(b.getBoundingClientRect().height)));
     check(`${name}: every Hebrew word is a button at least 44 px high (${Math.min(...heights)}–${Math.max(...heights)} px)`, heights.every((h) => h >= 44), heights.join());
     check(`${name}: the page is no wider than the screen`, await narrow(page));
@@ -215,8 +216,8 @@ try {
     const n0 = await asked(), mm = await modelCalls();
     const runRow = page.locator('#looked-list li[data-key="english:run"]');
     await runRow.waitFor({ timeout: 5000 });
-    check(`${name}: "Looked up" lists "run" with "15 Hebrew words" and its day, no tick`,
-      (await runRow.locator('.en-text').innerText()) === 'run' && (await runRow.locator('.gloss').innerText()) === '15 Hebrew words' && /\d{4}$/.test(await runRow.locator('.meta').innerText()) && (await runRow.locator('input').count()) === 0, await runRow.innerText());
+    check(`${name}: "Looked up" lists "run" with "18 Hebrew words" and its day, no tick`,
+      (await runRow.locator('.en-text').innerText()) === 'run' && (await runRow.locator('.gloss').innerText()) === '18 Hebrew words' && /\d{4}$/.test(await runRow.locator('.meta').innerText()) && (await runRow.locator('input').count()) === 0, await runRow.innerText());
     await runRow.locator('.looked-word').click();
     await page.waitForFunction(() => document.querySelector('#en-text')?.textContent === 'run', null, { timeout: 5000 });
     check(`${name}: tapping it reopens "Hebrew words for run" from the kept answer, with no request to the stand-ins or the model`,

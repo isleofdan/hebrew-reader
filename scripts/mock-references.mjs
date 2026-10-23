@@ -16,12 +16,16 @@
 // English search: its results page for "run" (ten rows, לָרוּץ the
 // second), a results page for "credibility" made from the same markup with
 // one row, אֲמִינוּת (built here, not saved: Wiktionary lists the word too,
-// so it shows the merge), and its "No results for" page for anything else;
+// so it shows the merge), one for "credence" the same way with אֵמוּן, and
+// its "No results for" page for anything else;
 // 'changed' (POST /control { pealim: 'changed' }) answers a page with no
 // results table and no "No results". /enwiktionary/<page> answers
 // Wiktionary's API (action=parse, the wikitext as JSON): the saved answers
-// for credibility, reliability, run, run/translations and trust; Knesset
-// (built here: a page found only as typed, capitalised); and the saved
+// for credibility, reliability, run, run/translations and trust, and (saved
+// the same day, for run's {{trans-see}} senses) smuggle, voyage and trial;
+// Knesset (built here: a page found only as typed, capitalised); trustiness
+// (built here: its only translations a {{trans-see}} to trust's first
+// sense, so the Hebrew comes from the entry it names); and the saved
 // "missingtitle" answer for any other page. /calls counts them as
 // pealim:english and enwiktionary, apart from the Hebrew tabs' pealim.
 //   node scripts/mock-references.mjs [port]
@@ -44,11 +48,19 @@ const tbody = /<tbody>[\s\S]*<\/tbody>/;
 const pealimRow = (path, he, tr, root, pos, meaning) => `<tr onclick="javascript:window.document.location=&quot;${path}&quot;" style="cursor:pointer"><td><span class="dict-lemma"><span><a href="${path}"><span class="menukad">${he}</span></a></span></span><span class="dict-transcription">${tr}</span></td><td><a href="/dict/?num-radicals=3">${root}</a></td><td>${pos}</td><td class="dict-meaning">${meaning}</td></tr>`;
 const PEALIM = {
   run: pealimRun,
+  credence: pealimRun.replace(tbody, `<tbody>${pealimRow('/dict/9002-emun/', 'אֵמוּן', 'em<b>u</b>n', 'א - מ - ן', 'Noun – <i>masculine</i>', 'trust, faith, credence')}</tbody>`).replace(/Results for run/g, 'Results for credence'),
   credibility: pealimRun.replace(tbody, `<tbody>${pealimRow('/dict/9001-aminut/', 'אֲמִינוּת', 'amin<b>u</b>t', 'א - מ - ן', 'Noun – <i>feminine</i>', 'reliability, credibility')}</tbody>`).replace(/Results for run/g, 'Results for credibility'),
 };
 const WIKT = {
   run: saved('wikt-run.json'), 'run/translations': saved('wikt-run_translations.json'), credibility: saved('wikt-credibility.json'),
   reliability: saved('wikt-reliability.json'), trust: saved('wikt-trust.json'),
+  smuggle: saved('wikt-smuggle.json'), voyage: saved('wikt-voyage.json'), trial: saved('wikt-trial.json'),
+  // built: credence's only Hebrew word is Pealim's too (every word shown above);
+  // loopa and loopb point at each other ({{trans-see}} followed one step only)
+  credence: JSON.stringify({ parse: { title: 'credence', pageid: 3, wikitext: '==English==\n===Noun===\n====Translations====\n{{trans-top|acceptance of a belief}}\n* Hebrew: {{t|he|אמון|m|tr=emún}}\n{{trans-bottom}}\n' } }),
+  loopa: JSON.stringify({ parse: { title: 'loopa', pageid: 4, wikitext: '==English==\n====Translations====\n{{trans-see|a loop|loopb}}\n' } }),
+  loopb: JSON.stringify({ parse: { title: 'loopb', pageid: 5, wikitext: '==English==\n====Translations====\n{{trans-see|a loop|loopa}}\n' } }),
+  trustiness: JSON.stringify({ parse: { title: 'trustiness', pageid: 2, wikitext: '==English==\n===Noun===\n{{en-noun}}\n# The quality of being trusted.\n====Translations====\n{{trans-see|confidence in or reliance on some person or quality|trust}}\n' } }),
   Knesset: JSON.stringify({ parse: { title: 'Knesset', pageid: 1, wikitext: '==English==\n===Proper noun===\n{{en-prop}}\n# The parliament of Israel.\n====Translations====\n{{trans-top|parliament of Israel}}\n* Hebrew: {{t+|he|כְּנֶסֶת|alt=כְּנֶסֶת|tr=k\'néset}}\n{{trans-bottom}}\n' } }),
 };
 const missing = saved('wikt-Zzqxnotaword.json');

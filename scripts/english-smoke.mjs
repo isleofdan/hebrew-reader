@@ -114,13 +114,19 @@ try {
     pealim.state === 'ok' && pealim.rows.length === 10 && larutz && larutz.meaning === 'to run' && larutz.translit === 'larutz' && larutz.root === 'ר.ו.ץ' && larutz.pos === "Verb – pa'al"
     && larutz.sources.length === 1 && larutz.sources[0].url === 'https://www.pealim.com/dict/11-larutz/' && larutz.sources[0].path === '/dict/11-larutz/' && larutz.word === 'לרוץ', JSON.stringify(larutz));
   check('…in Pealim\'s order (לִרְהוֹט first, לָרוּץ second, לְהִיגָּמֵר last)', words(pealim)[0] === nfc('לִרְהוֹט') && words(pealim)[1] === nfc('לָרוּץ') && words(pealim)[9] === nfc('לְהִיגָּמֵר'), words(pealim).join());
-  check('From Wiktionary: the Hebrew words of run/translations (the entry points to its subpage), each under its sense\'s gloss, in the entry\'s order (ריצה, Dan\'s, stands in Yours)',
-    wikt.state === 'ok' && wikt.rows.map((r) => `${r.he}:${r.sense}`).join('|') === nfc('רָץ:to move quickly on two feet|נִהֵל:to be in charge of|מְנוּסָה:instance or period of fleeing'), JSON.stringify(wikt.rows));
+  check('From Wiktionary: the Hebrew words of run/translations (the entry points to its subpage), each under its sense\'s gloss, in the entry\'s order, the {{trans-see}} senses included (ריצה, Dan\'s, stands in Yours)',
+    wikt.state === 'ok' && wikt.rows.map((r) => `${r.he.normalize('NFC')}:${r.sense}`).join('|') === nfc('רָץ:to move quickly on two feet|נִהֵל:to be in charge of|הבריח:to smuggle illegal goods|מְנוּסָה:instance or period of fleeing|הַפְלָגָה:voyage|נִסָּיוֹן:trial'), JSON.stringify(wikt.rows.map((r) => [r.he, r.sense])));
   check('…each with its tr= transliteration, its meaning the gloss, and its label opening the Wiktionary page it came from',
-    wikt.rows[0].translit === 'rats' && wikt.rows[0].meaning === 'to move quickly on two feet' && wikt.rows[0].sources[0].url === 'https://en.wiktionary.org/wiki/run/translations' && wikt.rows[2].translit === "m'nusá" && yours.rows[0].translit === '');
+    wikt.rows[0].translit === 'rats' && wikt.rows[0].meaning === 'to move quickly on two feet' && wikt.rows[0].sources[0].url === 'https://en.wiktionary.org/wiki/run/translations' && wikt.rows[3].translit === "m'nusá" && yours.rows[0].translit === '');
+  const smug = wikt.rows.find((r) => r.word === 'הבריח'), trialRow = wikt.rows.find((r) => r.word === 'ניסיון');
+  check('a {{trans-see|to smuggle illegal goods|smuggle}} sense: the Hebrew of the entry it names (smuggle\'s first sense, הבריח), kept under run\'s gloss, its label opening https://en.wiktionary.org/wiki/smuggle',
+    smug && smug.sense === 'to smuggle illegal goods' && smug.meaning === 'to smuggle illegal goods' && smug.sources[0].url === 'https://en.wiktionary.org/wiki/smuggle' && smug.sources[0].page === 'smuggle', JSON.stringify(smug));
+  check('…{{trans-see|trial}} (the entry named by the gloss itself): trial\'s ניסיון, its alt= of two spellings ("ניסיון \\ נִסָּיוֹן") shown pointed, transliterated nisayón',
+    trialRow && nfc(trialRow.he) === nfc('נִסָּיוֹן') && trialRow.translit === 'nisayón' && trialRow.sources[0].url === 'https://en.wiktionary.org/wiki/trial', JSON.stringify(trialRow));
+  check('…and Wiktionary\'s group says its word that stands in Yours is shown above', wikt.message === 'Wiktionary lists 1 more, shown above.', wikt.message);
   const ask1 = await asked();
-  check('one request to Pealim (run) and two to Wiktionary (run, run/translations), nothing else', JSON.stringify(ask1) === '["pealim:run","enwiktionary:run","enwiktionary:run/translations"]'
-    || JSON.stringify([...ask1].sort()) === JSON.stringify(['enwiktionary:run', 'enwiktionary:run/translations', 'pealim:run']), JSON.stringify(ask1));
+  check('one request to Pealim (run); to Wiktionary run, run/translations and the three entries its {{trans-see}} senses name (smuggle, voyage, trial), nothing else',
+    JSON.stringify([...ask1].sort()) === JSON.stringify(['enwiktionary:run', 'enwiktionary:run/translations', 'enwiktionary:smuggle', 'enwiktionary:trial', 'enwiktionary:voyage', 'pealim:run']), JSON.stringify(ask1));
   const ritsa = yours.rows[0];
   check('a word of Dan\'s that Wiktionary lists too (ריצה) is one row in Yours naming both ("Yours, Wiktionary"), Dan\'s meaning kept, and leaves Wiktionary\'s group',
     ritsa.word === 'ריצה' && ritsa.sources.map((s) => s.label).join(', ') === 'Yours, Wiktionary' && ritsa.meaning === 'running; a run' && !wikt.rows.some((r) => r.word === 'ריצה'), JSON.stringify(ritsa));
@@ -148,10 +154,28 @@ try {
     cp.rows.length === 1 && cp.rows[0].word === 'אמינות' && cp.rows[0].sources.map((s) => s.label).join(', ') === 'Pealim, Wiktionary' && !cw.rows.some((r) => r.word === 'אמינות'), JSON.stringify(cred.groups));
   check('…its meaning Pealim\'s ("reliability, credibility"), not Wiktionary\'s gloss; its pointed form Pealim\'s; the transliteration Pealim\'s',
     cp.rows[0].meaning === 'reliability, credibility' && cp.rows[0].he === 'אֲמִינוּת' && cp.rows[0].translit === 'aminut');
-  check('…and a word only Wiktionary lists (אמון) has the gloss for its meaning', cw.rows.length === 1 && cw.rows[0].he === 'אמון' && cw.rows[0].meaning === "reputation impacting one's ability to be believed" && cw.rows[0].translit === 'emún');
+  check('…and a word only Wiktionary lists (אמון) has the gloss for its meaning; the group says its other word is shown above',
+    cw.rows.length === 1 && cw.rows[0].he === 'אמון' && cw.rows[0].meaning === "reputation impacting one's ability to be believed" && cw.rows[0].translit === 'emún' && cw.message === 'Wiktionary lists 1 more, shown above.', JSON.stringify(cw));
+  // dev-check on 53de2d3: a site whose words all stand above is not "no word"
+  const cre = (await look('credence')).body;
+  const crp = groupOf(cre, 'pealim'), crw = groupOf(cre, 'wiktionary');
+  check('complete overlap ("credence": Wiktionary\'s only word, אמון, is Pealim\'s אֵמוּן): one row naming both; Wiktionary\'s group has no row and says "Wiktionary lists one word for “credence”, shown above." — never "lists no Hebrew word"',
+    crp.rows.length === 1 && crp.rows[0].sources.map((s) => s.label).join(', ') === 'Pealim, Wiktionary' && crw.state === 'ok' && crw.rows.length === 0
+    && crw.message === 'Wiktionary lists one word for “credence”, shown above.' && !groupOf(cre, 'model'), JSON.stringify(cre.groups));
+  // dev-check on 53de2d3: a {{trans-see}} sense supplies the Hebrew
+  const nOr = (await orCalls()).english_calls;
+  const tr = (await look('trustiness')).body;
+  const tw = groupOf(tr, 'wiktionary');
+  check('"trustiness", whose only translations are {{trans-see|confidence in or reliance on some person or quality|trust}}: trust\'s matching sense gives אֵמוּן, kept under that gloss and linked to trust',
+    tw.state === 'ok' && words(tw).join() === nfc('אֵמוּן') && tw.rows[0].sense === 'confidence in or reliance on some person or quality' && tw.rows[0].sources[0].url === 'https://en.wiktionary.org/wiki/trust' && tw.rows[0].translit === "'emún", JSON.stringify(tw));
+  check('…so the model is not asked (Pealim lists none; the word came from the entry Wiktionary names)', (await orCalls()).english_calls === nOr && !groupOf(tr, 'model') && groupOf(tr, 'pealim').state === 'none');
+  const la = (await look('loopa')).body;
+  check('two entries that name each other (loopa -> loopb -> loopa): each read once, the second\'s trans-see not followed; no word, so the model group',
+    (await asked()).filter((a) => /^enwiktionary:loop/.test(a)).join() === 'enwiktionary:loopa,enwiktionary:loopb' && groupOf(la, 'wiktionary').state === 'none' && groupOf(la, 'model'), JSON.stringify(await asked()));
   check('…Yours is said to be empty, in plain words', groupOf(cred, 'yours').state === 'none' && groupOf(cred, 'yours').message === 'None of your words means “credibility”.');
 
   // --- verify 2: "reliability" — no Hebrew in the dictionaries, so the model ---------------------
+  const relCalls = (await orCalls()).english_calls;
   const rel = (await look('reliability')).body;
   const oc = await orCalls();
   console.log(`     reliability: ${rel.groups.map((g) => `${g.id}(${g.state}${g.message ? `: ${g.message}` : ''}) ${words(g).join(', ')}`).join(' | ')}`);
@@ -159,7 +183,7 @@ try {
     groupOf(rel, 'pealim').state === 'none' && groupOf(rel, 'pealim').message === 'Pealim lists no Hebrew word for “reliability”.' && groupOf(rel, 'wiktionary').state === 'none');
   const mg = groupOf(rel, 'model');
   check('…so, and only so, the model is asked once, and its words stand last under "Suggested by the model; no dictionary listed it"',
-    oc.english_calls === 1 && rel.groups.at(-1) === mg && mg.heading === 'Suggested by the model; no dictionary listed it' && words(mg).join() === 'אֲמִינוּת,מְהֵימָנוּת' && mg.rows[1].meaning === 'trustworthiness, dependability', JSON.stringify(mg));
+    oc.english_calls === relCalls + 1 && rel.groups.at(-1) === mg && mg.heading === 'Suggested by the model; no dictionary listed it' && words(mg).join() === 'אֲמִינוּת,מְהֵימָנוּת' && mg.rows[1].meaning === 'trustworthiness, dependability', JSON.stringify(mg));
   check('…a model answer that is not Hebrew letters ("reliable") is dropped; the call is JSON only, to the card model, asking for at most five words used in Israeli news and business Hebrew',
     !words(mg).includes('reliable') && oc.last_english_ask.format === 'json_object' && oc.last_english_ask.model === 'anthropic/claude-sonnet-4.6' && /at most five words/i.test(oc.last_english_ask.system) && /Israeli news and business Hebrew/.test(oc.last_english_ask.system)
     && /1 dropped \(not Hebrew\)/.test(server.log), JSON.stringify(oc.last_english_ask));
@@ -168,9 +192,10 @@ try {
   check('a word nobody has and the model answers only with Latin letters: the model group says it gave no Hebrew word', groupOf(zz, 'model').state === 'none' && groupOf(zz, 'model').rows.length === 0 && /no Hebrew word/.test(groupOf(zz, 'model').message));
 
   // --- a phrase; tried as typed ---------------------------------------------------------------------
+  const phCalls = (await orCalls()).english_calls;
   const ph = (await look('run  away')).body;
   check('a phrase ("run away"): Yours holds the cards with both words (לברוח); each site asked for the phrase; no model call since Yours has a word',
-    ph.text === 'run away' && words(groupOf(ph, 'yours')).join() === 'בָּרַח' && (await asked()).includes('pealim:run away') && (await asked()).includes('enwiktionary:run away') && (await orCalls()).english_calls === 2, JSON.stringify(ph.groups));
+    ph.text === 'run away' && words(groupOf(ph, 'yours')).join() === 'בָּרַח' && (await asked()).includes('pealim:run away') && (await asked()).includes('enwiktionary:run away') && (await orCalls()).english_calls === phCalls, JSON.stringify(ph.groups));
   const kn = (await look('Knesset')).body;
   check('Wiktionary: the lower-cased page first (knesset, missing), then as typed (Knesset), its alt= pointed form taken',
     (await asked()).filter((a) => /^enwiktionary:knesset$/i.test(a)).join() === 'enwiktionary:knesset,enwiktionary:Knesset' && words(groupOf(kn, 'wiktionary')).join() === 'כְּנֶסֶת' && groupOf(kn, 'wiktionary').rows[0].sources[0].url === 'https://en.wiktionary.org/wiki/Knesset', JSON.stringify(kn.groups));
@@ -224,13 +249,13 @@ try {
   const runItem = items.find((i) => i.key === 'english:run');
   console.log(`     Looked up: ${items.map((i) => (i.kind === 'english' ? `${i.text}(${i.count})` : i.headword)).join(', ')}`);
   check('"Looked up" carries the English look-ups as { kind: english, text, count, at, day }, newest first among the words, one per text',
-    list.status === 200 && runItem && runItem.kind === 'english' && runItem.text === 'RUN' && runItem.count === 16 && /^\d{1,2} [A-Z][a-z]{2} \d{4}$/.test(runItem.day)
+    list.status === 200 && runItem && runItem.kind === 'english' && runItem.text === 'RUN' && runItem.count === 19 && /^\d{1,2} [A-Z][a-z]{2} \d{4}$/.test(runItem.day)
     && items[0].kind === 'word' && items[1].kind === 'word' && items.filter((i) => i.key === 'english:run').length === 1, JSON.stringify(items.slice(0, 4)));
   check('…in the same newest-first order (the tapped לרוץ, then רפורמה, then the English look-ups, newest first)',
     items.map((i) => i.key).indexOf('english:don\'t') < items.map((i) => i.key).indexOf('english:run') && items.map((i) => i.at).every((a, i, all) => i === 0 || all[i - 1] >= a));
   const reopen = await api('GET', `/english?text=${encodeURIComponent(runItem.text)}`);
-  check('reopening it answers the kept answer (the 16 words), with no request to the stand-ins or the model',
-    reopen.status === 200 && reopen.body.kept === true && reopen.body.groups.reduce((n, g) => n + g.rows.length, 0) === 16 && (await asked()).length === nAsk2 && (await orCalls()).calls === orN2);
+  check('reopening it answers the kept answer (the 19 words), with no request to the stand-ins or the model',
+    reopen.status === 200 && reopen.body.kept === true && reopen.body.groups.reduce((n, g) => n + g.rows.length, 0) === 19 && (await asked()).length === nAsk2 && (await orCalls()).calls === orN2);
   const nope = await api('GET', '/english?text=never');
   check('an English text never looked up: 404 saying so', nope.status === 404 && /look it up again/.test(nope.body.error));
   // walk the list one at a time: every item once, English and Hebrew alike
@@ -261,6 +286,9 @@ try {
   const db = require(join(root, 'lib', 'db.js'));
   db.open(libDir);
   const english = require(join(root, 'lib', 'english.js'));
+  const seeOnly = english.parseWiktionary('{{trans-see|confidence in a person|trust}}\n{{trans-see|voyage}}\n{{trans-see|to smuggle|smuggle#Verb|contraband}}');
+  check('the parser keeps a {{trans-see}} sense with the entries it names (the gloss itself when none is named; "#…" dropped)',
+    JSON.stringify(seeOnly.senses) === JSON.stringify([{ gloss: 'confidence in a person', words: [], see: ['trust'] }, { gloss: 'voyage', words: [], see: ['voyage'] }, { gloss: 'to smuggle', words: [], see: ['smuggle', 'contraband'] }]), JSON.stringify(seeOnly));
   const DAY = 24 * 3600 * 1000;
   let at = Date.parse('2026-10-23T03:00:00Z');
   english.setClock(() => at);

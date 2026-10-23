@@ -127,8 +127,18 @@ translations still to be checked (`{{checktrans-top}}`) are passed by. An
 entry that points to `{{see translation subpage|…}}` (run) is read with its
 `/translations` page (run/translations: 75 tables, four Hebrew lines). A
 missing page answers HTTP 200 with `{"error":{"code":"missingtitle"}}`; the
-lower-cased word is tried first, then the word as typed. A `{{trans-see|gloss|page}}`
-(a sense whose translations live on another entry) is not followed.
+lower-cased word is tried first, then the word as typed. A
+`{{trans-see|gloss|entry…}}` (a sense whose translations live on another
+entry; the entry is the gloss itself when none is named, "#…" dropped) is
+followed: each entry named is read once (with its `/translations` subpage
+when it points there), one step only — a trans-see inside it is not followed
+again — and at most six entries a look-up; from it, the table whose gloss
+shares the most words with the pointing gloss, else its first table with
+Hebrew. Its words stand under the pointing gloss, their label opening the
+entry they came from. For run, `{{trans-see|to smuggle illegal goods|smuggle}}`,
+`{{trans-see|voyage}}` and `{{trans-see|trial}}` give הבריח, הַפְלָגָה and
+נִסָּיוֹן (an `alt=` of two spellings, "ניסיון \ נִסָּיוֹן", gives the pointed
+one).
 
 ### The frame test for English Wiktionary (23 Oct 2026, the rented Linux machine)
 

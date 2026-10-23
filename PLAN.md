@@ -1841,7 +1841,10 @@ does.
   `{{trans-top-see|gloss|…}}` to `{{trans-bottom}}`, the `* Hebrew:` line's
   `{{t}}`/`{{t+}}`/`{{tt}}`/`{{tt+}}` with `alt=` and `tr=`;
   `{{checktrans-top}}` tables passed by; the `/translations` subpage read
-  when the entry points there; the word lower-cased first, then as typed.
+  when the entry points there; the word lower-cased first, then as typed;
+  `{{trans-see|gloss|entry…}}` followed one step (each entry once, six at
+  most), taking the entry's sense whose gloss best matches, kept under the
+  pointing gloss and linked to that entry (run: smuggle, voyage, trial).
   docs/REFERENCES.md has both, and the frame test: English Wiktionary's
   pages frame, so a row's Wiktionary label frames its page; Pealim's label
   shows the entry from a copy, kept seven days in `reference_pages`.
@@ -1868,12 +1871,20 @@ does.
   line was. When the page cannot scroll that far (at its top or its foot),
   room is made above the list or below the page, so a tap near the top
   leaves blank space above the folded line.
-- **Not done**: a `{{trans-see|gloss|page}}` (a sense whose translations
-  live on another entry: in run, "smuggle", "voyage", "trial") is not
-  followed, so those senses add no words; Morfix for English, a
-  near-synonym note, English look-up anywhere but the Look up page (out of
-  scope).
-- **Checks**: `english-smoke.mjs` 53, `english-pages.mjs` 48; totals 846
+- **A group's line**: "lists no Hebrew word" only when the site's own
+  answer has none; a site whose words all stand above (merged with Dan's or
+  the other site's) says "<site> lists one word for “<text>”, shown above",
+  and one with some there "<site> lists N more, shown above".
+- **The team's checker** (dev-check, FINDINGS on the first candidate,
+  53de2d3): `{{trans-see}}` senses were dropped, though the brief names
+  them; and a site whose words had all merged into a group above said it
+  listed none. Both fixed, with the stand-in "trustiness" (its only
+  translations a trans-see to trust, so the Hebrew comes from there and the
+  model is not asked), "credence" (complete overlap), and two entries naming
+  each other (followed one step).
+- **Not done** (out of scope): Morfix for English, a near-synonym note,
+  English look-up anywhere but the Look up page.
+- **Checks**: `english-smoke.mjs` 61, `english-pages.mjs` 48; totals 854
   server checks and 723 page checks (793 and 675 before). One older check
   changed in wording: the known tables include the two new ones
   (`lookup-smoke.mjs`).
