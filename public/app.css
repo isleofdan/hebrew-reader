@@ -741,7 +741,7 @@ button.en-src { cursor: pointer; color: var(--accent-dark); border-color: var(--
 }
 .lookup-list .panel-head .btn.small { align-self: auto; }
 .lookup-list ol.looked { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.lookup-list ol.looked li { display: grid; grid-template-columns: auto auto 1fr auto; align-items: baseline; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+.lookup-list ol.looked li { display: grid; grid-template-columns: auto auto auto 1fr auto; align-items: baseline; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--line); }
 .lookup-list ol.looked li:first-child { border-top: 0; }
 .lookup-list input[type=checkbox] { width: 20px; height: 20px; margin: 0; align-self: center; accent-color: var(--accent); }
 .lookup-list .looked-word { color: var(--text); text-decoration: none; justify-self: start; text-align: start; }
@@ -753,9 +753,50 @@ button.en-src { cursor: pointer; color: var(--accent-dark); border-color: var(--
 .lookup-list .msg a { color: var(--accent); font-weight: 600; }
 .lookup-list .empty { margin: 0; }
 @media (max-width: 699px) {
-  .lookup-list ol.looked li { grid-template-columns: auto 1fr; }
+  .lookup-list ol.looked li { grid-template-columns: auto 1fr auto; }
   .lookup-list .gloss, .lookup-list .meta { grid-column: 2; text-align: start; }
   .lookup-list input[type=checkbox] { width: 24px; height: 24px; grid-row: span 3; }
+  .lookup-list .looked-rec { grid-column: 3; grid-row: 1; }
+}
+
+/* Speak on the Look up page (hebrew-speech-one): the round button beside
+   "Look up", the line under the box, and a recording's play controls. The
+   button keeps one width in every state, so nothing beside it moves. */
+.btn.mic { display: inline-flex; align-items: center; justify-content: center; gap: 6px; position: relative; min-width: 8.8em; border-radius: 999px; padding: 0 16px; font-weight: 600; color: var(--accent-dark); border-color: var(--accent); background: var(--accent-soft); white-space: nowrap; font-variant-numeric: tabular-nums; cursor: pointer; }
+.btn.mic:disabled { opacity: .6; cursor: default; }
+.btn.mic .mic-icon { display: inline-flex; width: 20px; height: 20px; flex: none; }
+.btn.mic.recording { background: var(--danger); border-color: var(--danger); color: var(--panel); }
+.btn.mic.recording .mic-icon svg { display: none; }
+.btn.mic.recording .mic-icon::before { content: ''; width: 12px; height: 12px; margin: 4px; border-radius: 2px; background: currentColor; }
+.btn.mic .mic-meter { position: absolute; left: 18px; right: 18px; bottom: 7px; height: 3px; border-radius: 2px; background: rgba(127, 127, 127, .35); overflow: hidden; visibility: hidden; }
+.btn.mic.recording .mic-meter { visibility: visible; }
+.btn.mic .mic-level { display: block; height: 100%; background: currentColor; transform: scaleX(0); transform-origin: left; transition: transform 80ms linear; }
+.mic-line { margin: 0; font-size: 15px; color: var(--muted); }
+.mic-line:empty { display: none; }
+.mic-line.error { color: var(--danger); }
+.mic-line .mic-text { font-family: var(--serif); font-size: 18px; color: var(--text); unicode-bidi: isolate; }
+.mic-line .mic-play { color: var(--accent); font-weight: 600; text-decoration: none; min-height: 32px; }
+.mic-line .mic-play:hover { color: var(--accent-dark); text-decoration: underline; }
+.mic-line .mic-play.playing { text-decoration: underline; }
+.rec-slot { display: inline-flex; margin-inline-end: auto; align-self: center; }
+.rec-slot:empty { display: none; }
+.rec-play, .rec-more { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 36px; height: 36px; padding: 0 9px; border-radius: 999px; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent-dark); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; -webkit-touch-callout: none; user-select: none; }
+.rec-more { border-color: var(--line-strong); background: var(--field); color: var(--text); font-size: 16px; line-height: 1; }
+.rec-play .rec-icon { width: 0; height: 0; border-style: solid; border-width: 6px 0 6px 10px; border-color: transparent transparent transparent currentColor; }
+.rec-play.playing .rec-icon { width: 10px; height: 12px; border: 0; border-left: 3px solid currentColor; border-right: 3px solid currentColor; box-sizing: border-box; }
+.looked-rec { display: inline-flex; gap: 6px; align-self: center; }
+.lookup-list ol.looked li > ul.rec-list { grid-column: 1 / -1; list-style: none; margin: 4px 0 0; padding: 8px 10px; display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--field); }
+.lookup-list ol.looked li.rec-item { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 0; border-top: 0; }
+.rec-item .rec-when { flex: 1 1 12em; font-size: 14px; font-variant-numeric: tabular-nums; }
+.rec-item .confirm-bar { flex-basis: 100%; }
+.rec-item-play.playing { border-color: var(--accent); color: var(--accent-dark); }
+@media (max-width: 699px) {
+  .lookup-search form { flex-wrap: wrap; }
+  .lookup-search #word { flex-basis: 100%; }
+  .lookup-search #go, .lookup-search .btn.mic { flex: 1 1 0; }
+  .rec-play, .rec-more { min-width: 44px; height: 44px; }
+  .rec-item .btn.small { height: 44px; }
+  .rec-item .rec-when { flex-basis: 100%; }
 }
 
 /* Walks (hebrew-walks-one): the walks page and one walk's stops */

@@ -33,6 +33,7 @@
       <input id="word" type="search" dir="auto" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" placeholder="A Hebrew word, or an English one">
       <button class="btn primary" id="go" type="submit">Look up</button>
     </form>
+    <p class="mic-line" id="mic-line" role="status"></p>
     <p class="msg" id="search-msg"></p>
   </section>
 
@@ -50,7 +51,7 @@
   <section class="panel lookup-entry hidden" id="entry">
     <p class="saved-line" id="saved-line"></p>
     <section class="card idle" id="card-lookup">
-      <div class="head"><div class="surface"></div><div class="status"></div></div>
+      <div class="head"><div class="surface"></div><span class="rec-slot" id="card-rec"></span><div class="status"></div></div>
       <div class="line meaning"></div>
       <div class="line grammar"></div>
       <div class="chips"></div>
@@ -85,6 +86,8 @@
 <script src="/card-ui.js"></script>
 <script src="/reference-ui.js"></script>
 <script src="/ask-ui.js"></script>
+<script src="/delete-ui.js"></script>
+<script src="/mic-ui.js"></script>
 <script src="/lookup.js"></script>
 </body>
 </html>
