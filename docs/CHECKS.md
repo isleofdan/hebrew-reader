@@ -26,6 +26,13 @@ that does not parse, the smoke check that failed (`FAIL <name>`), or the
 screenshot check that failed. `npm run check -- --fast` runs syntax and the
 fast tests only.
 
+Baseline for hebrew-save-one (23 Oct 2026, measured on `main` at ff7cf94,
+the merge of pull request #24, before any change): `npm test` 859 server
+checks, as hebrew-english-one recorded; `npm run screenshots` 725 page
+checks, not 723, because pull request #24 added two to `lookup-pages.mjs`
+(46, not 44: the save button that says the word is already in the vocab).
+Both passed in full.
+
 ## What runs when
 
 | When | What runs | Where it is set |

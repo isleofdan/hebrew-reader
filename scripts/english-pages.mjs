@@ -227,10 +227,11 @@ try {
 
     // a refusal says what the box takes
     await page.evaluate(() => window.scrollTo(0, 0));
-    await page.fill('#word', 'run to the hills');
+    // (seven words since hebrew-save-one, which takes up to six)
+    await page.fill('#word', 'take it for granted all day long');
     await page.press('#word', 'Enter');
     await page.locator('#search-msg.error').waitFor({ timeout: 5000 });
-    check(`${name}: four English words are refused under the box, saying what it takes`, (await page.locator('#search-msg').innerText()) === 'Look up an English word or a phrase of up to 3 words; this has 4.');
+    check(`${name}: seven English words are refused under the box, saying what it takes`, (await page.locator('#search-msg').innerText()) === 'Look up an English word or a phrase of up to 6 words; this has 7.');
     // Hebrew typed still opens its card, and the English list goes
     await page.fill('#word', 'רפורמה');
     await page.press('#word', 'Enter');

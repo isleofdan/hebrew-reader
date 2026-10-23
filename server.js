@@ -538,7 +538,8 @@ async function handle(req, res) {
       } catch (e) {
         const status = e.status || 500;
         if (status === 500) console.error(e);
-        return sendJson(res, status, { error: e.message });
+        // `extra`: what a refusal carries beside its error (the Look up page's did_you_mean, keepable)
+        return sendJson(res, status, { error: e.message, ...(e.extra || {}) });
       }
     }
   }

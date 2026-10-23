@@ -236,11 +236,13 @@ try {
 
   // --- verify 7: refusals ---------------------------------------------------------------------------
   const nAsk = (await asked()).length, nKept = count('english_lookups'), orN = (await orCalls()).calls;
-  const mixed = await look('run רץ'), four = await look('run to the hills'), long = await look('a'.repeat(61)), digit = await look('covid19');
-  console.log(`     refusals: ${[mixed, four, long, digit].map((r) => `${r.status} ${r.body.error}`).join(' | ')}`);
-  check('mixed Hebrew and Latin letters: 400 saying the box takes a Hebrew word or an English one', mixed.status === 400 && mixed.body.error === 'Look up a Hebrew word or an English one, not both: this has Hebrew and Latin letters together.');
-  check('four English words: 400 saying it takes a word or a phrase of up to three', four.status === 400 && four.body.error === 'Look up an English word or a phrase of up to 3 words; this has 4.');
-  check('over 60 characters: 400 naming the limit', long.status === 400 && long.body.error === 'Look up an English word or a phrase of up to 3 words (at most 60 characters); this has 61.');
+  // hebrew-save-one: up to six English words (three before), and mixed Hebrew and
+  // Latin text goes the phrase way (scripts/save-smoke.mjs checks it), so the
+  // refusals here are seven words and the rest
+  const seven = await look('take it for granted all day long'), long = await look('a'.repeat(61)), digit = await look('covid19');
+  console.log(`     refusals: ${[seven, long, digit].map((r) => `${r.status} ${r.body.error}`).join(' | ')}`);
+  check('seven English words: 400 saying it takes a word or a phrase of up to six', seven.status === 400 && seven.body.error === 'Look up an English word or a phrase of up to 6 words; this has 7.');
+  check('over 60 characters: 400 naming the limit', long.status === 400 && long.body.error === 'Look up an English word or a phrase of up to 6 words (at most 60 characters); this has 61.');
   check('a digit among Latin letters: 400 naming what an English look-up takes', digit.status === 400 && digit.body.error === 'An English look-up takes letters, spaces, hyphens and apostrophes; this has “1”.');
   check('…each refused before any site or the model is asked, and nothing kept', (await asked()).length === nAsk && count('english_lookups') === nKept && (await orCalls()).calls === orN);
   const hy = await look("well-known"), ap = await look("don't");
@@ -250,8 +252,8 @@ try {
   const he = await look('רפורמה');
   check('Hebrew text still answers as before: the card, saved, its seven tabs (no mode field)', he.status === 200 && he.body.mode === undefined && he.body.card.meaning_en === 'a reform' && he.body.saved.status === 'shaky' && he.body.references.length === 7);
   const gersh = await look('צה"ל'), longHe = await look('א'.repeat(61));
-  check('…a Hebrew word with gershayim goes the Hebrew way (the stand-in model does not know it: 422), and a long Hebrew text gets the Hebrew refusal, unchanged',
-    gersh.status === 422 && longHe.status === 400 && /^Look up one word \(at most 60 characters\)/.test(longHe.body.error), JSON.stringify([gersh.body, longHe.body]));
+  check('…a Hebrew word with gershayim goes the Hebrew way (its card, the abbreviation expanded, since hebrew-save-one), and a long Hebrew text gets the Hebrew refusal, unchanged',
+    gersh.status === 200 && gersh.body.mode === undefined && /Israel Defense Forces/.test(gersh.body.card.meaning_en) && longHe.status === 400 && /^Look up one word \(at most 60 characters\)/.test(longHe.body.error), JSON.stringify([gersh.body, longHe.body]));
 
   // --- verify 6: a tap saves exactly that one word ----------------------------------------------
   const sp1 = count('spots', "status = 'shaky'"), puts1 = await spinePuts();

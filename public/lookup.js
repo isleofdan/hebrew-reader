@@ -16,7 +16,8 @@ async function api(method, path, body) {
   });
   if (res.status === 401) { location.href = '/login'; throw new Error('signed out'); }
   const data = await res.json().catch(() => ({ error: `The server answered ${res.status}.` }));
-  if (!res.ok) throw new Error(data.error || `The server answered ${res.status}.`);
+  // a refusal keeps what it carries beside its error (did_you_mean, keepable)
+  if (!res.ok) throw Object.assign(new Error(data.error || `The server answered ${res.status}.`), { status: res.status, data });
   return data;
 }
 
@@ -35,8 +36,36 @@ UI.wire(cardEl, {
     return data;
   },
   onPut: () => api('POST', '/desks/put', { card_id: current.card_id }),
+  // an other reading tapped: that word looked up, as typing it does
+  onReading: (word) => { $('#word').value = word; hideEnglish(); lookUp(word); },
   api,
 });
+
+// hebrew-save-one: a word the card model refused shows "No card for this
+// word" (never the model's own refusal), then "Did you mean", one button per
+// word it may have meant, each looked up as typing it does.
+const refused = $('#refused');
+function bareWord(s) { return String(s || '').replace(/[֑-ׇ]/g, ''); }
+function hideRefused() { refused.classList.add('hidden'); $('#dym').innerHTML = ''; }
+function drawRefused(word, data) {
+  UI.setError(cardEl, word, 'No card for this word');
+  const box = $('#dym');
+  box.innerHTML = '';
+  const list = (data && data.did_you_mean) || [];
+  $('#dym-title').classList.toggle('hidden', !list.length);
+  for (const s of list) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'dym-word';
+    const w = document.createElement('span'); w.className = 'he'; w.dir = 'rtl'; w.lang = 'he'; w.textContent = s.word_pointed;
+    const m = document.createElement('span'); m.className = 'dym-meaning'; m.textContent = s.meaning_en;
+    b.append(w, m);
+    if (s.why) { const y = document.createElement('span'); y.className = 'dym-why'; y.textContent = s.why; b.append(y); }
+    b.title = `Look up ${bareWord(s.word_pointed)}`;
+    b.addEventListener('click', () => { $('#word').value = bareWord(s.word_pointed); lookUp(bareWord(s.word_pointed)); });
+    box.append(b);
+  }
+  refused.classList.remove('hidden');
+}
 
 // "Saved to your words." — or what the word already was.
 function drawSaved(saved) {
@@ -125,6 +154,7 @@ async function lookUp(word) {
   $('#go').disabled = true;
   $('#entry').classList.remove('hidden');
   UI.setLoading(cardEl, word);
+  hideRefused();
   $('#saved-line').textContent = '';
   $('#looked-line').textContent = '';
   closePane();
@@ -145,7 +175,10 @@ async function lookUp(word) {
     if (seq !== searching) return;
     current = null;
     msg.textContent = '';
-    UI.setError(cardEl, word, e.message);
+    if (e.status === 422) drawRefused(word, e.data);
+    // a refusal of the box (400) says what it takes; a model that did not
+    // answer is said so plainly, never in the server's own words
+    else UI.setError(cardEl, word, e.status === 400 ? e.message : 'No card came back this time: the model did not answer. Try again in a moment.');
   } finally {
     if (seq === searching) $('#go').disabled = false;
   }
