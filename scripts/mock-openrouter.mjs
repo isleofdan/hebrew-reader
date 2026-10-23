@@ -54,6 +54,10 @@ const POINTED = {
 };
 for (const [w, [lemma, surface]] of Object.entries(POINTED)) if (known[w]) Object.assign(known[w], { lemma_pointed: lemma, surface_pointed: surface });
 for (const c of TRICKY) if (c.way === 'word' || c.way === 'refused') known[c.text] = c.model;
+// the words of בית ספר, each looked up from the phrase (hebrew-save-one)
+known['בית'] = { surface: 'בית', lemma: 'בית', lemma_pointed: 'בַּיִת', surface_pointed: 'בֵּית', pos: 'noun', root: 'ב.י.ת', binyan: null, tense: null, person_gender_number: 'ms', meaning_en: 'a house; (construct) house of', governs: null, categories: [], note: 'בֵּית is the construct form of בַּיִת.', confidence: 'sure', register: 'standard', corrected_from: null, other_readings: [] };
+known['ספר'] = { surface: 'ספר', lemma: 'ספר', lemma_pointed: 'סֵפֶר', surface_pointed: 'סֵפֶר', pos: 'noun', root: 'ס.פ.ר', binyan: null, tense: null, person_gender_number: 'ms', meaning_en: 'a book', governs: null, categories: [], note: null, confidence: 'likely', register: 'standard', corrected_from: null,
+  other_readings: [{ lemma_pointed: 'סִפֵּר', pos: 'verb', meaning_en: 'told, recounted' }, { lemma_pointed: 'סַפָּר', pos: 'noun', meaning_en: 'a barber' }, { lemma_pointed: 'סְפָר', pos: 'noun', meaning_en: 'a border region' }] };
 // A phrase's meaning (hebrew-save-one, "Phrase meaning request"): the tricky
 // set's phrases and דו או פרד; any other phrase is refused, as the model
 // refuses one it cannot connect to anything (control.phrase_down drops the

@@ -51,7 +51,15 @@ page; one that does not is shown from a cleaned copy the reader fetches on
 the tap and keeps seven days (`docs/REFERENCES.md` says which is which, and
 why).
 
-The same box takes an English word too, or a phrase of up to three words
+Since hebrew-save-one the card answers its likeliest reading rather than
+refusing: "Likely" or "A best guess" when it is not sure, the other readings
+the letters can be, a label for slang or army slang, and "You typed …" when it
+read a misspelling as the word meant. A Hebrew phrase (or Hebrew mixed with
+English words) shows what it means, from the model and marked so, and a
+button for each word; a word with no card shows "Did you mean". Either can
+be kept with "Save it": a note on tonight's desk, listed in "Looked up".
+
+The same box takes an English word too, or a phrase of up to six words
 ("A Hebrew word, or an English one"), and answers "Hebrew words for <word>":
 first **Yours**, his own cards whose English meaning has the word; then
 **From Pealim** (its English search's results: the word with nikud, its
