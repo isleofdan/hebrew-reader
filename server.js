@@ -24,6 +24,7 @@ const caught = require('./lib/catch');
 const hunt = require('./lib/hunt');
 const referencePages = require('./lib/reference-pages');
 const lookupPage = require('./lib/lookup-page');
+const phrase = require('./lib/phrase');
 const english = require('./lib/english');
 const today = require('./lib/today');
 const walks = require('./lib/walks');
@@ -128,6 +129,14 @@ route('POST', /^\/lookup$/, async (req, res) => {
   if (lessonId) db.getLesson(lessonId);
   const answer = await lookup.lookup({ surface: body.surface, sentence: body.sentence, article_id: articleId, lesson_id: lessonId });
   return sendJson(res, 200, answer);
+});
+
+// "Save it" on the Look up page (hebrew-save-one): { text, note? } -> one note
+// card on the desk worked on last, not yet placed, listed in "Looked up";
+// the same text kept again the same day answers that card (already: true)
+route('POST', /^\/lookup\/keep$/, async (req, res) => {
+  const out = phrase.keep(await readJson(req));
+  return sendJson(res, out.already ? 200 : 201, out);
 });
 
 // { surface, sentence } of a card already looked up -> { pointed, called }:
