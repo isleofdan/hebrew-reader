@@ -2001,3 +2001,117 @@ look-up, which decides everything else.
   always written in Hebrew letters, never in Latin letters, with that
   example; 0 of 35 calls missed with it. A Latin-letter answer is not
   caught in code, because it cannot be told apart from English speech.
+
+## hebrew-save-one (23 Oct 2026, the rented Linux machine, OpenRig team): every look-up keepable, a phrase's meaning, a forgiving card
+
+Dan hit three refusals on the Look up page (a word read two ways, slang, a
+word the model could not place) and wanted every look-up keepable, a Hebrew
+phrase given its meaning and its words, and the card to guess, with how
+sure it is, rather than refuse.
+
+- **The card prompt** (`SYSTEM` in `lib/lookup.js`, the one card builder
+  behind the Look up page, the reader's word taps, Guy's lesson words and
+  the demand): its last line ("If you cannot identify the word with
+  confidence … Never guess a root or a meaning") is gone. The card answers
+  the likeliest reading whenever one can be named, with new fields:
+  `confidence` ("sure" | "likely" | "guess"), `other_readings` (up to four
+  `{ lemma_pointed, pos, meaning_en }`), `register` ("standard",
+  "colloquial", "slang", "army slang", "literary", "biblical", "rabbinic",
+  or null) and `corrected_from` (the text as typed, when it read a
+  misspelling as the word meant; the card's `surface` is then that word).
+  With "Sentence: (none given)" it answers the reading most used in Israeli
+  Hebrew. It refuses (`{"error"}`) only text it cannot connect to any word,
+  name or abbreviation, adding `did_you_mean` (up to five `{ word_pointed,
+  meaning_en, why }`). `shape` keeps the fields, takes a Hebrew field only
+  when it is Hebrew letters, nikud, geresh, gershayim, maqaf and spaces (as
+  `HEBREW_ONLY`), and puts `did_you_mean` on the 422 beside the unchanged
+  "Card could not be built: …" wording. A card cached before reads as
+  `confidence: "sure"` with no readings; nothing is rebuilt. The card on
+  every page (`public/card-ui.js`) shows "A best guess" or "Likely" beside
+  the meaning, the register as a small label when not standard, "You typed
+  <text>", and "Other readings" (buttons on the Look up page, plain lines
+  elsewhere).
+- **The audit** that led here (the look-up path read for refusals):
+  1. the prompt's last line caused all three refusals; 2. the Look up
+  page's empty sentence was read as a reason to refuse; 3. misspellings
+  (ט/ת, כ/ח, ק/כ, ס/ש, א/ע, ו/ב, a missing or extra י/ו, a regular letter
+  where a final one belongs, or the reverse) were not asked for; 4. slang,
+  army and loan words and abbreviations had no place (no register field);
+  5. a word that merely begins with a prefix letter (ביטחון) was at risk of
+  being cut; 6. names that are not famous were refused; 7. Hebrew and Latin
+  letters together were refused outright (400); 8. English stopped at three
+  words; 9. the English model was not told the English may be misspelled or
+  Hebrew typed in Latin letters. Items 1–9 are fixed. **Item 10, still to
+  watch**: nikud typed partly or wrongly makes a different cache key from
+  the bare word, and a card built from an empty sentence is cached and then
+  answers every later empty look-up with its first reading. In the checks,
+  the first did not show on the Look up page (a word is saved at once, so
+  the reader's matching finds every pointed form after the first: 0 model
+  calls either way, `save-smoke.mjs` prints the numbers; `POST /lookup`
+  without the page's matching still asks again, as before); the second is
+  how the cache works (the Look up page answers the empty-sentence card
+  first), softened by "Other readings".
+- **The route**: `POST /lookup` with `{ surface, origin: 'lookup' }`
+  (`lib/lookup-page.js` `scriptOf`): Hebrew with a space, or Hebrew and
+  Latin letters together, at most 60 characters, is a phrase
+  (`lib/phrase.js`): `{ mode: 'phrase', text, words, meaning, at, keepable:
+  true, cached }`, `words` each `{ word, latin }` (bare; a Latin one is shown
+  as it is and never looked up), `meaning` `{ meaning_en, literal_en, note }`
+  from one call to the card model through `chat` ("Phrase meaning request"),
+  or `null` with a plain `meaning_error` ("The model gave no meaning for this
+  phrase." / "The model did not answer."). Nothing is saved. English takes
+  up to six words. A refused single word answers 422 `{ error, keepable:
+  true, text, did_you_mean }` (the server's error handler now spreads a
+  ReaderError's `extra`).
+- **Kept meanings**: new table `phrase_meanings (text PRIMARY KEY,
+  meaning_json, at)` (`CREATE TABLE IF NOT EXISTS` in `migrate()`), keyed by
+  the phrase's bare text (no nikud, single spaces), so the same phrase asks
+  the model once; a refusal or a failed call is not kept. No other table or
+  column.
+- **Save it**: `POST /lookup/keep { text, note? }` (`phrase.keep`) makes one
+  note card (`desk.addNote`, no new kind of card): the text, then the kept
+  meaning's `meaning_en` when there is one, then Dan's note, each on its own
+  line; on the desk worked on last, not yet placed, as `catchCard` does. It
+  is recorded as looked up on the Look up page by `desk.lookupLayer(key,
+  'page', { origin: 'lookup' })` on the note, unchanged (a note card could
+  already carry a lookup layer), so `db.pageLookups` lists it and "Looked
+  up" shows it newest first, its first line as the headword and the meaning
+  and note as its gloss, with its tick box for "Put on a desk". The same
+  text kept again the same Tokyo day answers that card (`already: true`,
+  200; `db.keptLookupsSince`). Limits: 60 characters of text; the whole
+  card at most 4000 (`NOTE_MAX`), the refusal naming the room left for the
+  note. No spot, no mark to the spine.
+- **The page** (`public/lookup.js`, `lookup.html`, `app.css`): a phrase
+  large, right to left, in the serif; "What it means", the meaning, "Word
+  for word: …", the note, and "Meaning from the model; no dictionary was
+  asked" (or "No meaning came back; you can still save it"); "Look up each
+  word", a button per Hebrew word, a word tapped looked up below with the
+  phrase folded to one line, "<phrase> · Back to the phrase" (the English
+  list's fold, reused); "Save it" and "Add a note" (a one-line box in the
+  button's own place), then "Saved to Looked up" where the buttons were. A
+  refused word: "No card for this word", "Did you mean" (a button per
+  suggestion), "Save it". The model's refusal is never shown; a model that
+  did not answer says so plainly.
+- **Checks**: `scripts/tricky-lookups.json` (twenty cases with what each
+  should answer; the stand-in answers them, `docs/tricky-lookups.md` lists
+  them for Dan), `save-smoke.mjs` 56, `save-pages.mjs` 66; totals 914
+  server checks and 791 page checks (859 and 725 at the baseline measured
+  on `main` at ff7cf94; the brief's 723 was before pull request #24 added
+  two). Older checks
+  changed: English four words and the mixed-text refusal (now seven words;
+  mixed text is a phrase, checked in `save-smoke.mjs`), צה"ל now a card, the
+  Look up page's refused word now "No card for this word", the known tables
+  include `phrase_meanings`.
+- **Merged with hebrew-speech-one** (pull request #25 went to `main`
+  first; merged into this branch): both features stay. A phrase has no
+  "Looked up" row until "Save it" makes its note, so a spoken phrase (or a
+  spoken word with no card) carries its recording until then and the page
+  attaches it to the kept note's row (`note:<id>`, which the speech side's
+  attach already took); `phrase.keep` answers `recordings` as a look-up
+  does, and the row shows the play button like a word's. Checks for it:
+  `save-smoke.mjs` and `save-pages.mjs` two each (58 and 68). Totals after
+  the merge: 962 server checks and 875 page checks.
+- **Not done** (out of scope): a full card for a phrase, dictionaries for a
+  phrase, phrases anywhere but the Look up page, tints for kept phrases,
+  rebuilding cached cards. The reader's and lesson page's own card errors
+  still show the server's wording; only the Look up page changed.

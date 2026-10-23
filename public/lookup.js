@@ -3,7 +3,9 @@
 // word's card (the reader's own, drawn by card-ui.js), saved as Dan's word
 // and the search recorded on it; under it the seven references as tabs, each
 // opening inside the page only when tapped (pull only) and recorded as a
-// lookup on the card.
+// lookup on the card. Since hebrew-save-one a Hebrew phrase shows its meaning
+// and its words, a word with no card shows "Did you mean", and either can be
+// kept with "Save it".
 
 const $ = (s) => document.querySelector(s);
 const UI = window.CardUI;
@@ -16,7 +18,8 @@ async function api(method, path, body) {
   });
   if (res.status === 401) { location.href = '/login'; throw new Error('signed out'); }
   const data = await res.json().catch(() => ({ error: `The server answered ${res.status}.` }));
-  if (!res.ok) throw new Error(data.error || `The server answered ${res.status}.`);
+  // a refusal keeps what it carries beside its error (did_you_mean, keepable)
+  if (!res.ok) throw Object.assign(new Error(data.error || `The server answered ${res.status}.`), { status: res.status, data });
   return data;
 }
 
@@ -35,7 +38,158 @@ UI.wire(cardEl, {
     return data;
   },
   onPut: () => api('POST', '/desks/put', { card_id: current.card_id }),
+  // an other reading tapped: that word looked up, as typing it does
+  onReading: (word) => { $('#word').value = word; hideEnglish(); lookUp(word); },
   api,
+});
+
+// hebrew-save-one: a word the card model refused shows "No card for this
+// word" (never the model's own refusal), then "Did you mean", one button per
+// word it may have meant, each looked up as typing it does.
+const refused = $('#refused');
+function bareWord(s) { return String(s || '').replace(/[֑-ׇ]/g, ''); }
+function hideRefused() { refused.classList.add('hidden'); $('#dym').innerHTML = ''; }
+function drawRefused(word, data, rec = null) {
+  UI.setError(cardEl, word, 'No card for this word');
+  const box = $('#dym');
+  box.innerHTML = '';
+  const list = (data && data.did_you_mean) || [];
+  $('#dym-title').classList.toggle('hidden', !list.length);
+  for (const s of list) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'dym-word';
+    const w = document.createElement('span'); w.className = 'he'; w.dir = 'rtl'; w.lang = 'he'; w.textContent = s.word_pointed;
+    const m = document.createElement('span'); m.className = 'dym-meaning'; m.textContent = s.meaning_en;
+    b.append(w, m);
+    if (s.why) { const y = document.createElement('span'); y.className = 'dym-why'; y.textContent = s.why; b.append(y); }
+    b.title = `Look up ${bareWord(s.word_pointed)}`;
+    b.addEventListener('click', () => { $('#word').value = bareWord(s.word_pointed); lookUp(bareWord(s.word_pointed)); });
+    box.append(b);
+  }
+  keepBlock($('#word-keep'), (data && data.text) || word, rec);
+  refused.classList.remove('hidden');
+}
+
+// "Save it" (hebrew-save-one): a phrase, or a word with no card, kept as a
+// note on the desk worked on last, not yet placed, and listed first in
+// "Looked up". "Add a note" opens a one-line box in its own place; after
+// saving, "Saved to Looked up" stands where the buttons were. Nothing is
+// saved before the tap. A spoken phrase or word (`rec`, hebrew-speech-one)
+// has no row until then: its recording is attached to the kept note's row.
+function keepBlock(box, text, rec = null) {
+  box.innerHTML = '';
+  const row = el('div', 'keep-row');
+  const save = el('button', 'btn primary keep-save', 'Save it'); save.type = 'button';
+  const open = el('button', 'btn keep-open', 'Add a note'); open.type = 'button';
+  const note = el('input', 'keep-note hidden'); note.type = 'text'; note.dir = 'auto'; note.placeholder = 'A note, saved with it'; note.setAttribute('aria-label', 'A note, saved with it'); note.autocomplete = 'off';
+  const msg = el('p', 'msg keep-msg');
+  row.append(save, open, note);
+  box.append(row, msg);
+  open.addEventListener('click', () => { open.classList.add('hidden'); note.classList.remove('hidden'); note.focus({ preventScroll: true }); });
+  const go = async () => {
+    save.disabled = true; msg.className = 'msg keep-msg'; msg.textContent = 'saving…';
+    try {
+      const out = await api('POST', '/lookup/keep', { text, note: note.classList.contains('hidden') ? '' : note.value });
+      const done = el('p', 'keep-done', out.already ? 'Saved to Looked up (kept already today)' : 'Saved to Looked up');
+      done.setAttribute('role', 'status');
+      row.replaceWith(done);
+      msg.textContent = '';
+      if (rec) attach(rec, out.key); else loadList(false);
+    } catch (e) {
+      save.disabled = false; msg.className = 'msg keep-msg error'; msg.textContent = `Not saved: ${e.message}`;
+    }
+  };
+  save.addEventListener('click', go);
+  note.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); go(); } });
+}
+
+// --- a Hebrew phrase (hebrew-save-one) -----------------------------------------------------
+// The phrase large, right to left; under "What it means" the model's meaning
+// (marked as the model's), its word-for-word sense and a line on its use;
+// "Look up each word", one button per Hebrew word (a Latin word of mixed
+// text stands as it is); and "Save it". A word tapped is looked up below
+// with the phrase folded to one line where the word was, "Back to the phrase".
+
+const ph = { box: $('#phrase'), body: $('#ph-body'), fold: $('#ph-fold'), spacer: $('#ph-spacer') };
+let shownPhrase = null, tappedPhraseWord = null;
+
+function hidePhrase() {
+  ph.box.classList.add('hidden');
+  ph.spacer.style.height = '0px'; en.tail.style.height = '0px';
+  shownPhrase = null; tappedPhraseWord = null;
+}
+
+async function searchPhrase(text, rec = null) {
+  const msg = $('#search-msg');
+  const seq = ++searching;
+  msg.className = 'msg'; msg.textContent = 'looking up…';
+  $('#go').disabled = true;
+  try {
+    const data = await api('POST', '/lookup', { surface: text, sentence: '', origin: 'lookup' });
+    if (seq !== searching) return;
+    msg.textContent = '';
+    drawPhrase(data, rec);
+  } catch (e) {
+    if (seq !== searching) return;
+    msg.className = 'msg error'; msg.textContent = e.message;
+  } finally {
+    if (seq === searching) $('#go').disabled = false;
+  }
+}
+
+function drawPhrase(data, rec = null) {
+  // the Hebrew card and the English list, if open, go
+  current = null;
+  closePane(); tabs.innerHTML = '';
+  $('#entry').classList.add('hidden');
+  hideEnglish();
+  hidePhrase();
+  shownPhrase = data;
+  ph.box.classList.remove('hidden');
+  ph.body.classList.remove('hidden');
+  ph.fold.classList.add('hidden');
+  $('#ph-text').textContent = data.text;
+  ph.fold.querySelector('.ph-fold-title').textContent = data.text;
+  const m = data.meaning;
+  $('#ph-meaning').textContent = m ? m.meaning_en : 'No meaning came back; you can still save it';
+  $('#ph-meaning').classList.toggle('none', !m);
+  $('#ph-literal').textContent = m && m.literal_en ? `Word for word: ${m.literal_en}` : '';
+  $('#ph-note').textContent = m && m.note ? m.note : '';
+  $('#ph-source').classList.toggle('hidden', !m);
+  const words = $('#ph-words');
+  words.innerHTML = '';
+  for (const w of data.words) {
+    if (w.latin) { const s = el('span', 'ph-latin', w.word); s.dir = 'ltr'; words.append(s); continue; }
+    const b = el('button', 'ph-word'); b.type = 'button';
+    const h = el('span', 'he', w.word); h.dir = 'rtl'; h.lang = 'he';
+    b.append(h);
+    b.title = `Look up ${w.word}`;
+    b.addEventListener('click', () => tapPhraseWord(w.word, b));
+    words.append(b);
+  }
+  keepBlock($('#ph-keep'), data.text, rec);
+}
+
+// A word of the phrase tapped: the phrase folds to one line where the word
+// was, and the word is looked up as typing it does, under it.
+function tapPhraseWord(word, button) {
+  const top = button.getBoundingClientRect().top;
+  tappedPhraseWord = word;
+  ph.body.classList.add('hidden');
+  ph.fold.classList.remove('hidden');
+  keepAt(ph.fold, top, ph.spacer);
+  return lookUp(word);
+}
+
+// "Back to the phrase": it unfolds with the tapped word where the line was.
+ph.fold.addEventListener('click', () => {
+  const top = ph.fold.getBoundingClientRect().top;
+  ph.spacer.style.height = '0px'; en.tail.style.height = '0px';
+  ph.fold.classList.add('hidden');
+  ph.body.classList.remove('hidden');
+  const b = tappedPhraseWord && [...ph.body.querySelectorAll('.ph-word')].find((x) => x.textContent === tappedPhraseWord);
+  keepAt(b || ph.body, top, ph.spacer);
+  if (b) b.focus({ preventScroll: true });
 });
 
 // "Saved to your words." — or what the word already was.
@@ -103,6 +257,7 @@ function drawCount() {
 // server decides and refuses what the box does not take; this only picks
 // what the page shows while it runs).
 const LATIN = /\p{Script=Latin}/u;
+const HEBREW_LETTER = /[א-ת]/;
 
 // hebrew-speech-one: the recording whose heard text this search looks up,
 // attached to the row the look-up makes (once; a later search of edited
@@ -117,8 +272,11 @@ async function search(ev) {
   const msg = $('#search-msg');
   msg.className = 'msg';
   if (!word) { msg.className = 'msg error'; msg.textContent = 'Type a word first.'; return; }
+  // Hebrew with a space, or Hebrew and Latin letters together: a phrase (hebrew-save-one)
+  if (HEBREW_LETTER.test(word) && (LATIN.test(word) || /\s/.test(word))) return searchPhrase(word, rec);
   if (LATIN.test(word)) return searchEnglish(word, rec);
   hideEnglish();
+  hidePhrase();
   return lookUp(word, rec);
 }
 
@@ -132,6 +290,7 @@ async function lookUp(word, rec = null) {
   $('#go').disabled = true;
   $('#entry').classList.remove('hidden');
   UI.setLoading(cardEl, word);
+  hideRefused();
   $('#saved-line').textContent = '';
   $('#looked-line').textContent = '';
   closePane();
@@ -154,7 +313,12 @@ async function lookUp(word, rec = null) {
     if (seq !== searching) return;
     current = null;
     msg.textContent = '';
-    UI.setError(cardEl, word, e.message);
+    // a word with no card has no row until "Save it" makes one: the
+    // recording waits for it (hebrew-save-one)
+    if (e.status === 422) drawRefused(word, e.data, rec);
+    // a refusal of the box (400) says what it takes; a model that did not
+    // answer is said so plainly, never in the server's own words
+    else UI.setError(cardEl, word, e.status === 400 ? e.message : 'No card came back this time: the model did not answer. Try again in a moment.');
     drawCardRec();
   } finally {
     if (seq === searching) $('#go').disabled = false;
@@ -291,11 +455,11 @@ function el(tag, cls, text) {
 // Scroll so `node` sits at `top` on the screen, where Dan's finger was. When
 // the page cannot scroll that far (at its top, or its foot), room is made
 // above the list or below the page so it still can.
-function keepAt(node, top) {
+function keepAt(node, top, spacer = en.spacer) {
   let now = node.getBoundingClientRect().top;
   if (Math.abs(now - top) >= 0.5) window.scrollBy(0, now - top);
   now = node.getBoundingClientRect().top;
-  if (now < top - 0.5) en.spacer.style.height = `${en.spacer.offsetHeight + (top - now)}px`;
+  if (now < top - 0.5) spacer.style.height = `${spacer.offsetHeight + (top - now)}px`;
   else if (now > top + 0.5) { en.tail.style.height = `${en.tail.offsetHeight + (now - top)}px`; window.scrollBy(0, now - top); }
 }
 function resetPlace() { en.spacer.style.height = '0px'; en.tail.style.height = '0px'; }
@@ -334,7 +498,8 @@ async function searchEnglish(text, rec = null) {
 }
 
 function drawEnglish(data) {
-  // the Hebrew card, if one was open, goes
+  // the Hebrew card or phrase, if one was open, goes
+  hidePhrase();
   current = null;
   closePane(); tabs.innerHTML = '';
   $('#entry').classList.add('hidden');

@@ -26,6 +26,10 @@ const speechFixture = (name) => readFileSync(join(SPEECH_DIR, `answer-${name}.js
 const speechAsks = [];
 
 const port = Number(process.argv[2]) || 8791;
+// hebrew-save-one: the tricky look-ups (scripts/tricky-lookups.json), each
+// case's `model` answered as the model would: a word's card (or its refusal
+// with did_you_mean), a phrase's meaning, or an English text's words
+const TRICKY = JSON.parse(readFileSync(new URL('./tricky-lookups.json', import.meta.url), 'utf8')).cases;
 const known = {
   'נאלצה': { surface: 'נאלצה', lemma: 'נאלץ', pos: 'verb', root: 'א.ל.צ', binyan: 'nifal', tense: 'past', person_gender_number: '3fs', meaning_en: 'was forced to', governs: 'ל-', categories: ['conjugation', 'preposition-government'], note: "Nif'al past of the root א.ל.צ; takes ל- plus an infinitive." },
   'שנאלצה': { surface: 'שנאלצה', lemma: 'נאלץ', pos: 'verb', root: 'א.ל.צ', binyan: 'nifal', tense: 'past', person_gender_number: '3fs', meaning_en: 'which was forced to', governs: 'ל-', categories: ['conjugation', 'preposition-government'], note: "Prefix ש- on the Nif'al past of א.ל.צ." },
@@ -64,6 +68,20 @@ const POINTED = {
   'להמר': ['הִימֵּר', 'לְהַמֵּר'], 'שוטטות': ['שׁוֹטְטוּת', 'שׁוֹטְטוּת'], 'אמת': ['אֱמֶת', 'אֱמֶת'],
 };
 for (const [w, [lemma, surface]] of Object.entries(POINTED)) if (known[w]) Object.assign(known[w], { lemma_pointed: lemma, surface_pointed: surface });
+for (const c of TRICKY) if (c.way === 'word' || c.way === 'refused') known[c.text] = c.model;
+// the words of בית ספר, each looked up from the phrase (hebrew-save-one)
+known['בית'] = { surface: 'בית', lemma: 'בית', lemma_pointed: 'בַּיִת', surface_pointed: 'בֵּית', pos: 'noun', root: 'ב.י.ת', binyan: null, tense: null, person_gender_number: 'ms', meaning_en: 'a house; (construct) house of', governs: null, categories: [], note: 'בֵּית is the construct form of בַּיִת.', confidence: 'sure', register: 'standard', corrected_from: null, other_readings: [] };
+known['ספר'] = { surface: 'ספר', lemma: 'ספר', lemma_pointed: 'סֵפֶר', surface_pointed: 'סֵפֶר', pos: 'noun', root: 'ס.פ.ר', binyan: null, tense: null, person_gender_number: 'ms', meaning_en: 'a book', governs: null, categories: [], note: null, confidence: 'likely', register: 'standard', corrected_from: null,
+  other_readings: [{ lemma_pointed: 'סִפֵּר', pos: 'verb', meaning_en: 'told, recounted' }, { lemma_pointed: 'סַפָּר', pos: 'noun', meaning_en: 'a barber' }, { lemma_pointed: 'סְפָר', pos: 'noun', meaning_en: 'a border region' }] };
+// A phrase's meaning (hebrew-save-one, "Phrase meaning request"): the tricky
+// set's phrases and דו או פרד; any other phrase is refused, as the model
+// refuses one it cannot connect to anything (control.phrase_down drops the
+// connection instead).
+const PHRASES = {
+  'דו או פרד': { meaning_en: 'do or die; now or never', literal_en: '"do or die", the English written in Hebrew letters', note: 'Slang, from English; said of a make-or-break moment.' },
+};
+for (const c of TRICKY) if (c.way === 'phrase') PHRASES[c.text] = c.model;
+let phraseCalls = 0;
 // The corrected cards' nikud, as the refresh answers it: לזנק in Pi'el.
 const REPOINTED = { 'לזנק piel': ['זִנֵּק', 'לְזַנֵּק'], 'נלחם piel': ['נִלְחֵם', 'נִלְחֵם'], 'נוצץ paal': ['נָצַץ', 'נוֹצֵץ'], 'נחתם nifal': ['נֶחְתַּם', 'נֶחְתַּם'] };
 let pointsCalls = 0, refreshCalls = 0;
@@ -99,7 +117,10 @@ let difficultyCalls = 0, lastDifficultyAsk = null;
 const ENGLISH_WORDS = {
   reliability: [{ hebrew: 'אֲמִינוּת', meaning: 'reliability' }, { hebrew: 'reliable', meaning: 'not Hebrew: dropped' }, { hebrew: 'מְהֵימָנוּת', meaning: 'trustworthiness, dependability' }],
   zzqx: [{ hebrew: 'zzqx', meaning: 'not Hebrew: dropped' }],
+  // hebrew-save-one: a phrase of up to six words
+  'take it for granted': [{ hebrew: 'לָקַחַת כְּמוֹבָן מֵאֵלָיו', meaning: 'to take for granted' }],
 };
+for (const c of TRICKY) if (c.way === 'english') ENGLISH_WORDS[c.text] = c.model.words;
 let englishCalls = 0, lastEnglishAsk = null;
 const control = { easy_lemmas: [], difficulty_fail: false, passage_basic: false, passage_use: null, passage_fail: null, passage_long: false, sentence_fail: false, misspell_fail: false, misspellings: {}, judge_same: false, judge_truncated: 0, article_guide_faults: [], unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false, verb_fixes: {}, verb_extra: [], verb_decline: false, guide_silent: [], refresh_fail: false, review_verdicts: {}, review_verdict_extra: [], examples: null };
 // verb_fixes: word -> { root?, binyan?, why }, the verb-card check's fix for
@@ -403,7 +424,7 @@ function thoughtCall(req, res, body, user) {
 }
 
 http.createServer((req, res) => {
-  if (req.url === '/calls') { res.end(JSON.stringify({ speech_asks: speechAsks, english_calls: englishCalls, last_english_ask: lastEnglishAsk, walk_asks: walkAsks, reasoning_refused: reasoningRefused, difficulty_calls: difficultyCalls, last_difficulty_ask: lastDifficultyAsk, passage_calls: passageCalls, sentence_calls: sentenceCalls, misspell_calls: misspellCalls, last_passage_ask: lastPassageAsk, judge_calls: judgeCalls, last_judge_max_tokens: lastJudgeMaxTokens, article_guides: articleGuides, last_article_guide_model: lastArticleGuideModel, sheet_calls: sheetCalls, sheet_asks: sheetAsks, search_calls: searchCalls, search_asks: searchAsks, calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
+  if (req.url === '/calls') { res.end(JSON.stringify({ phrase_calls: phraseCalls, speech_asks: speechAsks, english_calls: englishCalls, last_english_ask: lastEnglishAsk, walk_asks: walkAsks, reasoning_refused: reasoningRefused, difficulty_calls: difficultyCalls, last_difficulty_ask: lastDifficultyAsk, passage_calls: passageCalls, sentence_calls: sentenceCalls, misspell_calls: misspellCalls, last_passage_ask: lastPassageAsk, judge_calls: judgeCalls, last_judge_max_tokens: lastJudgeMaxTokens, article_guides: articleGuides, last_article_guide_model: lastArticleGuideModel, sheet_calls: sheetCalls, sheet_asks: sheetAsks, search_calls: searchCalls, search_asks: searchAsks, calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
   let raw = '';
   req.on('data', (c) => raw += c);
   req.on('end', () => {
@@ -449,7 +470,12 @@ http.createServer((req, res) => {
     if (Array.isArray(body.tools) && body.tools.length) return webSearch(req, res, body);
     const followUp = body.messages.length > 2;
     let answer, format = 'clean';
-    if (user.startsWith('English to Hebrew request\n')) {
+    if (user.startsWith('Phrase meaning request\n')) {
+      phraseCalls++;
+      if (control.phrase_down) { req.socket.destroy(); return; }
+      const text = (/^Phrase: (.*)$/m.exec(user) || [])[1] || '';
+      answer = PHRASES[text] || { error: `no meaning for ${text} in this mock` };
+    } else if (user.startsWith('English to Hebrew request\n')) {
       englishCalls++;
       lastEnglishAsk = { user, system: body.messages[0].content, model: body.model, format: body.response_format && body.response_format.type };
       if (control.english_fail) { req.socket.destroy(); return; }

@@ -1,0 +1,115 @@
+{
+  "about": "hebrew-save-one: the look-ups the card used to refuse or get wrong, each with what it should answer on the Look up page. scripts/mock-openrouter.mjs answers each case's `model` (the card model's JSON, a phrase meaning, or the English model's words) and scripts/save-smoke.mjs checks each `expect` against the server's answer. docs/tricky-lookups.md lists the same words for Dan to try on the live site. `way`: word (a card), refused (422, keepable, did_you_mean), phrase (mode phrase), english (mode english).",
+  "cases": [
+    {
+      "text": "אלפית", "way": "word", "why": "a word read two ways: the likeliest, \"Likely\", with its other readings",
+      "model": { "surface": "אלפית", "lemma": "אלפית", "lemma_pointed": "אַלְפִּית", "surface_pointed": "אַלְפִּית", "pos": "noun", "root": "א.ל.פ", "binyan": null, "tense": null, "person_gender_number": "fs", "meaning_en": "a thousandth (one part in a thousand)", "governs": null, "categories": [], "note": "From אלף, a thousand, with the ending ־ית.", "confidence": "likely", "register": "standard", "corrected_from": null,
+        "other_readings": [
+          { "lemma_pointed": "אֲלוּפִית", "pos": "noun", "meaning_en": "a woman champion; a woman brigadier general" },
+          { "lemma_pointed": "אַלְפִית", "pos": "adjective", "meaning_en": "of a thousand, thousandfold (rare)" },
+          { "lemma_pointed": "alpha", "pos": "noun", "meaning_en": "not Hebrew letters: dropped by the server" }
+        ] },
+      "expect": { "status": 200, "lemma": "אלפית", "confidence": "likely", "other_readings": 2 }
+    },
+    {
+      "text": "סבבה", "way": "word", "why": "slang, not refused",
+      "model": { "surface": "סבבה", "lemma": "סבבה", "lemma_pointed": "סַבָּבָה", "surface_pointed": "סַבָּבָה", "pos": "adverb", "root": null, "binyan": null, "tense": null, "person_gender_number": null, "meaning_en": "fine, great, cool", "governs": null, "categories": [], "note": "From Arabic; also an adjective (\"a cool guy\").", "confidence": "sure", "register": "slang", "corrected_from": null, "other_readings": [] },
+      "expect": { "status": 200, "lemma": "סבבה", "register": "slang", "confidence": "sure" }
+    },
+    {
+      "text": "תירלול", "way": "refused", "why": "no word the model can connect to anything: refused, with the words it may have meant",
+      "model": { "error": "no Hebrew word תירלול", "did_you_mean": [
+        { "word_pointed": "תִּרְגּוּל", "meaning_en": "practice, an exercise", "why": "a likely typo" },
+        { "word_pointed": "תִּלְתּוּל", "meaning_en": "curling (of hair)", "why": "sounds the same" },
+        { "word_pointed": "טִרְלוּל", "meaning_en": "craziness", "why": "slang spelling" },
+        { "word_pointed": "trill", "meaning_en": "not Hebrew letters: dropped by the server", "why": "" }
+      ] },
+      "expect": { "status": 422, "did_you_mean": 3, "keepable": true }
+    },
+    {
+      "text": "טלפום", "way": "word", "why": "a misspelling read as the word meant",
+      "model": { "surface": "טלפון", "lemma": "טלפון", "lemma_pointed": "טֶלֶפוֹן", "surface_pointed": "טֶלֶפוֹן", "pos": "noun", "root": null, "binyan": null, "tense": null, "person_gender_number": "ms", "meaning_en": "a telephone", "governs": null, "categories": [], "note": "A final mem typed where the final nun belongs.", "confidence": "likely", "register": "standard", "corrected_from": "טלפום", "other_readings": [] },
+      "expect": { "status": 200, "surface": "טלפון", "lemma": "טלפון", "corrected_from": "טלפום" }
+    },
+    {
+      "text": "צה\"ל", "way": "word", "why": "an abbreviation, expanded",
+      "model": { "surface": "צה\"ל", "lemma": "צה\"ל", "lemma_pointed": "צַהַ\"ל", "surface_pointed": "צַהַ\"ל", "pos": "proper-noun", "root": null, "binyan": null, "tense": null, "person_gender_number": null, "meaning_en": "the IDF (צבא הגנה לישראל, the Israel Defense Forces)", "governs": null, "categories": [], "note": "An acronym: צבא הגנה לישראל.", "confidence": "sure", "register": "standard", "corrected_from": null, "other_readings": [] },
+      "expect": { "status": 200, "pos": "proper-noun", "meaning_has": "Israel Defense Forces" }
+    },
+    {
+      "text": "ביטחון", "way": "word", "why": "a word that begins with a prefix letter, not cut",
+      "model": { "surface": "ביטחון", "lemma": "ביטחון", "lemma_pointed": "בִּטָּחוֹן", "surface_pointed": "בִּיטָּחוֹן", "pos": "noun", "root": "ב.ט.ח", "binyan": null, "tense": null, "person_gender_number": "ms", "meaning_en": "security; confidence", "governs": "ב-", "categories": [], "note": "The ב is the root's first letter, not a prefix.", "confidence": "sure", "register": "standard", "corrected_from": null, "other_readings": [] },
+      "expect": { "status": 200, "lemma": "ביטחון", "root": "ב.ט.ח" }
+    },
+    {
+      "text": "חרצובות", "way": "word", "why": "a rare word: answered as a best guess, not refused",
+      "model": { "surface": "חרצובות", "lemma": "חרצובה", "lemma_pointed": "חַרְצֻבָּה", "surface_pointed": "חַרְצֻבּוֹת", "pos": "noun", "root": "ח.ר.צ.ב", "binyan": null, "tense": null, "person_gender_number": "fp", "meaning_en": "fetters, bonds", "governs": null, "categories": [], "note": "Mostly in the idiom התיר את חרצובות לשונו, he let loose his tongue.", "confidence": "guess", "register": "literary", "corrected_from": null, "other_readings": [] },
+      "expect": { "status": 200, "lemma": "חרצובה", "confidence": "guess", "register": "literary" }
+    },
+    {
+      "text": "ובבית", "way": "word", "why": "two prefixes attached",
+      "model": { "surface": "ובבית", "lemma": "בית", "lemma_pointed": "בַּיִת", "surface_pointed": "וּבַבַּיִת", "pos": "noun", "root": "ב.י.ת", "binyan": null, "tense": null, "person_gender_number": "ms", "meaning_en": "and in the house", "governs": null, "categories": [], "note": "ו- and, ב- in, with the article: בבית.", "confidence": "sure", "register": "standard", "corrected_from": null, "other_readings": [] },
+      "expect": { "status": 200, "lemma": "בית" }
+    },
+    {
+      "text": "שהממשלה", "way": "word", "why": "ש and ה attached",
+      "model": { "surface": "שהממשלה", "lemma": "ממשלה", "lemma_pointed": "מֶמְשָׁלָה", "surface_pointed": "שֶׁהַמֶּמְשָׁלָה", "pos": "noun", "root": "מ.ש.ל", "binyan": null, "tense": null, "person_gender_number": "fs", "meaning_en": "that the government", "governs": null, "categories": [], "note": "ש- that, ה- the.", "confidence": "sure", "register": "standard", "corrected_from": null, "other_readings": [] },
+      "expect": { "status": 200, "lemma": "ממשלה" }
+    },
+    {
+      "text": "כשהגענו", "way": "word", "why": "כש attached to a verb",
+      "model": { "surface": "כשהגענו", "lemma": "הגיע", "lemma_pointed": "הִגִּיעַ", "surface_pointed": "כְּשֶׁהִגַּעְנוּ", "pos": "verb", "root": "נ.ג.ע", "binyan": "hifil", "tense": "past", "person_gender_number": "1p", "meaning_en": "when we arrived", "governs": "ל-", "categories": ["conjugation"], "note": "כש- when, on the Hif'il past of נ.ג.ע.", "confidence": "sure", "register": "standard", "corrected_from": null, "other_readings": [] },
+      "expect": { "status": 200, "lemma": "הגיע", "binyan": "hifil" }
+    },
+    {
+      "text": "ממשלת", "way": "word", "why": "a construct form",
+      "model": { "surface": "ממשלת", "lemma": "ממשלה", "lemma_pointed": "מֶמְשָׁלָה", "surface_pointed": "מֶמְשֶׁלֶת", "pos": "noun", "root": "מ.ש.ל", "binyan": null, "tense": null, "person_gender_number": "fs", "meaning_en": "the government of", "governs": null, "categories": [], "note": "The construct state (סמיכות) of ממשלה.", "confidence": "sure", "register": "standard", "corrected_from": null, "other_readings": [] },
+      "expect": { "status": 200, "lemma": "ממשלה" }
+    },
+    {
+      "text": "בית ספר", "way": "phrase", "why": "a construct pair: the phrase's meaning and its two words",
+      "model": { "meaning_en": "a school", "literal_en": "a house of book", "note": "בית is in the construct state; everyday standard Hebrew." },
+      "expect": { "words": ["בית", "ספר"], "latin": [false, false], "meaning_en": "a school" }
+    },
+    {
+      "text": "ח\"כ", "way": "word", "why": "an abbreviation typed with a plain \"",
+      "model": { "surface": "ח\"כ", "lemma": "ח\"כ", "lemma_pointed": "חַ\"כ", "surface_pointed": "חַ\"כ", "pos": "noun", "root": null, "binyan": null, "tense": null, "person_gender_number": "ms", "meaning_en": "a member of Knesset (חבר כנסת, MK)", "governs": null, "categories": [], "note": "An abbreviation of חבר כנסת.", "confidence": "sure", "register": "standard", "corrected_from": null, "other_readings": [] },
+      "expect": { "status": 200, "meaning_has": "member of Knesset" }
+    },
+    {
+      "text": "נתניהו", "way": "word", "why": "a person's name",
+      "model": { "surface": "נתניהו", "lemma": "נתניהו", "lemma_pointed": "נְתַנְיָהוּ", "surface_pointed": "נְתַנְיָהוּ", "pos": "proper-noun", "root": null, "binyan": null, "tense": null, "person_gender_number": null, "meaning_en": "Netanyahu (a family name; most often Benjamin Netanyahu, Israel's prime minister)", "governs": null, "categories": [], "note": null, "confidence": "sure", "register": "standard", "corrected_from": null, "other_readings": [] },
+      "expect": { "status": 200, "pos": "proper-noun" }
+    },
+    {
+      "text": "אינטל", "way": "word", "why": "a company's name",
+      "model": { "surface": "אינטל", "lemma": "אינטל", "lemma_pointed": "אִינְטֶל", "surface_pointed": "אִינְטֶל", "pos": "proper-noun", "root": null, "binyan": null, "tense": null, "person_gender_number": null, "meaning_en": "Intel (the chip maker, a large employer in Israel)", "governs": null, "categories": [], "note": null, "confidence": "sure", "register": "standard", "corrected_from": null, "other_readings": [] },
+      "expect": { "status": 200, "pos": "proper-noun" }
+    },
+    {
+      "text": "לעשות check", "way": "phrase", "why": "Hebrew and Latin letters together go the phrase way: the Hebrew word a button, the English one shown as it is",
+      "model": { "meaning_en": "to check, to verify", "literal_en": "to do a check", "note": "Colloquial: English verbs are often used with לעשות." },
+      "expect": { "words": ["לעשות", "check"], "latin": [false, true], "meaning_en": "to check, to verify" }
+    },
+    {
+      "text": "שָׁלום", "way": "word", "why": "nikud typed partly",
+      "model": { "surface": "שָׁלום", "lemma": "שלום", "lemma_pointed": "שָׁלוֹם", "surface_pointed": "שָׁלוֹם", "pos": "noun", "root": "ש.ל.מ", "binyan": null, "tense": null, "person_gender_number": "ms", "meaning_en": "peace; hello", "governs": null, "categories": [], "note": null, "confidence": "sure", "register": "standard", "corrected_from": null, "other_readings": [] },
+      "expect": { "status": 200, "lemma": "שלום" }
+    },
+    {
+      "text": "שלומ", "way": "word", "why": "a regular letter where a final one belongs",
+      "model": { "surface": "שלום", "lemma": "שלום", "lemma_pointed": "שָׁלוֹם", "surface_pointed": "שָׁלוֹם", "pos": "noun", "root": "ש.ל.מ", "binyan": null, "tense": null, "person_gender_number": "ms", "meaning_en": "peace; hello", "governs": null, "categories": [], "note": "A regular mem typed where the final mem belongs.", "confidence": "likely", "register": "standard", "corrected_from": "שלומ", "other_readings": [] },
+      "expect": { "status": 200, "surface": "שלום", "corrected_from": "שלומ" }
+    },
+    {
+      "text": "ג'ובניק", "way": "word", "why": "army slang with a geresh",
+      "model": { "surface": "ג'ובניק", "lemma": "ג'ובניק", "lemma_pointed": "גּ'וֹבְּנִיק", "surface_pointed": "גּ'וֹבְּנִיק", "pos": "noun", "root": null, "binyan": null, "tense": null, "person_gender_number": "ms", "meaning_en": "a soldier with a desk job (not a combat soldier)", "governs": null, "categories": [], "note": "From English \"job\" with the Russian/Yiddish ending ־ניק; mildly mocking.", "confidence": "sure", "register": "army slang", "corrected_from": null, "other_readings": [] },
+      "expect": { "status": 200, "register": "army slang" }
+    },
+    {
+      "text": "sababa", "way": "english", "why": "Hebrew typed in Latin letters: the Hebrew word first",
+      "model": { "words": [{ "hebrew": "סַבָּבָה", "meaning": "fine, great, cool (slang)" }, { "hebrew": "בְּסֵדֶר", "meaning": "all right" }] },
+      "expect": { "first": "סַבָּבָה" }
+    }
+  ]
+}

@@ -246,7 +246,9 @@ try {
     await page.fill('#word', 'מילהלאידועה');
     await page.press('#word', 'Enter');
     await page.locator('#card-lookup .error:not(:empty)').waitFor({ timeout: 8000 });
-    check(`${name}: a word that cannot be identified says why on the card, with no tabs`, /Card could not be built/.test(await card.locator('.error').innerText()) && (await page.locator('#tabs button').count()) === 0);
+    // since hebrew-save-one the card says "No card for this word", never the model's refusal itself
+    check(`${name}: a word that cannot be identified says "No card for this word" on the card, never the refusal itself, with no tabs`,
+      (await card.locator('.error').innerText()) === 'No card for this word' && !/could not be built|unknown word/i.test(await page.locator('#entry').innerText()) && (await page.locator('#tabs button').count()) === 0);
     check(`${name}: no screen of this page shows "map", "met", "touch", "spot" or "satellite"`, page.jargon.length === 0, page.jargon.join(' | '));
     await ctx.close();
   }

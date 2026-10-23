@@ -18,8 +18,52 @@
   // the ask pane goes with the word it was opened for (ask-ui.js)
   function askFollows(card, c) { if (window.AskUI) window.AskUI.follow(card, c); }
 
+  // hebrew-save-one: the card qualifies its reading — "A best guess" or
+  // "Likely" beside the meaning, its register ("slang", "army slang" …) when
+  // not standard, "You typed …" when it read a misspelling as the word meant,
+  // and "Other readings" under the meaning: buttons that look the word up on
+  // a page that wired `onReading` (the Look up page), plain lines elsewhere.
+  // These lines are made here, so every page's card gets them.
+  const QUALIFY = { guess: 'A best guess', likely: 'Likely' };
+  function clearExtras(card) {
+    for (const x of card.querySelectorAll(':scope > .typed, :scope > .readings')) x.remove();
+  }
+  function drawExtras(card, c) {
+    clearExtras(card);
+    const m = el(card, 'meaning');
+    if (QUALIFY[c.confidence]) { const q = document.createElement('span'); q.className = `qualify ${c.confidence}`; q.textContent = QUALIFY[c.confidence]; m.append(' ', q); }
+    if (c.register && c.register !== 'standard') { const r = document.createElement('span'); r.className = 'register'; r.textContent = c.register; m.append(' ', r); }
+    if (c.corrected_from) {
+      const t = document.createElement('div'); t.className = 'line typed';
+      t.append('You typed ', he(c.corrected_from));
+      m.before(t);
+    }
+    const others = Array.isArray(c.other_readings) ? c.other_readings : [];
+    if (others.length) {
+      const box = document.createElement('div'); box.className = 'readings';
+      const title = document.createElement('div'); title.className = 'readings-title'; title.textContent = 'Other readings';
+      const ul = document.createElement('ul');
+      for (const r of others) {
+        const li = document.createElement('li');
+        const word = he(r.lemma_pointed); word.classList.add('pointed');
+        const what = document.createTextNode(` ${[r.pos, r.meaning_en].filter(Boolean).join(' · ')}`);
+        if (card._onReading) {
+          const b = document.createElement('button'); b.type = 'button'; b.className = 'reading';
+          b.title = `Look up ${bare(r.lemma_pointed)}`;
+          b.append(word, what);
+          b.addEventListener('click', () => card._onReading(bare(r.lemma_pointed)));
+          li.append(b);
+        } else li.append(word, what);
+        ul.append(li);
+      }
+      box.append(title, ul);
+      (el(card, 'note').textContent ? el(card, 'note') : m).after(box);
+    }
+  }
+
   function setLoading(card, surface) {
     askFollows(card, null);
+    clearExtras(card);
     card.classList.remove('idle');
     const sv = card.querySelector('.setverb'); if (sv) sv.remove();
     el(card, 'surface').textContent = surface;
@@ -30,6 +74,7 @@
 
   function setError(card, surface, message) {
     askFollows(card, null);
+    clearExtras(card);
     card.classList.remove('idle');
     const sv = card.querySelector('.setverb'); if (sv) sv.remove();
     el(card, 'surface').textContent = surface;
@@ -96,6 +141,7 @@
       const chip = document.createElement('span'); chip.className = 'chip'; chip.textContent = LABELS[id] || id; chips.append(chip);
     }
     el(card, 'note').textContent = c.note || '';
+    drawExtras(card, c);
     drawCorrected(el(card, 'corrected'), c.corrected, c.refreshed, c.confirmed);
     drawSetVerb(card, c);
     el(card, 'error').textContent = '';
@@ -276,12 +322,15 @@
   }
 
   // Wires one card element: `getCurrent()` answers { card, spot, sentence?,
-  // desk_key? } for the word on the card; `onStatus(status)` saves;
+  // desk_key? } for the word on the card; `onReading(word)` looks up an
+  // other reading's word (the Look up page); `onStatus(status)` saves;
   // `onClose()` for the sheet; `api` is the page's own, which the ask pane
   // asks through.
-  function wire(card, { onStatus, getCurrent, onClose, onSetVerb, onPut, api }) {
+  function wire(card, { onStatus, getCurrent, onClose, onSetVerb, onPut, onReading, api }) {
     // the root and binyan control shows on verb cards of a page that saves it
     if (onSetVerb) card._onSetVerb = onSetVerb;
+    // "Other readings" are buttons on a page that looks a word up (hebrew-save-one)
+    if (onReading) card._onReading = onReading;
     if (onPut) wirePut(card, onPut, getCurrent);
     card.querySelector('[data-act=shaky]').addEventListener('click', () => onStatus('shaky'));
     card.querySelector('[data-act=solid]').addEventListener('click', () => onStatus('solid'));
