@@ -185,7 +185,8 @@ function resetPlace() { en.spacer.style.height = '0px'; en.tail.style.height = '
 
 function closeEnPane() {
   en.box.append(en.pane);
-  en.pane.innerHTML = ''; en.pane.className = 'ref-pane hidden'; delete en.pane.dataset.ref; delete en.pane.dataset.word; delete en.pane.dataset.mode;
+  // closed, it is no reference pane (the tabs' pane stays the page's one ref-pane)
+  en.pane.innerHTML = ''; en.pane.className = 'en-pane hidden'; delete en.pane.dataset.ref; delete en.pane.dataset.word; delete en.pane.dataset.mode;
 }
 
 function hideEnglish() {
