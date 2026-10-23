@@ -321,6 +321,8 @@ try {
       // shows. Wait for that, then remove it, so the phone's counts below
       // start from the same rows on any machine (before, a fast machine
       // closed the page before the attach landed and a slower one did not).
+      // "Heard:" shows before the look-up answers, so wait for its row too.
+      await page.waitForFunction(() => window.Lookup.current && window.Lookup.current.key, null, { timeout: 10000 });
       const longKey = (await page.evaluate(() => window.Lookup.current)).key;
       let longRec = null;
       for (let i = 0; i < 50 && !longRec; i++) {
