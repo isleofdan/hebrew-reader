@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "COOKIE_INSECURE=1 node server.js",
-    "smoke": "node scripts/smoke.mjs && node scripts/grow-smoke.mjs && node scripts/paper-smoke.mjs && node scripts/hunt-smoke.mjs && node scripts/lookup-smoke.mjs && node scripts/today-smoke.mjs && node scripts/walks-smoke.mjs && node scripts/study-smoke.mjs && node scripts/english-smoke.mjs",
+    "smoke": "node scripts/smoke.mjs && node scripts/grow-smoke.mjs && node scripts/paper-smoke.mjs && node scripts/hunt-smoke.mjs && node scripts/lookup-smoke.mjs && node scripts/today-smoke.mjs && node scripts/walks-smoke.mjs && node scripts/study-smoke.mjs && node scripts/english-smoke.mjs && node scripts/speech-smoke.mjs",
     "test": "npm run smoke --silent",
     "test:fast": "node scripts/grow-smoke.mjs && node scripts/paper-smoke.mjs && node scripts/hunt-smoke.mjs",
     "screenshots": "node scripts/screenshots.mjs && node scripts/desk-pages.mjs && node scripts/grow-pages.mjs && node scripts/paper-pages.mjs && node scripts/hunt-pages.mjs && node scripts/lookup-pages.mjs && node scripts/today-pages.mjs && node scripts/walks-pages.mjs && node scripts/study-pages.mjs && node scripts/english-pages.mjs",

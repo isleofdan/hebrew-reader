@@ -1,0 +1,5 @@
+
+         
+
+         
+{"id":"gen-1792758130-Gy2jylIHCjyrBG4VqFiz","object":"chat.completion","created":1792758130,"model":"google/gemini-3.8-flash","provider":"Google","system_fingerprint":null,"service_tier":"provisioned","choices":[{"index":0,"logprobs":null,"finish_reason":"stop","native_finish_reason":"STOP","message":{"role":"assistant","content":"אמת","refusal":null,"reasoning":null,"reasoning_details":[{"type":"reasoning.encrypted","data":"AY89a19nXlJsBEFpBn5T3NpuhEgScD432qQLja9lvgb8J15fQdLQ5EzbH2KzKDCGjyBxcKYT3EbW7Mg79rzszL02MWqvaHmbMmeJFHq0j4BaYjaIgJbA","format":"google-gemini-v1","index":0}]}}],"usage":{"prompt_tokens":105,"completion_tokens":2,"total_tokens":107,"cost":0.00008625,"is_byok":false,"prompt_tokens_details":{"cached_tokens":0,"cache_write_tokens":0,"audio_tokens":45,"video_tokens":0},"cost_details":{"upstream_inference_cost":0.00008625,"upstream_inference_prompt_cost":0.00007875,"upstream_inference_completions_cost":0.0000075},"completion_tokens_details":{"reasoning_tokens":0,"image_tokens":0,"audio_tokens":0}}}
