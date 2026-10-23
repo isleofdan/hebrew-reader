@@ -4,13 +4,18 @@
 // and whether the page's text holds the word. Not part of `npm test`: it
 // reaches the live sites. Its result is written up in docs/REFERENCES.md and
 // sets `embed` per reference in lib/references.js.
+// Since hebrew-english-one it also asks English Wiktionary (`enwiktionary`,
+// the pages a row of an English look-up frames) for "run".
 //   node scripts/reference-frames.mjs          a table on stdout
 //   node scripts/reference-frames.mjs --json   the raw results
+//   node scripts/reference-frames.mjs --only enwiktionary   one site only
 import { createRequire } from 'node:module';
 
-const { REFERENCES } = createRequire(import.meta.url)('../lib/references.js');
+const { REFERENCES, ENGLISH } = createRequire(import.meta.url)('../lib/references.js');
 const LIMIT_MS = 20000;
-const TERMS = { default: ['להמר'], kizur: ['להמר', 'צה"ל'], sefaria: ['להמר', 'בראשית'] };
+const TERMS = { default: ['להמר'], kizur: ['להמר', 'צה"ל'], sefaria: ['להמר', 'בראשית'], enwiktionary: ['run'] };
+const only = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1] : null;
+const SITES = [...REFERENCES, ENGLISH.wiktionary].filter((r) => !only || r.id === only);
 
 const bare = (s) => String(s || '').normalize('NFC').replace(/[֑-ׇ]/g, '');
 
@@ -70,7 +75,7 @@ async function once(ref, term, agent) {
   }
 }
 
-const results = await Promise.all(REFERENCES.flatMap((r) => (TERMS[r.id] || TERMS.default).map((t) => probe(r, t))));
+const results = await Promise.all(SITES.flatMap((r) => (TERMS[r.id] || TERMS.default).map((t) => probe(r, t))));
 if (process.argv.includes('--json')) console.log(JSON.stringify(results, null, 2));
 else {
   console.log('| reference | word | status (browser / plain) | X-Frame-Options | frame-ancestors | word in text | can frame |');

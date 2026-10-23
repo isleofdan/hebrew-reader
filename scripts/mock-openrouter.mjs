@@ -76,6 +76,15 @@ let lastGuideModel = null;
 // requests below.
 let passageCalls = 0, sentenceCalls = 0, misspellCalls = 0, lastPassageAsk = null;
 let difficultyCalls = 0, lastDifficultyAsk = null;
+// English to Hebrew (hebrew-english-one): the words the model suggests when
+// no dictionary lists one, by the English text (control.english_words
+// replaces them; control.english_fail drops the connection). Each list
+// carries one word that is not Hebrew letters, which the server must drop.
+const ENGLISH_WORDS = {
+  reliability: [{ hebrew: 'אֲמִינוּת', meaning: 'reliability' }, { hebrew: 'reliable', meaning: 'not Hebrew: dropped' }, { hebrew: 'מְהֵימָנוּת', meaning: 'trustworthiness, dependability' }],
+  zzqx: [{ hebrew: 'zzqx', meaning: 'not Hebrew: dropped' }],
+};
+let englishCalls = 0, lastEnglishAsk = null;
 const control = { easy_lemmas: [], difficulty_fail: false, passage_basic: false, passage_use: null, passage_fail: null, passage_long: false, sentence_fail: false, misspell_fail: false, misspellings: {}, judge_same: false, judge_truncated: 0, article_guide_faults: [], unknown_models: [], guide_faults: [], review: 'fix-root', extra_cards: {}, card_overrides: {}, review_extra: [], review_format: 'clean', review_format_again: 'clean', schema_refused: false, verb_fixes: {}, verb_extra: [], verb_decline: false, guide_silent: [], refresh_fail: false, review_verdicts: {}, review_verdict_extra: [], examples: null };
 // verb_fixes: word -> { root?, binyan?, why }, the verb-card check's fix for
 // that card (every other card answered "correct"); verb_extra: answers added
@@ -378,7 +387,7 @@ function thoughtCall(req, res, body, user) {
 }
 
 http.createServer((req, res) => {
-  if (req.url === '/calls') { res.end(JSON.stringify({ walk_asks: walkAsks, reasoning_refused: reasoningRefused, difficulty_calls: difficultyCalls, last_difficulty_ask: lastDifficultyAsk, passage_calls: passageCalls, sentence_calls: sentenceCalls, misspell_calls: misspellCalls, last_passage_ask: lastPassageAsk, judge_calls: judgeCalls, last_judge_max_tokens: lastJudgeMaxTokens, article_guides: articleGuides, last_article_guide_model: lastArticleGuideModel, sheet_calls: sheetCalls, sheet_asks: sheetAsks, search_calls: searchCalls, search_asks: searchAsks, calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
+  if (req.url === '/calls') { res.end(JSON.stringify({ english_calls: englishCalls, last_english_ask: lastEnglishAsk, walk_asks: walkAsks, reasoning_refused: reasoningRefused, difficulty_calls: difficultyCalls, last_difficulty_ask: lastDifficultyAsk, passage_calls: passageCalls, sentence_calls: sentenceCalls, misspell_calls: misspellCalls, last_passage_ask: lastPassageAsk, judge_calls: judgeCalls, last_judge_max_tokens: lastJudgeMaxTokens, article_guides: articleGuides, last_article_guide_model: lastArticleGuideModel, sheet_calls: sheetCalls, sheet_asks: sheetAsks, search_calls: searchCalls, search_asks: searchAsks, calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
   let raw = '';
   req.on('data', (c) => raw += c);
   req.on('end', () => {
@@ -407,7 +416,13 @@ http.createServer((req, res) => {
     if (Array.isArray(body.tools) && body.tools.length) return webSearch(req, res, body);
     const followUp = body.messages.length > 2;
     let answer, format = 'clean';
-    if (user.startsWith('Difficulty request\n')) {
+    if (user.startsWith('English to Hebrew request\n')) {
+      englishCalls++;
+      lastEnglishAsk = { user, system: body.messages[0].content, model: body.model, format: body.response_format && body.response_format.type };
+      if (control.english_fail) { req.socket.destroy(); return; }
+      const text = (/^English: (.*)$/m.exec(user) || [])[1] || '';
+      answer = { words: (control.english_words && control.english_words[text]) || ENGLISH_WORDS[text.toLowerCase()] || [] };
+    } else if (user.startsWith('Difficulty request\n')) {
       // Today's one judgment of new words (hebrew-today-one-fixes): easy when
       // the word is in control.easy_lemmas, else worth drilling;
       // difficulty_fail drops the socket (the model unreachable)
