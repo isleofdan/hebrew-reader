@@ -11,6 +11,19 @@
 // server must drop. An item containing "סירוב" makes it decline.
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Speech written down (hebrew-speech-one): a request carrying an
+// `input_audio` part is answered from scripts/fixtures/speech/ by
+// control.speech: 'hebrew' (the default; the real answer to the WebM
+// recording of אמת, 23 Oct 2026), 'english' ("run"), 'empty' (content ""),
+// 'noise' ("[noise]"), 'refusal' (HTTP 400 in OpenRouter's error shape),
+// 'down' (the connection dropped); control.speech_delay_ms holds the answer
+// that long. Each request is kept in speech_asks.
+const SPEECH_DIR = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'speech');
+const speechFixture = (name) => readFileSync(join(SPEECH_DIR, `answer-${name}.json`), 'utf8');
+const speechAsks = [];
 
 const port = Number(process.argv[2]) || 8791;
 // hebrew-save-one: the tricky look-ups (scripts/tricky-lookups.json), each
@@ -41,6 +54,8 @@ const known = {
   'שוטטות': { surface: 'שוטטות', lemma: 'שוטטות', pos: 'noun', root: 'ש.ו.ט', binyan: null, tense: null, person_gender_number: 'fs', meaning_en: 'wandering, roaming', governs: null, categories: [], note: 'A verbal noun of the Polel שוטט.' },
   // the new word of Today's stand-in passage (hebrew-today-one)
   'המכרז': { surface: 'המכרז', lemma: 'מכרז', pos: 'noun', root: 'מ.כ.ר', binyan: null, tense: null, person_gender_number: 'ms', meaning_en: 'the tender', governs: null, categories: [], note: 'ה- is the article; the word is מכרז.' },
+  // the word the speech fixture says (hebrew-speech-one)
+  'אמת': { surface: 'אמת', lemma: 'אמת', pos: 'noun', root: 'א.מ.נ', binyan: null, tense: null, person_gender_number: 'fs', meaning_en: 'truth', governs: null, categories: [], note: null },
   'נלחם': { surface: 'נלחם', lemma: 'נלחם', pos: 'verb', root: 'ל.ח.מ', binyan: 'nifal', tense: 'past', person_gender_number: '3ms', meaning_en: 'fought', governs: 'ב-', categories: ['conjugation', 'preposition-government'], note: "Nif'al; fights ב- (in), not 'against'." },
 };
 // Nikud for the words above (session seven): the card answers carry it, and
@@ -50,7 +65,7 @@ const POINTED = {
   'נאלצה': ['נֶאֱלַץ', 'נֶאֶלְצָה'], 'שנאלצה': ['נֶאֱלַץ', 'שֶׁנֶּאֶלְצָה'], 'באמינות': ['אֲמִינוּת', 'בָּאֲמִינוּת'],
   'להתמודד': ['הִתְמוֹדֵד', 'לְהִתְמוֹדֵד'], 'מקדם': ['קִדֵּם', 'מְקַדֵּם'], 'רפורמה': ['רֵפוֹרְמָה', 'רֵפוֹרְמָה'],
   'ייקבעו': ['נִקְבַּע', 'יִיקָּבְעוּ'], 'נחתם': ['נֶחְתַּם', 'נֶחְתַּם'], 'הסלמה': ['הַסְלָמָה', 'הַסְלָמָה'], 'דם': ['דָּם', 'דָּם'],
-  'להמר': ['הִימֵּר', 'לְהַמֵּר'], 'שוטטות': ['שׁוֹטְטוּת', 'שׁוֹטְטוּת'],
+  'להמר': ['הִימֵּר', 'לְהַמֵּר'], 'שוטטות': ['שׁוֹטְטוּת', 'שׁוֹטְטוּת'], 'אמת': ['אֱמֶת', 'אֱמֶת'],
 };
 for (const [w, [lemma, surface]] of Object.entries(POINTED)) if (known[w]) Object.assign(known[w], { lemma_pointed: lemma, surface_pointed: surface });
 for (const c of TRICKY) if (c.way === 'word' || c.way === 'refused') known[c.text] = c.model;
@@ -409,7 +424,7 @@ function thoughtCall(req, res, body, user) {
 }
 
 http.createServer((req, res) => {
-  if (req.url === '/calls') { res.end(JSON.stringify({ phrase_calls: phraseCalls, english_calls: englishCalls, last_english_ask: lastEnglishAsk, walk_asks: walkAsks, reasoning_refused: reasoningRefused, difficulty_calls: difficultyCalls, last_difficulty_ask: lastDifficultyAsk, passage_calls: passageCalls, sentence_calls: sentenceCalls, misspell_calls: misspellCalls, last_passage_ask: lastPassageAsk, judge_calls: judgeCalls, last_judge_max_tokens: lastJudgeMaxTokens, article_guides: articleGuides, last_article_guide_model: lastArticleGuideModel, sheet_calls: sheetCalls, sheet_asks: sheetAsks, search_calls: searchCalls, search_asks: searchAsks, calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
+  if (req.url === '/calls') { res.end(JSON.stringify({ phrase_calls: phraseCalls, speech_asks: speechAsks, english_calls: englishCalls, last_english_ask: lastEnglishAsk, walk_asks: walkAsks, reasoning_refused: reasoningRefused, difficulty_calls: difficultyCalls, last_difficulty_ask: lastDifficultyAsk, passage_calls: passageCalls, sentence_calls: sentenceCalls, misspell_calls: misspellCalls, last_passage_ask: lastPassageAsk, judge_calls: judgeCalls, last_judge_max_tokens: lastJudgeMaxTokens, article_guides: articleGuides, last_article_guide_model: lastArticleGuideModel, sheet_calls: sheetCalls, sheet_asks: sheetAsks, search_calls: searchCalls, search_asks: searchAsks, calls, points_calls: pointsCalls, refresh_calls: refreshCalls, guides, reviews, review_asks: reviewAsks, last_guide_model: lastGuideModel, last_guide_note: lastGuideNote, last_review_cards: lastReviewCards, verb_checks: verbChecks, last_verb_cards: lastVerbCards, last_verb_ask: lastVerbAsk })); return; }
   let raw = '';
   req.on('data', (c) => raw += c);
   req.on('end', () => {
@@ -424,6 +439,23 @@ http.createServer((req, res) => {
       return;
     }
     const lastUser = body.messages.filter((m) => m.role === 'user').at(-1).content;
+    if (Array.isArray(lastUser) && lastUser.some((p) => p && p.type === 'input_audio')) {
+      const audio = lastUser.find((p) => p.type === 'input_audio').input_audio;
+      speechAsks.push({ model: body.model, format: audio.format, bytes: Buffer.from(audio.data, 'base64').length, text: (lastUser.find((p) => p.type === 'text') || {}).text || null,
+        system: body.messages[0].content, reasoning: body.reasoning === undefined ? null : body.reasoning, temperature: body.temperature === undefined ? null : body.temperature, max_tokens: body.max_tokens, body_keys: Object.keys(body) });
+      const mode = control.speech || 'hebrew';
+      // speech_delay_ms: the answer held that long (the page's "Writing it down…")
+      const answer = () => {
+        if (mode === 'down') { req.socket.destroy(); return; }
+        if (mode === 'refusal') { res.writeHead(400, { 'content-type': 'application/json' }); res.end(speechFixture('refusal')); return; }
+        let text = speechFixture(mode === 'noise' ? 'empty' : mode);
+        if (mode === 'noise') text = JSON.stringify({ ...JSON.parse(text), choices: [{ ...JSON.parse(text).choices[0], message: { role: 'assistant', content: '[noise]' } }] });
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(text);
+      };
+      if (control.speech_delay_ms) setTimeout(answer, control.speech_delay_ms); else answer();
+      return;
+    }
     // reasoning_refused: any request carrying `reasoning` is answered 400, as
     // OpenRouter might if a route does not take it beside JSON mode or the
     // web search (hebrew-guide-one); each refused request is kept

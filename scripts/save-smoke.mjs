@@ -207,6 +207,17 @@ try {
   const put = await api('POST', `/desks/${fresh.id}/cards`, { card: k1.body.key, unplaced: true });
   check('a kept phrase ticked goes on a desk with "Put on a desk", not yet placed', put.status === 201 && put.body.already === false && put.body.placement.x === null && put.body.card.kind === 'note');
 
+  // --- a spoken phrase kept: its recording on the note's row (merged with hebrew-speech-one) ----------
+  check('"Save it" answers its row\'s recordings, as a look-up does (none yet)', Array.isArray(k1.body.recordings) && k1.body.recordings.length === 0 && Array.isArray(k2.body.recordings));
+  const spoken = await fetch(`${base}/lookup/speech?ms=1200`, { method: 'POST', headers: { cookie, 'content-type': 'audio/webm', accept: 'application/json' }, body: readFileSync(join(here, 'fixtures', 'speech', 'he-emet.webm')) });
+  const said = await spoken.json();
+  const att = await api('POST', `/recordings/${said.id}/attach`, { row_key: k1.body.key });
+  const row = (await api('GET', '/lookups')).body.items.find((i) => i.key === k1.body.key);
+  const again = await api('POST', '/lookup/keep', { text: 'דו או פרד' });
+  check('a recording attaches to a kept phrase\'s row (note:<id>): "Looked up" lists it on that row, and keeping the text again answers it',
+    spoken.status === 200 && att.status === 200 && att.body.row_key === k1.body.key && row && row.recordings.length === 1 && row.recordings[0].id === said.id
+    && again.body.already === true && again.body.recordings.map((r) => r.id).join() === String(said.id), JSON.stringify({ said, att: att.body, row }));
+
   // --- English phrases of four to six words (step 0, item 8) --------------------------------------------
   const en4 = await look('take it for granted'), en5 = await look('take it for granted again'), en6 = await look('take it for granted every single');
   check('an English phrase of four, five or six words answers (mode english); four words find the stand-in model\'s Hebrew',

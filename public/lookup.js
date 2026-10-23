@@ -49,7 +49,7 @@ UI.wire(cardEl, {
 const refused = $('#refused');
 function bareWord(s) { return String(s || '').replace(/[֑-ׇ]/g, ''); }
 function hideRefused() { refused.classList.add('hidden'); $('#dym').innerHTML = ''; }
-function drawRefused(word, data) {
+function drawRefused(word, data, rec = null) {
   UI.setError(cardEl, word, 'No card for this word');
   const box = $('#dym');
   box.innerHTML = '';
@@ -66,7 +66,7 @@ function drawRefused(word, data) {
     b.addEventListener('click', () => { $('#word').value = bareWord(s.word_pointed); lookUp(bareWord(s.word_pointed)); });
     box.append(b);
   }
-  keepBlock($('#word-keep'), (data && data.text) || word);
+  keepBlock($('#word-keep'), (data && data.text) || word, rec);
   refused.classList.remove('hidden');
 }
 
@@ -74,8 +74,9 @@ function drawRefused(word, data) {
 // note on the desk worked on last, not yet placed, and listed first in
 // "Looked up". "Add a note" opens a one-line box in its own place; after
 // saving, "Saved to Looked up" stands where the buttons were. Nothing is
-// saved before the tap.
-function keepBlock(box, text) {
+// saved before the tap. A spoken phrase or word (`rec`, hebrew-speech-one)
+// has no row until then: its recording is attached to the kept note's row.
+function keepBlock(box, text, rec = null) {
   box.innerHTML = '';
   const row = el('div', 'keep-row');
   const save = el('button', 'btn primary keep-save', 'Save it'); save.type = 'button';
@@ -93,7 +94,7 @@ function keepBlock(box, text) {
       done.setAttribute('role', 'status');
       row.replaceWith(done);
       msg.textContent = '';
-      loadList(false);
+      if (rec) attach(rec, out.key); else loadList(false);
     } catch (e) {
       save.disabled = false; msg.className = 'msg keep-msg error'; msg.textContent = `Not saved: ${e.message}`;
     }
@@ -118,7 +119,7 @@ function hidePhrase() {
   shownPhrase = null; tappedPhraseWord = null;
 }
 
-async function searchPhrase(text) {
+async function searchPhrase(text, rec = null) {
   const msg = $('#search-msg');
   const seq = ++searching;
   msg.className = 'msg'; msg.textContent = 'looking up…';
@@ -127,7 +128,7 @@ async function searchPhrase(text) {
     const data = await api('POST', '/lookup', { surface: text, sentence: '', origin: 'lookup' });
     if (seq !== searching) return;
     msg.textContent = '';
-    drawPhrase(data);
+    drawPhrase(data, rec);
   } catch (e) {
     if (seq !== searching) return;
     msg.className = 'msg error'; msg.textContent = e.message;
@@ -136,7 +137,7 @@ async function searchPhrase(text) {
   }
 }
 
-function drawPhrase(data) {
+function drawPhrase(data, rec = null) {
   // the Hebrew card and the English list, if open, go
   current = null;
   closePane(); tabs.innerHTML = '';
@@ -166,7 +167,7 @@ function drawPhrase(data) {
     b.addEventListener('click', () => tapPhraseWord(w.word, b));
     words.append(b);
   }
-  keepBlock($('#ph-keep'), data.text);
+  keepBlock($('#ph-keep'), data.text, rec);
 }
 
 // A word of the phrase tapped: the phrase folds to one line where the word
@@ -258,23 +259,30 @@ function drawCount() {
 const LATIN = /\p{Script=Latin}/u;
 const HEBREW_LETTER = /[א-ת]/;
 
+// hebrew-speech-one: the recording whose heard text this search looks up,
+// attached to the row the look-up makes (once; a later search of edited
+// text attaches nothing)
+let heard = null;
+
 async function search(ev) {
   if (ev) ev.preventDefault();
+  const rec = heard;
+  heard = null;
   const word = $('#word').value.trim();
   const msg = $('#search-msg');
   msg.className = 'msg';
   if (!word) { msg.className = 'msg error'; msg.textContent = 'Type a word first.'; return; }
   // Hebrew with a space, or Hebrew and Latin letters together: a phrase (hebrew-save-one)
-  if (HEBREW_LETTER.test(word) && (LATIN.test(word) || /\s/.test(word))) return searchPhrase(word);
-  if (LATIN.test(word)) return searchEnglish(word);
+  if (HEBREW_LETTER.test(word) && (LATIN.test(word) || /\s/.test(word))) return searchPhrase(word, rec);
+  if (LATIN.test(word)) return searchEnglish(word, rec);
   hideEnglish();
   hidePhrase();
-  return lookUp(word);
+  return lookUp(word, rec);
 }
 
 // A Hebrew word looked up, as typed — or tapped in an English look-up's list,
 // which then stays above the card, folded to one line.
-async function lookUp(word) {
+async function lookUp(word, rec = null) {
   const msg = $('#search-msg');
   msg.className = 'msg';
   const seq = ++searching;
@@ -291,9 +299,11 @@ async function lookUp(word) {
     const data = await api('POST', '/lookup', { surface: word, sentence: '', origin: 'lookup' });
     if (seq !== searching) return;
     // the ask pane's tabs are recorded on the card as this page's own tabs are (desk_key, origin lookup)
-    current = { card: data.card, spot: data.spot, sentence: data.sentence || '', key: data.key, card_id: data.card_id, references: data.references, lookups: data.lookups, desk_key: data.key, lookup_origin: 'lookup' };
+    current = { card: data.card, spot: data.spot, sentence: data.sentence || '', key: data.key, card_id: data.card_id, references: data.references, lookups: data.lookups, desk_key: data.key, lookup_origin: 'lookup', recordings: data.recordings || [] };
     msg.textContent = '';
     UI.fill(cardEl, data);
+    drawCardRec();
+    if (rec) attach(rec, data.key);
     UI.addPoints(cardEl, data, { api, sentence: current.sentence, isCurrent: () => current && current.key === data.key });
     drawSaved(data.saved);
     drawCount();
@@ -303,16 +313,126 @@ async function lookUp(word) {
     if (seq !== searching) return;
     current = null;
     msg.textContent = '';
-    if (e.status === 422) drawRefused(word, e.data);
+    // a word with no card has no row until "Save it" makes one: the
+    // recording waits for it (hebrew-save-one)
+    if (e.status === 422) drawRefused(word, e.data, rec);
     // a refusal of the box (400) says what it takes; a model that did not
     // answer is said so plainly, never in the server's own words
     else UI.setError(cardEl, word, e.status === 400 ? e.message : 'No card came back this time: the model did not answer. Try again in a moment.');
+    drawCardRec();
   } finally {
     if (seq === searching) $('#go').disabled = false;
   }
 }
 
 $('#search').addEventListener('submit', search);
+
+// --- Speak (hebrew-speech-one) ------------------------------------------------------
+// The round button beside "Look up" (mic-ui.js): what was heard goes in the
+// box and through the page's own search, at once, as typed text does.
+window.MicUI.mount({ input: $('#word'), after: $('#go'), line: $('#mic-line'), onHeard: (data) => { heard = data; return search(); } });
+
+// A recording hung off the row its look-up made: once only. "Looked up"
+// and the card then show it.
+async function attach(rec, key) {
+  try {
+    await api('POST', `/recordings/${rec.id}/attach`, { row_key: key });
+    if (current && current.key === key) {
+      current.recordings = [{ id: rec.id, ms: rec.ms, at: new Date().toISOString() }, ...current.recordings.filter((r) => r.id !== rec.id)];
+      drawCardRec();
+    }
+    loadList(false);
+  } catch (e) {
+    $('#search-msg').className = 'msg error';
+    $('#search-msg').textContent = `The recording was not kept with the word: ${e.message}`;
+  }
+}
+
+const MicUI = window.MicUI;
+const recLength = (r) => (r.ms === null || r.ms === undefined ? '' : MicUI.clock(r.ms));
+
+// A small round play button (the newest recording), with their count when
+// there is more than one.
+function playButton(recs) {
+  const b = el('button', 'rec-play');
+  b.type = 'button';
+  b.title = 'Play your recording';
+  b.setAttribute('aria-label', recs.length > 1 ? `Play your recording (${recs.length} recordings)` : 'Play your recording');
+  b.append(el('span', 'rec-icon'));
+  if (recs.length > 1) b.append(el('span', 'rec-count', String(recs.length)));
+  b.addEventListener('click', () => { if (b.dataset.held) { delete b.dataset.held; return; } MicUI.play(recs[0].id, b); });
+  return b;
+}
+
+// The card on the Look up page, for a row with recordings: play beside the word.
+function drawCardRec() {
+  const slot = $('#card-rec');
+  slot.innerHTML = '';
+  if (current && current.recordings && current.recordings.length) slot.append(playButton(current.recordings));
+}
+
+// A "Looked up" row's recordings: play (the newest), and "…" — or a long
+// press on play — opening the list, each with its day, Play and "Delete
+// recording" (the in-page confirm: "Delete this recording? Saved words stay.").
+function recControls(item, li) {
+  const box = el('span', 'looked-rec');
+  const recs = item.recordings || [];
+  if (!recs.length) return box;
+  const p = playButton(recs);
+  let timer = null;
+  p.addEventListener('pointerdown', () => { timer = setTimeout(() => { p.dataset.held = '1'; toggleRecList(item, li, true); }, 550); });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) p.addEventListener(ev, () => clearTimeout(timer));
+  p.addEventListener('contextmenu', (e) => e.preventDefault());
+  const more = el('button', 'rec-more', '…');
+  more.type = 'button';
+  more.title = 'Your recordings';
+  more.setAttribute('aria-label', 'Your recordings');
+  more.setAttribute('aria-expanded', 'false');
+  more.addEventListener('click', () => toggleRecList(item, li));
+  box.append(p, more);
+  return box;
+}
+
+const DAY_TIME = { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' };
+function toggleRecList(item, li, open) {
+  let ul = li.querySelector('ul.rec-list');
+  const more = li.querySelector('.rec-more');
+  if (ul && !open) { ul.remove(); if (more) more.setAttribute('aria-expanded', 'false'); return; }
+  if (ul) return;
+  ul = el('ul', 'rec-list');
+  for (const r of item.recordings) {
+    const row = el('li', 'rec-item');
+    row.dataset.id = r.id;
+    const when = el('span', 'rec-when', [new Date(r.at).toLocaleString('en-GB', DAY_TIME), recLength(r)].filter(Boolean).join(' · '));
+    const play = el('button', 'btn small rec-item-play', 'Play');
+    play.type = 'button';
+    play.addEventListener('click', () => MicUI.play(r.id, play));
+    const del = el('button', 'btn small rec-delete', 'Delete recording');
+    del.type = 'button';
+    const bar = el('div', 'confirm-bar hidden');
+    bar.setAttribute('role', 'alertdialog');
+    const yes = el('button', 'btn danger', 'Delete'); yes.type = 'button'; yes.dataset.act = 'delete';
+    const no = el('button', 'btn', 'Keep'); no.type = 'button'; no.dataset.act = 'keep';
+    bar.append(el('span', 'confirm-text'), yes, no, el('p', 'msg'));
+    window.DeleteUI.wire({ button: del, bar, what: 'recording', path: () => `/recordings/${r.id}`, done: () => dropRec(item, li, r.id) });
+    row.append(when, play, del, bar);
+    ul.append(row);
+  }
+  li.append(ul);
+  if (more) more.setAttribute('aria-expanded', 'true');
+}
+
+// A recording deleted: gone from its row (the list stays open while any is
+// left) and from the card.
+function dropRec(item, li, id) {
+  item.recordings = item.recordings.filter((r) => r.id !== id);
+  const open = Boolean(li.querySelector('ul.rec-list'));
+  li.querySelector('.looked-rec').replaceWith(recControls(item, li));
+  const ul = li.querySelector('ul.rec-list');
+  if (ul) ul.remove();
+  if (open && item.recordings.length) toggleRecList(item, li, true);
+  if (current && current.key === item.key) { current.recordings = current.recordings.filter((r) => r.id !== id); drawCardRec(); }
+}
 
 // --- an English look-up: "Hebrew words for <text>" ----------------------------------------
 // The groups as the server sends them (Yours, From Pealim, From Wiktionary,
@@ -357,7 +477,7 @@ function hideEnglish() {
   shownEnglish = null; tapped = null;
 }
 
-async function searchEnglish(text) {
+async function searchEnglish(text, rec = null) {
   const msg = $('#search-msg');
   const seq = ++searching;
   msg.textContent = 'looking up…';
@@ -367,6 +487,7 @@ async function searchEnglish(text) {
     if (seq !== searching) return;
     msg.textContent = '';
     drawEnglish(data);
+    if (rec) attach(rec, data.key);
     document.dispatchEvent(new CustomEvent('looked-up', { detail: data }));
   } catch (e) {
     if (seq !== searching) return;
@@ -542,7 +663,7 @@ function row(item) {
   addOpened(item, opening.get(item.key) || []);
   meta.textContent = metaLine(item);
   shown.set(item.key, item);
-  li.append(box, word, gloss, meta);
+  li.append(box, word, recControls(item, li), gloss, meta);
   return li;
 }
 
@@ -559,7 +680,7 @@ function englishRow(item) {
   word.addEventListener('click', () => reopenEnglish(item.text));
   const gloss = el('span', 'gloss', `${item.count} Hebrew word${item.count === 1 ? '' : 's'}`);
   const meta = el('span', 'meta', item.day);
-  li.append(el('span', 'no-tick'), word, gloss, meta);
+  li.append(el('span', 'no-tick'), word, recControls(item, li), gloss, meta);
   return li;
 }
 

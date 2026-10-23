@@ -13,7 +13,7 @@
 //   node scripts/save-pages.mjs
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -237,6 +237,13 @@ try {
     const onFresh = (await api('GET', `/desks/${fresh.id}`)).body.cards.find((c) => c.kind === 'note' && c.text.startsWith(`${P.text}\n`));
     check(`${size}: the kept phrase ticked goes on the desk with "Put on a desk", not yet placed`,
       /^1 card put on tonight's desk/.test(await page.locator('#put-msg').innerText()) && onFresh && onFresh.place.x === null, await page.locator('#put-msg').innerText());
+    // a recording attached to the kept phrase's row (hebrew-speech-one's attach, note:<id>)
+    const keptKey = (await api('GET', '/lookups')).body.items.find((i) => i.surface === P.text).key;
+    const said = await (await fetch(`${base}/lookup/speech?ms=1200`, { method: 'POST', headers: { cookie, 'content-type': 'audio/webm', accept: 'application/json' }, body: readFileSync(join(here, 'fixtures', 'speech', 'he-emet.webm')) })).json();
+    await api('POST', `/recordings/${said.id}/attach`, { row_key: keptKey });
+    await page.reload();
+    await page.locator(`#looked-list li[data-key="${keptKey}"] .rec-play`).waitFor({ timeout: 8000 });
+    check(`${size}: a kept phrase's row in "Looked up" carries its recording's play button, as a looked-up word's row does`, (await page.locator(`#looked-list li[data-key="${keptKey}"] .rec-play`).count()) === 1);
     // the same phrase again: its meaning kept, no model call
     await lookUp(page, P.text);
     await page.locator('#phrase:not(.hidden) #ph-meaning').waitFor({ timeout: 8000 });
