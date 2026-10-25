@@ -15,6 +15,8 @@ primary_region = "nrt"   # Tokyo
 [env]
   PORT = "8080"
   DATA_DIR = "/data"
+  # Crash reporting (lib/crash.js, public/crash.js). Public by Sentry's design (it only allows sending new events): https://docs.sentry.io/concepts/key-terms/dsn-explainer/
+  SENTRY_DSN = "https://09effb8c5f0bb01616dabd4de98f7bf6@o4512315716993024.ingest.de.sentry.io/4512315868119120"
 
 [http_service]
   internal_port = 8080
