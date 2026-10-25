@@ -129,3 +129,22 @@ jobs:
           jq -r '.tried[]? | "- \(.source): \(.title // .url) (\(.words // "-") words): \(.outcome)"' "$out" || true
           rm -f "$jar" "$out"
           if [ "$code" != "200" ]; then echo "::warning::\"Find an article\" did not reach the model: trial answered $code."; fi
+
+      # The crash chain, once: POST /crash-test throws an unexpected error, the
+      # route catch reports it to Sentry (lib/crash.js) and answers 500, and
+      # Sentry files its Wall card through the spine. Only the 500 is checked
+      # here; the card is the proof the rest of the chain works. A warning,
+      # not a failure: the deploy itself already stands.
+      - name: Check a crash reaches Sentry
+        env:
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
+        run: |
+          base="https://$APP.fly.dev"
+          jar=$(mktemp)
+          login=$(curl -s -o /dev/null -w "%{http_code}" -c "$jar" -H 'content-type: application/json' -H 'accept: application/json' \
+            --data "$(jq -cn --arg p "$APP_PASSWORD" '{passphrase: $p}')" "$base/login")
+          echo "sign-in: $login"
+          code=$(curl -s -o /dev/null -w "%{http_code}" -b "$jar" -X POST -H 'accept: application/json' --max-time 30 "$base/crash-test")
+          echo "crash-test: $code"
+          rm -f "$jar"
+          if [ "$code" != "500" ]; then echo "::warning::POST /crash-test answered $code, not 500; the crash may not have reached Sentry."; fi

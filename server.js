@@ -1,6 +1,9 @@
 'use strict';
+// crash reporting first, so Sentry is set up before anything else loads (lib/crash.js)
+const crash = require('./lib/crash');
 // The Hebrew reader: one plain Node server.
 //   /login (GET, POST), /logout, /health  — open
+//   /sentry.min.js, /crash.js              — open (crash reporting, also on the login page)
 //   everything else                        — behind the passphrase cookie
 // Fail closed: with APP_PASSWORD or COOKIE_SECRET unset, only the login page
 // serves, and it says the server is not configured.
@@ -257,7 +260,7 @@ route('POST', /^\/articles\/find$/, async (req, res, g, url) => {
     const out = await hunt.run({ progress: (line) => { last = line; send({ progress: line }); } });
     send(out.article ? { done: true, article_id: out.article.id, title: out.article.title, guide: out.guide } : { done: true, nothing: out.nothing });
   } catch (e) {
-    if (e.status !== 409) console.error(e);
+    if (e.status !== 409) { console.error(e); crash.captureException(e); }
     send({ done: true, error: e.message });
   } finally {
     clearInterval(beat);
@@ -516,6 +519,15 @@ route('GET', /^\/study\/data\/page\/(?<ref>.+)$/, async (req, res, { ref }) => {
   return sendJson(res, 200, await library.open(r));
 });
 
+// --- crash reporting (hebrew-crash-one) -------------------------------------
+
+// The check that the chain works: an unexpected error, reported by the route
+// catch below like any other, answered 500. The deploy's "Check a crash
+// reaches Sentry" step calls it; Sentry files its Wall card through the spine.
+route('POST', /^\/crash-test$/, () => {
+  throw new Error('crash-test: the reader reports crashes');
+});
+
 const GUIDE_TEMPLATE =fs.readFileSync(path.join(PUBLIC, 'guide.html'), 'utf8');
 function guidePage(res, id) {
   let article;
@@ -526,7 +538,7 @@ function guidePage(res, id) {
 }
 
 function isApiPath(p) {
-  return /^\/(articles|lookup|spots|marks-for-article|marks-for-lesson|categories|demand|ask|make|lessons|desks|notes|card|sheets|reference|lookups|english|recordings)(\/|$)/.test(p);
+  return /^\/(articles|lookup|spots|marks-for-article|marks-for-lesson|categories|demand|ask|make|lessons|desks|notes|card|sheets|reference|lookups|english|recordings|crash-test)(\/|$)/.test(p);
 }
 
 async function handle(req, res) {
@@ -537,9 +549,10 @@ async function handle(req, res) {
   if (p === '/login' && req.method === 'GET') return loginPage(res, CONFIGURED ? 200 : 503, CONFIGURED ? '' : NOT_CONFIGURED, url.searchParams.get('next'));
   if (p === '/login' && req.method === 'POST') return handleLogin(req, res);
   if (p === '/logout') return redirect(res, '/login', { 'set-cookie': auth.clearCookie({ secure: SECURE_COOKIE }) });
-  // what makes the phone page installable: fetched by the browser without the
-  // cookie, and holding nothing of Dan's
-  if (['/manifest.webmanifest', '/sw.js', '/icon-192.png', '/icon-512.png'].includes(p)) {
+  // what makes the phone page installable, and crash reporting (the login page
+  // loads it too): fetched by the browser without the cookie, and holding
+  // nothing of Dan's
+  if (['/manifest.webmanifest', '/sw.js', '/icon-192.png', '/icon-512.png', '/sentry.min.js', '/crash.js'].includes(p)) {
     return serveStatic(res, PUBLIC, p) || sendJson(res, 404, { error: `${p} is missing.` });
   }
 
@@ -566,7 +579,7 @@ async function handle(req, res) {
         return await route.run(req, res, m.groups || {}, url);
       } catch (e) {
         const status = e.status || 500;
-        if (status === 500) console.error(e);
+        if (status === 500) { console.error(e); crash.captureException(e); }
         // `extra`: what a refusal carries beside its error (the Look up page's did_you_mean, keepable)
         return sendJson(res, status, { error: e.message, ...(e.extra || {}) });
       }
@@ -612,6 +625,7 @@ guyLesson.restoreContradicted().catch((e) => console.error(`one-time step failed
 const server = http.createServer((req, res) => {
   handle(req, res).catch((e) => {
     console.error(e);
+    crash.captureException(e);
     if (!res.headersSent) sendJson(res, 500, { error: 'Server error.' });
   });
 });
