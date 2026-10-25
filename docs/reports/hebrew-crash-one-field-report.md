@@ -63,6 +63,16 @@ None. Nothing here needs a decision or a fact only Dan holds.
   - A Sentry token with event:read, if a session must read issues directly.
   - The thread checks for working sessions on the machine before merging to agent-machine.
 
+## Close-out done
+
+- **Pull requests.** #28 (the code): https://github.com/isleofdan/hebrew-reader/pull/28, MERGED 09:32:24Z, deployed (run 40181066398 green). #29 (this report only): https://github.com/isleofdan/hebrew-reader/pull/29, NOT MERGED, waits for Dan's yes. Merging it deploys the reader with no code change.
+- **Card `crash-reporting`.** Filed by `session:hebrew-crash-one`: event 2099, kind `handed` to dan, state live, court dan. The note begins "What stands" and carries this report's "What stands", "What the brief got wrong", "Asks for the origin chat" and "What the next session needs". Doors: `field report` (this file's blob on `claude/hebrew-crash-one-report`), `pull request` (#28), the report pull request (#29), the first crash card on the Wall, and crash-route-one's two doors kept. Read back from the `file_thread` answer.
+- **Report door checked.** The repository is private, so an anonymous request is refused. Signed in as isleofdan, `gh api …/contents/docs/reports/hebrew-crash-one-field-report.md?ref=claude/hebrew-crash-one-report` returns that blob URL.
+- **The new card's address.** `https://spine-dan.fly.dev/wall?card=crash-hebrew-reader-hebrew-reader-1` answers 303 to the Spine's sign-in with `next=` set to that address. The Wall page opens on the card named by `?card=` (`public/wall.js`, since session desk-three).
+- **Pull request comments on #28.**
+  - `BLOCKED. Pull request ready, waiting for the merge. Tests: 1009 passed. dev-check: PASS for candidate 9561b89.`: https://github.com/isleofdan/hebrew-reader/pull/28#issuecomment-6395795238
+  - `FINISHED. Session hebrew-crash-one. Chain: proven: card crash-hebrew-reader-hebrew-reader-1. Card crash-reporting filed.`: https://github.com/isleofdan/hebrew-reader/pull/28#issuecomment-6396027155
+
 ## Checks
 
 - Brief check: job `20261025-081038-304b63`, PASS (event 2084). Earlier round `20261025-080249-e43417`, FINDINGS, fixed in the brief before this session.
