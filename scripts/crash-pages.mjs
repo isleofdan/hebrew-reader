@@ -4,17 +4,19 @@
 // an uncaught error to Sentry with its message and code location; nothing
 // of the page goes with it (not its address or query, not a word it showed or
 // logged or fetched, not the cookie). With no DSN a page sends nothing.
+// An inline script's frames, named by the page's own address, go without its query.
 //   node scripts/crash-pages.mjs   (npm run screenshots runs it; about 15 s)
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
-const PORT = 8935, PLAIN_PORT = 8936, SENTRY_PORT = 8937;
+const PORT = 8935, PLAIN_PORT = 8936, SENTRY_PORT = 8937, PROBE_PORT = 8938;
 const PASS = 'open-sesame';
 const DSN = `http://publickey@127.0.0.1:${SENTRY_PORT}/1`;
 const WORD = 'שלום';
@@ -101,6 +103,33 @@ try {
   const crumbs = (item.breadcrumbs || []).map((b) => b.category);
   check('…its breadcrumbs carry no http, fetch, xhr, console, navigation or ui.* entry', !crumbs.some((c) => ['http', 'fetch', 'xhr', 'console', 'navigation'].includes(c) || String(c).startsWith('ui.')), crumbs.join());
   await ctx.close();
+
+  // an inline script's error, on a page opened with a query: Chromium names its frames by the page's
+  // own address (dev-check's finding on 15d54e2); they go without the query. The page is served by a
+  // probe server of its own with this site's two scripts (a page fulfilled by Playwright's route
+  // never got its envelope out), since no page of the reader throws from inline code on purpose
+  const probeBase = `http://127.0.0.1:${PROBE_PORT}`;
+  const probe = createServer((req, res) => {
+    const p = req.url.split('?')[0];
+    if (p === '/sentry.min.js' || p === '/crash.js') { res.writeHead(200, { 'content-type': 'text/javascript' }); return res.end(readFileSync(join(root, 'public', p))); }
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    res.end(`<!doctype html><html><head>\n<meta name="sentry-dsn" content="${DSN}"><script src="/sentry.min.js"></script><script src="/crash.js"></script></head>`
+      + '<body><script>\nfunction inlineGo() { throw new Error("inline crash-test"); }\nsetTimeout(inlineGo, 0);\n</script></body></html>');
+  });
+  await new Promise((r) => probe.listen(PROBE_PORT, '127.0.0.1', r));
+  const ictx = await browser.newContext();
+  const ipage = await ictx.newPage();
+  ipage.on('pageerror', () => {});
+  await ipage.goto(`${probeBase}/crash-probe.html?private=${encodeURIComponent(WORD)}&lesson=3#frag`, { waitUntil: 'load' });
+  const [ihit] = await eventFor('inline crash-test');
+  const itext = ihit ? ihit.text : '';
+  const iframes = (() => { try { return JSON.parse(itext.split('\n')[2]).exception.values[0].stacktrace.frames; } catch { return []; } })();
+  check('an inline script\'s crash on a page opened with a query arrives with its frame named by the page\'s address without the query or fragment, line kept',
+    iframes.some((f) => f.filename === `${probeBase}/crash-probe.html` && f.lineno > 0) && !iframes.some((f) => /[?#]/.test(f.filename || '')), JSON.stringify(iframes));
+  check('…and nothing of the query anywhere in what was sent (not the word, plain or encoded, not "private", not "lesson=")',
+    !!itext && !itext.includes(WORD) && !itext.includes(encodeURIComponent(WORD)) && !itext.includes('private') && !itext.includes('lesson=') && !itext.includes('#frag'));
+  await ictx.close();
+  probe.close();
 
   // with no DSN the page sends nothing
   const before = (await events()).length;

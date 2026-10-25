@@ -176,8 +176,10 @@ page's own scripts on Sentry's browser SDK served from this site
 error and its code location are sent: each event loses its request (the
 address with its query, the headers and cookie, the body), its user, its
 transaction name and its extra data, and every breadcrumb of category http,
-fetch, xhr, console, navigation and ui.*, because the reader's addresses and
-logs carry the Hebrew Dan looks up; `sendDefaultPii` is off, no traces are
+fetch, xhr, console, navigation and ui.*, and a stack frame keeps its file,
+line and column but not the query of its address (an inline script's frames
+are named by the page's address), because the reader's addresses and logs
+carry the Hebrew Dan looks up; `sendDefaultPii` is off, no traces are
 sampled and there is no session replay. The DSN is set by the environment
 variable `SENTRY_DSN` (in `fly.toml` `[env]`; the server writes it into each
 page as `<meta name="sentry-dsn">`). It is public by Sentry's design, since it

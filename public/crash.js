@@ -11,7 +11,9 @@
 // headers), its user, its transaction name, its extra data (a wrapped
 // callback's arguments), and the breadcrumbs that carry addresses, logs or
 // page text: http, fetch, xhr, console, navigation and
-// ui.* (a click's element names its labels).
+// ui.* (a click's element names its labels). A stack frame keeps its file,
+// line and column but not the query or fragment of its address: an inline
+// script's frames are named by the page's own address (/sheet.html?lesson=…).
 //
 // The same file is required by lib/crash.js, so the server scrubs with the
 // same rule.
@@ -23,11 +25,26 @@
     return DROPPED.indexOf(c) >= 0 || c.indexOf('ui.') === 0;
   }
 
+  function bare(url) {
+    return typeof url === 'string' ? url.replace(/[?#].*$/, '') : url;
+  }
+
+  function scrubFrames(list) {
+    (list || []).forEach(function (v) {
+      var frames = v && v.stacktrace && v.stacktrace.frames;
+      (frames || []).forEach(function (f) {
+        ['filename', 'abs_path', 'module'].forEach(function (k) { if (k in f) f[k] = bare(f[k]); });
+      });
+    });
+  }
+
   function scrub(event) {
     delete event.request;
     delete event.user;
     delete event.transaction;
     delete event.extra;
+    scrubFrames(event.exception && event.exception.values);
+    scrubFrames(event.threads && event.threads.values);
     if (Array.isArray(event.breadcrumbs)) {
       event.breadcrumbs = event.breadcrumbs.filter(function (b) { return !dropped(b); });
     } else if (event.breadcrumbs && Array.isArray(event.breadcrumbs.values)) {

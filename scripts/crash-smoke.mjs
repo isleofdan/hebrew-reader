@@ -8,10 +8,12 @@
 // and, with a DSN pointing at a local stand-in for Sentry
 // (scripts/mock-sentry.mjs), the crash arrives with its message and code
 // location and nothing of the request (no address, no query, no cookie, no
-// log line).
+// log line). The deploy's "Check a crash reaches Sentry" block, run as the runner
+// runs it with a stand-in curl, warns and exits 0 when a request cannot connect.
 //   node scripts/crash-smoke.mjs   (npm test runs it; about 3 s)
 import { spawn } from 'node:child_process';
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -92,6 +94,15 @@ try {
   const older = page.scrub({ exception: structuredClone(exception), breadcrumbs: { values: crumbs() } });
   check('…the same for breadcrumbs in the { values } shape', older.breadcrumbs.values.map((b) => b.category).join() === 'sentry.event,custom');
   check('…and an event with no request, user or breadcrumbs passes through with its exception', JSON.stringify(page.scrub({ exception: structuredClone(exception) })) === JSON.stringify({ exception }));
+  const framed = page.scrub({ exception: { values: [{ type: 'Error', value: 'inline', stacktrace: { frames: [
+    { filename: `https://hebrew-reader-dan.fly.dev/sheet.html?lesson=3&w=${encodeURIComponent('שלום')}#top`, abs_path: 'https://hebrew-reader-dan.fly.dev/lookup?q=שלום', module: 'lookup?q=x', lineno: 92, colno: 7, function: 'go' },
+    { filename: '/app/server.js', lineno: 600, colno: 3 }] } }] },
+    threads: { values: [{ stacktrace: { frames: [{ filename: 'https://hebrew-reader-dan.fly.dev/read.html?id=4', lineno: 1 }] } }] } });
+  const fr = framed.exception.values[0].stacktrace.frames;
+  check('…a stack frame keeps its file, line, column and function but loses its address\'s query and fragment (filename, abs_path, module; also in threads)',
+    fr[0].filename === 'https://hebrew-reader-dan.fly.dev/sheet.html' && fr[0].abs_path === 'https://hebrew-reader-dan.fly.dev/lookup' && fr[0].module === 'lookup'
+    && fr[0].lineno === 92 && fr[0].colno === 7 && fr[0].function === 'go' && fr[1].filename === '/app/server.js' && fr[1].lineno === 600
+    && framed.threads.values[0].stacktrace.frames[0].filename === 'https://hebrew-reader-dan.fly.dev/read.html', JSON.stringify(fr));
   const S = page.SETTINGS;
   check('the settings both sides pass Sentry.init: environment production, sendDefaultPii false, tracesSampleRate 0, no replay (both replay rates 0), beforeSend the scrub',
     S.environment === 'production' && S.sendDefaultPii === false && S.tracesSampleRate === 0 && S.replaysSessionSampleRate === 0 && S.replaysOnErrorSampleRate === 0 && S.beforeSend === page.scrub);
@@ -137,6 +148,36 @@ try {
   check('…and every page still loads scripts only from its own paths (no script from another site)', foreign.length === 0, foreign.join('; '));
   const sw = readFileSync(join(root, 'public', 'sw.js'), 'utf8');
   check('public/sw.js still keeps no copy of anything (no cache list to add the new files to)', !/caches\.|addAll|cache\.put/.test(sw));
+
+  // --- the deploy's "Check a crash reaches Sentry" step, its own shell block -----------------------
+  const deployYml = readFileSync(join(root, '.github', 'workflows', 'deploy.yml'), 'utf8');
+  const stepAt = deployYml.indexOf('- name: Check a crash reaches Sentry');
+  const order3 = ['- name: Check the live site answers', '- name: Check "Find an article" reaches the model'].map((n) => deployYml.indexOf(n));
+  check('deploy.yml has the step "Check a crash reaches Sentry" after "Check the live site answers" and "Check \\"Find an article\\" reaches the model"', stepAt > 0 && order3.every((i) => i > 0 && i < stepAt));
+  const runLines = [];
+  { const lines = deployYml.slice(stepAt).split('\n'); const r = lines.findIndex((l) => /^\s+run: \|\s*$/.test(l));
+    for (const l of lines.slice(r + 1)) { if (l.trim() && !l.startsWith('          ')) break; runLines.push(l.slice(10)); } }
+  const shellDir = mkdtempSync(join(tmpdir(), 'hr-crash-shell-'));
+  dirs.push(shellDir);
+  writeFileSync(join(shellDir, 'step.sh'), runLines.join('\n'));
+  writeFileSync(join(shellDir, 'curl'), `#!/bin/bash
+# a stand-in for curl: prints the HTTP code -w would, or 000 and exit 7 (could not connect)
+args="$*"
+case "$args" in *"/login"*) what=login ;; *"/crash-test"*) what=test ;; *) what=other ;; esac
+if [ "$FAKE_DOWN" = "$what" ]; then printf 000; exit 7; fi
+[ "$what" = login ] && printf 200 || printf 500
+`);
+  chmodSync(join(shellDir, 'curl'), 0o755);
+  const runStep = (down) => {
+    const tmp = mkdtempSync(join(shellDir, 'tmp-'));
+    const r = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', join(shellDir, 'step.sh')], { encoding: 'utf8', env: { ...process.env, PATH: `${shellDir}:${process.env.PATH}`, APP: 'hebrew-reader-dan', APP_PASSWORD: 'x', FAKE_DOWN: down, TMPDIR: tmp } });
+    return { status: r.status, out: r.stdout + r.stderr, left: readdirSync(tmp).length };
+  };
+  const ok500 = runStep('none'), loginDown = runStep('login'), testDown = runStep('test');
+  check('…run under bash -eo pipefail as the runner does: signed in and 500, it prints both codes, warns nothing and exits 0', ok500.status === 0 && ok500.out.includes('sign-in: 200') && ok500.out.includes('crash-test: 500') && !ok500.out.includes('::warning::') && ok500.left === 0, JSON.stringify(ok500));
+  check('…the sign-in failing to connect: prints sign-in 000 and crash-test 000, warns, exits 0, leaves no cookie jar', loginDown.status === 0 && loginDown.out.includes('sign-in: 000') && loginDown.out.includes('crash-test: 000') && loginDown.out.includes('::warning::') && loginDown.left === 0, JSON.stringify(loginDown));
+  check('…POST /crash-test failing to connect: prints crash-test 000, warns, exits 0, leaves no cookie jar', testDown.status === 0 && testDown.out.includes('sign-in: 200') && testDown.out.includes('crash-test: 000') && testDown.out.includes('::warning::') && testDown.left === 0, JSON.stringify(testDown));
+  check('…and both of its requests are bounded in time (--max-time on each)', (runLines.join('\n').match(/--max-time \d+/g) || []).length === 2);
 
   // --- the server with no DSN ---------------------------------------------------------------------
   const plain = reader(PORT);

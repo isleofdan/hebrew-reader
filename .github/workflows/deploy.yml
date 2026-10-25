@@ -141,10 +141,14 @@ jobs:
         run: |
           base="https://$APP.fly.dev"
           jar=$(mktemp)
-          login=$(curl -s -o /dev/null -w "%{http_code}" -c "$jar" -H 'content-type: application/json' -H 'accept: application/json' \
-            --data "$(jq -cn --arg p "$APP_PASSWORD" '{passphrase: $p}')" "$base/login")
+          trap 'rm -f "$jar"' EXIT
+          # a connection that fails or times out is 000 here, never the step's exit code
+          login=$(curl -s -o /dev/null -w "%{http_code}" -c "$jar" -H 'content-type: application/json' -H 'accept: application/json' --max-time 30 \
+            --data "$(jq -cn --arg p "$APP_PASSWORD" '{passphrase: $p}')" "$base/login") || login="${login:-000}"
           echo "sign-in: $login"
-          code=$(curl -s -o /dev/null -w "%{http_code}" -b "$jar" -X POST -H 'accept: application/json' --max-time 30 "$base/crash-test")
+          code=000
+          if [ "$login" = "200" ]; then
+            code=$(curl -s -o /dev/null -w "%{http_code}" -b "$jar" -X POST -H 'accept: application/json' --max-time 30 "$base/crash-test") || code="${code:-000}"
+          fi
           echo "crash-test: $code"
-          rm -f "$jar"
-          if [ "$code" != "500" ]; then echo "::warning::POST /crash-test answered $code, not 500; the crash may not have reached Sentry."; fi
+          if [ "$code" != "500" ]; then echo "::warning::POST /crash-test answered $code (sign-in $login), not 500; the crash may not have reached Sentry."; fi
