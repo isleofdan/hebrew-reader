@@ -266,14 +266,14 @@ try {
     await page.locator('#desk-msg', { hasText: 'The sheet is open in a new tab.' }).waitFor({ timeout: 5000 });
     check(`${name}: the sheet opens in a new tab; the desk stays where it was`, new URL(page.url()).pathname === '/desk');
     const sheetUrl = tab.url();
-    await tab.waitForFunction(() => document.body.dataset.pages, null, { timeout: 15000 });
+    await tab.waitForFunction(() => document.body && document.body.dataset.pages, null, { timeout: 15000 });
     const closing = tab.waitForEvent('close', { timeout: 5000 }).catch(() => null);
     // the click closes the tab; Playwright may report the closed page as the click's error
     await tab.locator('#back').click().catch((e) => { if (!tab.isClosed()) throw e; });
     await closing;
     check(`${name}: "Back to the desk" on the sheet closes its tab`, tab.isClosed());
     await page.goto(sheetUrl);
-    await page.waitForFunction(() => document.body.dataset.pages, null, { timeout: 10000 });
+    await page.waitForFunction(() => document.body && document.body.dataset.pages, null, { timeout: 10000 });
     const sheetId = Number(page.url().split('/').pop());
     const pages = page.locator('.page');
     const n = await pages.count();
@@ -330,7 +330,7 @@ try {
     for (let i = 0; i < 9; i++) prev = (await api('POST', '/notes', { text: `step ${i + 2}: ${'a line that takes room on the sheet, '.repeat(5)}`, desk_id: long.id, born_from: prev })).body.card.key;
     const longSheet = (await api('POST', `/desks/${long.id}/sheets`)).body.sheet;
     await page.goto(`${base}/desk/sheet/${longSheet.id}`);
-    await page.waitForFunction(() => document.body.dataset.pages, null, { timeout: 10000 });
+    await page.waitForFunction(() => document.body && document.body.dataset.pages, null, { timeout: 10000 });
     // a face arriving late lays the pages again: wait for the faces to settle
     await page.evaluate(() => document.fonts.ready);
     await page.waitForTimeout(400);
