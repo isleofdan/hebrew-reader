@@ -1,4 +1,4 @@
-# Field report: reader-scrub-one (26 Oct 2026)
+# FIELD REPORT — reader-scrub-one — 2026-10-26
 
 Nothing on Dan's screen changes: the reader looks and works the same, and only what Sentry receives is smaller. The Sentry issue's event is where the difference shows; it is not linked yet, because pull request #30 had not been merged within 60 minutes of its BLOCKED comment, and this machine's Sentry token cannot read events (see "Verify results").
 
@@ -34,7 +34,7 @@ Session `reader-scrub-one`, on the Linux machine (agent-machine-dan), permission
 - The builder's own runs (recorded in `docs/CHECKS.md`): `npm run check` passed in full on its third run; the first two each failed one check outside crash reporting (`smoke.mjs` "a lesson with no guide opened twice at once starts one build, not two" and `paper-pages.mjs` "phone: a share from another website is shown and saved only when Dan taps"), both timing races on a loaded machine that passed on the next run.
 - dev-check, independently: `node scripts/crash-smoke.mjs` 52 of 52; `npm run build` exit 0 with no diff (86,293 bytes); every resolved data-collection option off; `git diff --check` clean.
 - **After the merge** (step f): not yet confirmed: waiting for the merge. Pull request #30 was still open at 14:55Z, 60 minutes after its BLOCKED comment (13:54Z). The confirmation is handed to the origin thread on the card.
-- **The Sentry read cannot be done with the token on this machine, even after the merge.** `test -f /data/home/dan/.config/sentry/auth-token` passed, and a script holding the token only in memory got `GET /api/0/projects/shulman-advisory/hebrew-reader/issues/` → **403**, and the organization's issues route → 403, "You do not have permission to perform this action". The same token reads `/organizations/` (200, `shulman-advisory`), the organization's projects (200: hebrew-reader, kanji-study, spine) and the hebrew-reader project (200). So it carries project and organization read access but not event read access, which issues and events need. Per the brief, the non-200 is recorded as the result.
+- **The Sentry read cannot be done with the token on this machine, even after the merge.** `test -f /data/home/dan/.config/sentry/auth-token` passed, and a script holding the token only in memory got `GET /api/0/projects/shulman-advisory/hebrew-reader/issues/` → **403**, and the organization's issues route → 403, "You do not have permission to perform this action". The same token reads `/organizations/` (200, `shulman-advisory`), the organization's projects (200: hebrew-reader, kanji-study, spine) and the hebrew-reader project (200). So it carries project and organization read access but not event read access, which issues and events need. Per the brief, the non-200 is recorded as the result. kanji-crash-one met the same 403 earlier today (card `crash-reporting`, event 2185).
 - **The deploy check (after the merge):** the reader's `.github/workflows/deploy.yml` has the step "Check a crash reaches Sentry", which prints `sign-in: 200` and `crash-test: 500` on success and a `::warning::` line otherwise. Not compared yet, because there is no merged deploy run.
 
 ## Asks for the origin chat
@@ -55,6 +55,13 @@ Session `reader-scrub-one`, on the Linux machine (agent-machine-dan), permission
 3. **`rig down --snapshot` needs a responsive daemon.** It refused once with "Daemon did not respond". `rig daemon stop` then `rig daemon start`, then `rig down`, worked at once, as in kanji-crash-one.
 4. **The machine's Sentry token cannot read issues or events.** It answers 403 on the issues routes and 200 on organization and project reads, so it lacks `event:read`. Cost: step f's check cannot run. Fix: Ask 2 (a token with `event:read`, entered through the secrets page); until then, a brief that reads Sentry events should say the check is expected to fail.
 5. **Test runs on this machine redraw the committed screenshots.** Restore `docs/screenshots` after every `npm test` or `npm run check` in a reader clone, and tell the builder so in the job text from the start.
+
+## Close-out record
+
+- Card `crash-reporting` filed with `file_thread` as `session:reader-scrub-one`: handed event **2204** (14:57:08Z), state live, court dan, note beginning "What stands — reader-scrub-one" carrying "What stands", "What the brief got wrong" and "Asks for the origin chat". Read back with `get_thread`: event 2204 is the newest, its note matches, and the card has 19 doors, the 17 it had plus `field report (reader-scrub-one)` and `pull request (reader-scrub-one)`.
+- Pull request comments: BLOCKED https://github.com/isleofdan/hebrew-reader/pull/30#issuecomment-6417754243 (13:54Z); FINISHED https://github.com/isleofdan/hebrew-reader/pull/30#issuecomment-6419214981 ("Confirmation: not confirmed: waiting for the merge …").
+- The safety checker refused assigning Dan and requesting his review on the pull request [Unrequested Commit in a Connected App]; that step is best-effort and was skipped.
+- `/data/home/dan/FACTS.md`, section "OpenRig": the latest snapshot is now this session's (`01M5W7AJ8S2Y27QQAGBJV74TYM`, restore line `rig up reader-scrub-one-mixed`).
 
 ## Checks
 
