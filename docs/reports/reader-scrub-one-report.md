@@ -1,6 +1,6 @@
 # Field report: reader-scrub-one (26 Oct 2026)
 
-Nothing on Dan's screen changes: the reader looks and works the same, and only what Sentry receives is smaller. The Sentry issue's event (linked under "Verify results" once the merge is confirmed) is where the difference shows.
+Nothing on Dan's screen changes: the reader looks and works the same, and only what Sentry receives is smaller. The Sentry issue's event is where the difference shows; it is not linked yet, because pull request #30 had not been merged within 60 minutes of its BLOCKED comment, and this machine's Sentry token cannot read events (see "Verify results").
 
 Session `reader-scrub-one`, on the Linux machine (agent-machine-dan), permission mode Auto. Brief: the `# START HERE — reader-scrub-one` note on Wall card `crash-reporting` (event 2189, brief check PASS job 20261026-124013-8f14c0). Branch `claude/reader-scrub-one`.
 
@@ -33,14 +33,18 @@ Session `reader-scrub-one`, on the Linux machine (agent-machine-dan), permission
 - **`npm run check` after** (run by me on 0402371): exit 0, "check: all passed: syntax, tests, screenshots" (syntax 3.28 s, tests 122.34 s, screenshots 476.99 s). The screenshots it redrew were restored afterwards; none is in the diff.
 - The builder's own runs (recorded in `docs/CHECKS.md`): `npm run check` passed in full on its third run; the first two each failed one check outside crash reporting (`smoke.mjs` "a lesson with no guide opened twice at once starts one build, not two" and `paper-pages.mjs` "phone: a share from another website is shown and saved only when Dan taps"), both timing races on a loaded machine that passed on the next run.
 - dev-check, independently: `node scripts/crash-smoke.mjs` 52 of 52; `npm run build` exit 0 with no diff (86,293 bytes); every resolved data-collection option off; `git diff --check` clean.
-- **After the merge** (step f): CONFIRMATION.
+- **After the merge** (step f): not yet confirmed: waiting for the merge. Pull request #30 was still open at 14:55Z, 60 minutes after its BLOCKED comment (13:54Z). The confirmation is handed to the origin thread on the card.
+- **The Sentry read cannot be done with the token on this machine, even after the merge.** `test -f /data/home/dan/.config/sentry/auth-token` passed, and a script holding the token only in memory got `GET /api/0/projects/shulman-advisory/hebrew-reader/issues/` → **403**, and the organization's issues route → 403, "You do not have permission to perform this action". The same token reads `/organizations/` (200, `shulman-advisory`), the organization's projects (200: hebrew-reader, kanji-study, spine) and the hebrew-reader project (200). So it carries project and organization read access but not event read access, which issues and events need. Per the brief, the non-200 is recorded as the result.
+- **The deploy check (after the merge):** the reader's `.github/workflows/deploy.yml` has the step "Check a crash reaches Sentry", which prints `sign-in: 200` and `crash-test: 500` on success and a `::warning::` line otherwise. Not compared yet, because there is no merged deploy run.
 
 ## Asks for the origin chat
 
 1. Merge pull request https://github.com/isleofdan/hebrew-reader/pull/30 ("Crash reports send only the error and its place in the code: the kit's keep-list scrub"). Recommended: yes. Merging deploys the live reader, which looks and works the same.
+2. Make a Sentry token that can read events, so a session can confirm what Sentry received. Recommended: yes. In Sentry, create an internal integration or personal token with the scopes `project:read` and `event:read` only. A session opens a secrets-page request for it (`npm run secret-pickup -- request sentry-auth-token …`, destination `/data/home/dan/.config/sentry/auth-token`), and Dan enters the token once at https://spine-dan.fly.dev/secrets. Without it, step f's Sentry check cannot pass for any app.
 
 ## What the next session needs
 
+- The origin thread confirms the deploy after it merges #30: the merged commit's Deploy run shows "Check a crash reaches Sentry" with `sign-in: 200` and `crash-test: 500` (`gh run view`), and, once Ask 2 is done, the newest crash-test event has no `contexts.os`, `contexts.device`, request, user, source lines or `vars` (the script I used is `/data/home/dan/work/scratch-reader-scrub-one/sentry-confirm.mjs`).
 - spine-scrub-one makes the same change in the Spine. The kit's `public/crash.js` from `(function () {` onward can be copied byte for byte, as here. Its `mcp` switch is harmless on Sentry 11.8.0.
 - The team snapshot is `01M5W7AJ8S2Y27QQAGBJV74TYM` (restore line `rig up reader-scrub-one-mixed`), only for continuing this job. A new job starts the team fresh.
 
@@ -49,7 +53,8 @@ Session `reader-scrub-one`, on the Linux machine (agent-machine-dan), permission
 1. **A timed-out `rig send` can still land.** My first job send answered "did not respond in time … Delivery UNCONFIRMED". The builder's screen showed the job had arrived, so I did not resend. Cost: about two minutes of checking. Fix: always read the seat's screen before resending. The memory note "a timed-out rig send was not delivered" is too strong, and I've corrected it.
 2. **The daemon starves for minutes at a time, and a restart does not cure it.** It went UNHEALTHY within a minute of every restart (my keeper restarted it four times between 13:03Z and 13:30Z). Pausing the seat watcher for three minutes did not change that, so the watcher's own queue calls are not the cause; the daemon's own work on its 508 MB database (`~/.openrig/openrig.sqlite`) is. Cost: queue reads timed out for minutes, which slowed the builder's queue updates and my reads of the verdict. Fix for this session: raise the keeper's restart threshold from 3 to 6 bad checks, since the daemon recovered on its own after about two minutes. Lasting fix: prune the daemon's `usage_samples` table (asked of Dan before, asi-mail-one Ask 6); it has to go through a change to the OpenRig setup, because sessions here may not run `sqlite3`.
 3. **`rig down --snapshot` needs a responsive daemon.** It refused once with "Daemon did not respond". `rig daemon stop` then `rig daemon start`, then `rig down`, worked at once, as in kanji-crash-one.
-4. **Test runs on this machine redraw the committed screenshots.** Restore `docs/screenshots` after every `npm test` or `npm run check` in a reader clone, and tell the builder so in the job text from the start.
+4. **The machine's Sentry token cannot read issues or events.** It answers 403 on the issues routes and 200 on organization and project reads, so it lacks `event:read`. Cost: step f's check cannot run. Fix: Ask 2 (a token with `event:read`, entered through the secrets page); until then, a brief that reads Sentry events should say the check is expected to fail.
+5. **Test runs on this machine redraw the committed screenshots.** Restore `docs/screenshots` after every `npm test` or `npm run check` in a reader clone, and tell the builder so in the job text from the start.
 
 ## Checks
 
