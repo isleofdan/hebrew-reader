@@ -67,4 +67,5 @@ Session `reader-scrub-one`, on the Linux machine (agent-machine-dan), permission
 
 - Brief check: PASS, job 20261026-124013-8f14c0 (69 s).
 - Team check, round 1: dev-check `qitem-20261026133745-235af5a2` → `qitem-20261026134041-daf218de`, no blocking findings for 0402371.
-- Result checks: RESULT_CHECKS.
+- Result check, round 1: job 20261026-145749-ccc8e8, void: I sent it the word "PLACEHOLDER" instead of the report text by mistake, so its verdict does not judge this report.
+- Result check, round 2: on this version of the report (verdict in the closing message).
