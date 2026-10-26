@@ -1,8 +1,11 @@
 // Server checks for hebrew-crash-one: crash reporting to Sentry. With no DSN
 // lib/crash.js loads no SDK and does nothing, and the server starts and
-// serves as before; the scrub both sides share drops the request, the user,
-// the transaction name and the breadcrumbs that carry addresses, logs or page
-// text, and keeps the exception; POST /crash-test answers 401 signed out and
+// serves as before; the scrub both sides share keeps a short list (the
+// exception's type, message, mechanism and frames' file, function, line and
+// column; the event's id, time, level, platform, environment, release, SDK)
+// and drops the rest, with the breadcrumbs that carry addresses, logs or
+// page text, and the settings turn off what Sentry 11 gathers and the
+// integrations that gather it; POST /crash-test answers 401 signed out and
 // 500 signed in; every page in public/ loads /sentry.min.js and /crash.js
 // before its own scripts; the committed bundle is what `npm run build` makes;
 // and, with a DSN pointing at a local stand-in for Sentry
@@ -18,6 +21,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { isDeepStrictEqual } from 'node:util';
 import vm from 'node:vm';
 import { sentryBundle } from './build-sentry.mjs';
 
@@ -99,13 +103,47 @@ try {
     { filename: '/app/server.js', lineno: 600, colno: 3 }] } }] },
     threads: { values: [{ stacktrace: { frames: [{ filename: 'https://hebrew-reader-dan.fly.dev/read.html?id=4', lineno: 1 }] } }] } });
   const fr = framed.exception.values[0].stacktrace.frames;
-  check('…a stack frame keeps its file, line, column and function but loses its address\'s query and fragment (filename, abs_path, module; also in threads)',
+  // Before the keep-list (hebrew-crash-one) threads were kept with their frames' queries stripped; now they are dropped.
+  check('…a stack frame keeps its file, line, column and function but loses its address\'s query and fragment (filename, abs_path, module); threads are dropped',
     fr[0].filename === 'https://hebrew-reader-dan.fly.dev/sheet.html' && fr[0].abs_path === 'https://hebrew-reader-dan.fly.dev/lookup' && fr[0].module === 'lookup'
     && fr[0].lineno === 92 && fr[0].colno === 7 && fr[0].function === 'go' && fr[1].filename === '/app/server.js' && fr[1].lineno === 600
-    && framed.threads.values[0].stacktrace.frames[0].filename === 'https://hebrew-reader-dan.fly.dev/read.html', JSON.stringify(fr));
+    && !('threads' in framed), JSON.stringify(framed));
+  const full = page.scrub({
+    event_id: 'e2', timestamp: 1, level: 'error', platform: 'node', environment: 'production', release: 'r1', server_name: 'machine-1',
+    sdk: { name: 'sentry.javascript.node', version: '11.8.0', integrations: ['ContextLines'], packages: [{ name: 'npm:@sentry/node' }] },
+    request: { url: 'https://hebrew-reader-dan.fly.dev/share?text=שלום', headers: { cookie: 'hr_auth=x' }, data: '{"surface":"שלום"}' },
+    user: { ip_address: '1.2.3.4', id: 'dan' },
+    contexts: { os: { name: 'Linux' }, device: { memory_size: 1 }, culture: { timezone: 'Asia/Tokyo', locale: 'he-IL' } },
+    modules: { '@sentry/node': '11.8.0' }, tags: { word: 'שלום' }, extra: { arguments: [{ target: 'שלום' }] }, fingerprint: ['x'],
+    exception: { values: [{ type: 'Error', value: 'boom', module: 'm', thread_id: 1,
+      mechanism: { type: 'generic', handled: true, data: { word: 'שלום' } },
+      stacktrace: { frames: [{ filename: '/app/server.js', function: 'go', lineno: 9, colno: 2, in_app: true,
+        pre_context: ['const word = "שלום";'], context_line: 'throw e', post_context: ['}'], vars: { word: 'שלום' }, instruction_addr: '0x1' }] } }] },
+    breadcrumbs: [...page.DROPPED, 'ui.click'].map((category) => ({ category, message: `${category}: /lookup?q=שלום` })).concat([{ category: 'sentry.event', message: 'kept' }]),
+  });
+  const want = {
+    event_id: 'e2', timestamp: 1, level: 'error', platform: 'node', environment: 'production', release: 'r1',
+    sdk: { name: 'sentry.javascript.node', version: '11.8.0' },
+    exception: { values: [{ type: 'Error', value: 'boom', mechanism: { type: 'generic', handled: true },
+      stacktrace: { frames: [{ filename: '/app/server.js', function: 'go', lineno: 9, colno: 2, in_app: true }] } }] },
+    breadcrumbs: [{ category: 'sentry.event', message: 'kept' }],
+  };
+  check('…an event carrying request, user, contexts (os, device, culture), modules, tags, extra, a frame\'s source lines and variables, and a breadcrumb of every dropped category comes out with only the keep-list fields and the one kept breadcrumb',
+    isDeepStrictEqual(full, want), JSON.stringify(full));
   const S = page.SETTINGS;
   check('the settings both sides pass Sentry.init: environment production, sendDefaultPii false, tracesSampleRate 0, no replay (both replay rates 0), beforeSend the scrub',
     S.environment === 'production' && S.sendDefaultPii === false && S.tracesSampleRate === 0 && S.replaysSessionSampleRate === 0 && S.replaysOnErrorSampleRate === 0 && S.beforeSend === page.scrub);
+  check('…no server name and no local variables (includeServerName false, includeLocalVariables false)', S.includeServerName === false && S.includeLocalVariables === false);
+  check('…dataCollection with every switch off: no source lines around a frame (frameContextLines 0) and no frame variables (stackFrameVariables false)',
+    S.dataCollection?.frameContextLines === 0 && S.dataCollection?.stackFrameVariables === false && isDeepStrictEqual(S.dataCollection, {
+      userInfo: false, cookies: false, httpHeaders: false, httpBodies: [], urlQueryParams: false,
+      graphQL: { document: false, variables: false }, genAI: { inputs: false, outputs: false }, mcp: { inputs: false, outputs: false },
+      databaseQueryData: false, queues: false, stackFrameVariables: false, frameContextLines: 0,
+    }), JSON.stringify(S.dataCollection));
+  const kept = typeof S.integrations === 'function'
+    ? S.integrations(['ContextLines', 'LocalVariables', 'LocalVariablesAsync', 'Context', 'CultureContext', 'Modules', 'Dedupe', 'LinkedErrors'].map((name) => ({ name }))).map((i) => i.name) : null;
+  check('…the integrations function removes ContextLines, LocalVariables, LocalVariablesAsync, Context, CultureContext and Modules, and keeps the others',
+    isDeepStrictEqual(kept, ['Dedupe', 'LinkedErrors']) && isDeepStrictEqual(page.SKIPPED, ['ContextLines', 'LocalVariables', 'LocalVariablesAsync', 'Context', 'CultureContext', 'Modules']), JSON.stringify(kept));
 
   // --- public/crash.js in a page (a stand-in window) -------------------------------------------
   const src = readFileSync(join(root, 'public', 'crash.js'), 'utf8');
@@ -231,6 +269,11 @@ if [ "$FAKE_DOWN" = "$what" ]; then printf 000; exit 7; fi
     ex.type === 'Error' && ex.value === 'crash-test: the reader reports crashes' && (ex.stacktrace?.frames || []).some((f) => /server\.js$/.test(f.filename || '')));
   check('…environment production', item.environment === 'production');
   check('…and no request, user, transaction or extra', !('request' in item) && !('user' in item) && !('transaction' in item) && !('extra' in item), Object.keys(item).join());
+  const sentKeys = Object.keys(item).filter((k) => !['event_id', 'timestamp', 'level', 'platform', 'environment', 'release', 'sdk', 'exception', 'breadcrumbs'].includes(k));
+  const frameKeys = [...new Set((ex.stacktrace?.frames || []).flatMap((f) => Object.keys(f)))].filter((k) => !['filename', 'abs_path', 'module', 'function', 'lineno', 'colno', 'in_app'].includes(k));
+  const leaked = ['pre_context', 'context_line', 'post_context', '"vars"', '"os"', '"device"', '"culture"', '"modules"', '"server_name"'].filter((s) => text.includes(s));
+  check('…only keep-list fields on the event and its frames: no contexts, modules, tags, server name, source lines or variables anywhere in what was sent',
+    sentKeys.length === 0 && frameKeys.length === 0 && leaked.length === 0, JSON.stringify({ sentKeys, frameKeys, leaked }));
   check('…nothing of the request anywhere in what was sent: not the word (plain or encoded), the query, the cookie, the body or the path with its query',
     !text.includes(word) && !text.includes(encodeURIComponent(word)) && !text.includes('?q=') && !text.includes('hr_auth') && !text.includes(dcookie.split('=')[1]) && !text.includes('surface'));
   check('…and no console breadcrumb (the server\'s own log lines, such as "database: …", are not sent)', !text.includes('database:') && !text.includes('listening on'));
