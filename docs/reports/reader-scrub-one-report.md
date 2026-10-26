@@ -37,7 +37,7 @@ Session `reader-scrub-one`, on the Linux machine (agent-machine-dan), permission
 
 ## Asks for the origin chat
 
-1. Merge pull request PR_URL ("Crash reports send only the error and its place in the code: the kit's keep-list scrub"). Recommended: yes. Merging deploys the live reader, which looks and works the same.
+1. Merge pull request https://github.com/isleofdan/hebrew-reader/pull/30 ("Crash reports send only the error and its place in the code: the kit's keep-list scrub"). Recommended: yes. Merging deploys the live reader, which looks and works the same.
 
 ## What the next session needs
 
