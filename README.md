@@ -173,14 +173,32 @@ reports its uncaught errors through `public/crash.js`, which runs before the
 page's own scripts on Sentry's browser SDK served from this site
 (`public/sentry.min.js`, made by `npm run build` from the installed
 `@sentry/browser` and committed; no script comes from another site). Only the
-error and its code location are sent: each event loses its request (the
-address with its query, the headers and cookie, the body), its user, its
-transaction name and its extra data, and every breadcrumb of category http,
-fetch, xhr, console, navigation and ui.*, and a stack frame keeps its file,
-line and column but not the query of its address (an inline script's frames
-are named by the page's address), because the reader's addresses and logs
-carry the Hebrew Dan looks up; `sendDefaultPii` is off, no traces are
-sampled and there is no session replay. The DSN is set by the environment
+error and where in the code it happened leave the reader, because its
+addresses and logs carry the Hebrew Dan looks up: the error's type and
+message, how it was caught, and its stack frames with file, function, line
+and column. The same rule runs on the server and in the page
+(`public/crash.js`, which `lib/crash.js` also uses), and it keeps a short
+list rather than removing a few things: an event keeps its id, time, level,
+platform, environment, the SDK's name and version, and those exceptions;
+everything else is dropped. (After the scrub, Sentry's SDK adds its own
+package and integration names, the IP setting below, and a trace id:
+protocol details, nothing about Dan or the machine.) So nothing is sent of
+the request (address, query, headers, cookie, body), the user or the IP
+address (the page tells Sentry not to record it), the transaction name,
+extra data, tags, the server's name, the machine, operating system, device,
+locale or time zone, the installed modules, the source lines around each
+frame, local variables, the breadcrumbs that carry addresses, logs or page
+text (http, fetch, xhr, console, navigation, ui.*), or the query and
+fragment of any address in a stack frame (an inline script's frames are
+named by the page's address, such as `/sheet.html?lesson=…`). Sentry 11
+gathers most of that by default whatever `sendDefaultPii` says, so
+`public/crash.js` also turns off its `dataCollection` options and the
+integrations that gather source lines, variables, contexts and modules; no
+traces are sampled and there is no session replay. Two limits: an error's
+own message is sent as written, so code should not put what Dan typed into
+one; and a page's report travels as an ordinary request from his browser,
+which tells Sentry the reader's address and the browser's name, as any
+request to another site does. The DSN is set by the environment
 variable `SENTRY_DSN` (in `fly.toml` `[env]`; the server writes it into each
 page as `<meta name="sentry-dsn">`). It is public by Sentry's design, since it
 only allows sending new events
