@@ -2119,3 +2119,7 @@ sure it is, rather than refuse.
 ## hebrew-crash-one (25 Oct 2026, the rented Linux machine, OpenRig team): crash reporting
 
 - 25 Oct 2026: crashes are reported to Sentry, whose alert files one Wall card per issue through the spine, so a failure reaches Dan without him watching logs; only the error and its code location are sent (request, user, transaction, extra data and the http, fetch, xhr, console, navigation and ui.* breadcrumbs dropped and stack frames' addresses cut at the query by one scrub shared by server and pages, `sendDefaultPii` off, no traces, no replay), because the reader's addresses and logs carry the Hebrew Dan looks up; the DSN sits in `fly.toml` `[env]` in plain sight, because Sentry designs it to be public (it only allows sending new events).
+
+## reader-scrub-one (26 Oct 2026, the rented Linux machine, OpenRig team): the kit's keep-list scrub
+
+- 26 Oct 2026: crash reports now send only the error and where in the code it happened. `public/crash.js` builds each event from the starting kit's keep-list (its code byte for byte the kit's), turns off Sentry 11's `dataCollection` gathering (`frameContextLines` 0, no frame variables) and skips the six integrations that gather source lines, variables, contexts and modules; `lib/crash.js` changed only in its comment. Nothing on Dan's screen changes. Checks: `npm test` 1,009 → 1,014 (crash 47 → 52), `npm run check` passed in full. Built by the team (dev-owner), checked by dev-check (no blocking findings for 0402371). Report: `docs/reports/reader-scrub-one-report.md`.
