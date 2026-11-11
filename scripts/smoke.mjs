@@ -10,12 +10,16 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http';
 import { createRequire } from 'node:module';
+import { freePorts } from './free-ports.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
 const tok = (await import('../public/tokenize.js')).default;
 
-const PORT = 8790, OR_PORT = 8791, SPINE_PORT = 8792, PAGE_PORT = 8793;
+const [PORT, OR_PORT, SPINE_PORT, PAGE_PORT] = await freePorts(4);
+// Servers started part-way through: the closed gate, the lesson import site,
+// and the three restart checks (each restarts its server on the same port).
+const [CLOSED_PORT, SITE_PORT, RESTART_PORT, RESTART2_PORT, ORDER_PORT, LOG_PORT] = await freePorts(6);
 const PASS = 'open-sesame';
 const dataDir = mkdtempSync(join(tmpdir(), 'hr-smoke-'));
 
@@ -1176,13 +1180,13 @@ try {
   for (const f of ['Daniel HEB 15jun26.pdf', 'Daniel Hebrew 24feb26.pdf', 'Daniel Guy 10FEB2025.pdf', 'notes two lines.pdf']) copyFileSync(join(here, 'fixtures', f), join(importDir, f));
   writeFileSync(join(importDir, 'IMG_0412.jpg'), 'not a pdf');
   const site = start('node', ['server.js'], {
-    PORT: '8795', DATA_DIR: siteDir, APP_PASSWORD: PASS, COOKIE_SECRET: 'y'.repeat(64), COOKIE_INSECURE: '1',
+    PORT: String(SITE_PORT), DATA_DIR: siteDir, APP_PASSWORD: PASS, COOKIE_SECRET: 'y'.repeat(64), COOKIE_INSECURE: '1',
     OPENROUTER_API_KEY: 'test-key', OPENROUTER_URL: `http://127.0.0.1:${OR_PORT}/v1/chat/completions`,
     SPINE_TOKEN: 'test-spine-token', SPINE_URL: `http://127.0.0.1:${SPINE_PORT}`,
   });
-  await up('http://127.0.0.1:8795/health');
+  await up(`http://127.0.0.1:${SITE_PORT}/health`);
   const runImport = (...extra) => new Promise((resolve) => {
-    const k = spawn('node', ['scripts/import-lessons.js', importDir, 'http://127.0.0.1:8795', ...extra], { cwd: root, env: { ...process.env, APP_PASSWORD: PASS } });
+    const k = spawn('node', ['scripts/import-lessons.js', importDir, `http://127.0.0.1:${SITE_PORT}`, ...extra], { cwd: root, env: { ...process.env, APP_PASSWORD: PASS } });
     let out = '';
     k.stdout.on('data', (d) => out += d); k.stderr.on('data', (d) => out += d);
     k.on('close', (code) => resolve({ code, out }));
@@ -1196,9 +1200,9 @@ try {
   check('import --build-guides-from 2026-01-01: guides built for the two 2026 lessons, one at a time; the 2025 lesson left for first open',
     has(/^guides: 2 lessons dated 2026-01-01 or later without one$/) && has(/^guide\s+Daniel HEB 15jun26\.pdf\s+built in \d+ s$/) && has(/^guide\s+Daniel Hebrew 24feb26\.pdf\s+built in \d+ s$/) && !has(/Daniel Guy 10FEB2025\.pdf\s+built/), one.out);
   const siteApi = async (method, path, body) => {
-    const login = await fetch('http://127.0.0.1:8795/login', { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ passphrase: PASS }) });
+    const login = await fetch(`http://127.0.0.1:${SITE_PORT}/login`, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ passphrase: PASS }) });
     const c = (login.headers.get('set-cookie') || '').split(';')[0];
-    const r2 = await fetch(`http://127.0.0.1:8795${path}`, { method, headers: { cookie: c, 'content-type': 'application/json', accept: 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    const r2 = await fetch(`http://127.0.0.1:${SITE_PORT}${path}`, { method, headers: { cookie: c, 'content-type': 'application/json', accept: 'application/json' }, body: body ? JSON.stringify(body) : undefined });
     return { status: r2.status, body: await r2.json() };
   };
   const listed = (await siteApi('GET', '/lessons')).body.items;
@@ -1221,7 +1225,7 @@ try {
   const dry = await runImport('--dry-run');
   check('import --dry-run names what it would add, with its date, and uploads nothing',
     dry.code === 0 && /^would add\s+Daniel Guy 21oct2024\.pdf\s+2024-10-21$/m.test(dry.out) && uploads() === 3, dry.out);
-  const bad = await new Promise((resolve) => { const k = spawn('node', ['scripts/import-lessons.js', importDir, 'http://127.0.0.1:8795'], { cwd: root, env: { ...process.env, APP_PASSWORD: 'wrong' } }); let o = ''; k.stderr.on('data', (d) => o += d); k.on('close', (code) => resolve({ code, o })); });
+  const bad = await new Promise((resolve) => { const k = spawn('node', ['scripts/import-lessons.js', importDir, `http://127.0.0.1:${SITE_PORT}`], { cwd: root, env: { ...process.env, APP_PASSWORD: 'wrong' } }); let o = ''; k.stderr.on('data', (d) => o += d); k.on('close', (code) => resolve({ code, o })); });
   check('import with a wrong passphrase stops at the login and says so', bad.code === 1 && /^Login refused \(401\)/.test(bad.o), bad.o);
   site.kill();
   rmSync(importDir, { recursive: true, force: true });
@@ -1247,8 +1251,8 @@ try {
       SPINE_TOKEN: 'test-spine-token', SPINE_URL: `http://127.0.0.1:${SPINE_PORT}` };
     // the tables as the server makes them; then the step taken off again, as
     // on the live database, which has never run it
-    const s0 = start('node', ['server.js'], { ...env, PORT: '8796' });
-    await up('http://127.0.0.1:8796/health');
+    const s0 = start('node', ['server.js'], { ...env, PORT: String(RESTART_PORT) });
+    await up(`http://127.0.0.1:${RESTART_PORT}/health`);
     for (let i = 0; i < 50 && !/one-time step done/.test(s0.log); i++) await wait(100);
     s0.kill();
     await wait(300);
@@ -1281,8 +1285,8 @@ try {
       .run('שיעור עם גיא — 15.6.2026', '2026-06-15', 'Daniel HEB 15jun26.pdf', 'נוצץ\nלזנק', JSON.stringify(['נוצץ', 'לזנק']), JSON.stringify(guide), at, JSON.stringify({ words: 2, phrases: 0, touched: 0, failed: [], spine: { recorded: 2 } }), at);
     d.close();
     const r0 = (await orCalls()).refresh_calls;
-    const s1 = start('node', ['server.js'], { ...env, PORT: '8796' });
-    await up('http://127.0.0.1:8796/health');
+    const s1 = start('node', ['server.js'], { ...env, PORT: String(RESTART_PORT) });
+    await up(`http://127.0.0.1:${RESTART_PORT}/health`);
     for (let i = 0; i < 50 && !/one-time step done/.test(s1.log); i++) await wait(100);
     for (let i = 0; i < 50 && !/nikud and note refreshed for the corrected card "נוצץ"/.test(s1.log); i++) await wait(100);
     const rows = () => { const x = new Database(join(restoreDir, 'reader.db'), { readonly: true }); const out = Object.fromEntries(x.prepare('SELECT surface, spot_id, json FROM cards').all().map((r) => [r.surface, { spot: r.spot_id, card: JSON.parse(r.json) }])); const g = JSON.parse(x.prepare('SELECT guide_json FROM lessons').get().guide_json); const st = x.prepare('SELECT * FROM steps').all(); x.close(); return { out, g, st }; };
@@ -1299,15 +1303,15 @@ try {
       nz.card.refreshed?.for === 2 && nz.card.note === "Pa'al of נ.צ.צ, as corrected." && (await orCalls()).refresh_calls - r0 === 1, JSON.stringify({ note: nz.card.note, refreshed: nz.card.refreshed }));
     s1.kill();
     await wait(300);
-    const s2 = start('node', ['server.js'], { ...env, PORT: '8796' });
-    await up('http://127.0.0.1:8796/health');
+    const s2 = start('node', ['server.js'], { ...env, PORT: String(RESTART_PORT) });
+    await up(`http://127.0.0.1:${RESTART_PORT}/health`);
     for (let i = 0; i < 50 && !/one-time step/.test(s2.log); i++) await wait(100);
     check('the put-back never runs twice: the next start says it already ran and changes nothing',
       /one-time step already run on .*: restore verb-check card fixes/.test(s2.log) && !/one-time step done/.test(s2.log) && JSON.stringify(rows().out) === JSON.stringify(out), s2.log.split('\n').filter((l) => /one-time/.test(l)).join(' | '));
     // the opened card, as the lesson page gets it: לזנק refreshed on its first open
-    const login = await fetch('http://127.0.0.1:8796/login', { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ passphrase: PASS }) });
+    const login = await fetch(`http://127.0.0.1:${RESTART_PORT}/login`, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ passphrase: PASS }) });
     const c2 = (login.headers.get('set-cookie') || '').split(';')[0];
-    const call = async (path, body) => { const r2 = await fetch(`http://127.0.0.1:8796${path}`, { method: 'POST', headers: { cookie: c2, 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify(body) }); return r2.json(); };
+    const call = async (path, body) => { const r2 = await fetch(`http://127.0.0.1:${RESTART_PORT}${path}`, { method: 'POST', headers: { cookie: c2, 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify(body) }); return r2.json(); };
     const zOpen = await call('/lookup', { surface: 'לזנק', sentence: 'לזנק', lesson_id: 1 });
     const zGot = await call('/lookup/refresh', { surface: 'לזנק', sentence: 'לזנק' });
     check("לזנק, corrected before this session, is refreshed on its first open: זִנֵּק, לְזַנֵּק in the text, a note that no longer says Pa'al",
@@ -1327,8 +1331,8 @@ try {
     const env = { DATA_DIR: zDir, APP_PASSWORD: PASS, COOKIE_SECRET: 'z'.repeat(64), COOKIE_INSECURE: '1',
       OPENROUTER_API_KEY: 'test-key', OPENROUTER_URL: `http://127.0.0.1:${OR_PORT}/v1/chat/completions`,
       SPINE_TOKEN: 'test-spine-token', SPINE_URL: `http://127.0.0.1:${SPINE_PORT}` };
-    const s0 = start('node', ['server.js'], { ...env, PORT: '8797' });
-    await up('http://127.0.0.1:8797/health');
+    const s0 = start('node', ['server.js'], { ...env, PORT: String(RESTART2_PORT) });
+    await up(`http://127.0.0.1:${RESTART2_PORT}/health`);
     for (let i = 0; i < 50 && !/one-time step done: put/.test(s0.log); i++) await wait(100);
     s0.kill();
     await wait(300);
@@ -1356,8 +1360,8 @@ try {
       .run(title, '2026-06-15', 'Daniel HEB 15jun26.pdf', 'נוצץ\nלזנק', JSON.stringify(['נוצץ', 'לזנק']), JSON.stringify(guide), at, JSON.stringify({ words: 2, phrases: 0, touched: 0, failed: [], spine: { recorded: 2 } }), at);
     d.close();
     const r0 = (await orCalls()).refresh_calls;
-    const s1 = start('node', ['server.js'], { ...env, PORT: '8797' });
-    await up('http://127.0.0.1:8797/health');
+    const s1 = start('node', ['server.js'], { ...env, PORT: String(RESTART2_PORT) });
+    await up(`http://127.0.0.1:${RESTART2_PORT}/health`);
     for (let i = 0; i < 50 && !/one-time step done: put/.test(s1.log); i++) await wait(100);
     for (let i = 0; i < 50 && !/nikud and note refreshed for the corrected card "לזנק"/.test(s1.log); i++) await wait(100);
     const rows = () => { const x = new Database(join(zDir, 'reader.db'), { readonly: true }); const out = Object.fromEntries(x.prepare('SELECT surface, spot_id, json FROM cards').all().map((r) => [r.surface, { spot: r.spot_id, card: JSON.parse(r.json) }])); const g = JSON.parse(x.prepare('SELECT guide_json FROM lessons').get().guide_json); const st = x.prepare('SELECT * FROM steps').all(); x.close(); return { out, g, st }; };
@@ -1377,8 +1381,8 @@ try {
     check("…and leaves נוצץ as it was: Pa'al, its \"Restored\" line kept", JSON.stringify(nz.card) === JSON.stringify(cards['נוצץ']) && nz.spot === 'v:נ.צ.צ:paal', JSON.stringify(nz));
     s1.kill();
     await wait(300);
-    const s2 = start('node', ['server.js'], { ...env, PORT: '8797' });
-    await up('http://127.0.0.1:8797/health');
+    const s2 = start('node', ['server.js'], { ...env, PORT: String(RESTART2_PORT) });
+    await up(`http://127.0.0.1:${RESTART2_PORT}/health`);
     for (let i = 0; i < 50 && !/already run on .*: put לזנק/.test(s2.log); i++) await wait(100);
     check('the לזנק step never runs twice: the next start says it already ran and changes nothing',
       /one-time step already run on .*: put לזנק back to Pi'el/.test(s2.log) && !/one-time step done/.test(s2.log) && JSON.stringify(rows().out) === JSON.stringify(out), s2.log.split('\n').filter((l) => /one-time/.test(l)).join(' | '));
@@ -1395,8 +1399,8 @@ try {
     const env = { DATA_DIR: rDir, APP_PASSWORD: PASS, COOKIE_SECRET: 'r'.repeat(64), COOKIE_INSECURE: '1',
       OPENROUTER_API_KEY: 'test-key', OPENROUTER_URL: `http://127.0.0.1:${OR_PORT}/v1/chat/completions`,
       SPINE_TOKEN: 'test-spine-token', SPINE_URL: `http://127.0.0.1:${SPINE_PORT}` };
-    const s0 = start('node', ['server.js'], { ...env, PORT: '8798' });
-    await up('http://127.0.0.1:8798/health');
+    const s0 = start('node', ['server.js'], { ...env, PORT: String(ORDER_PORT) });
+    await up(`http://127.0.0.1:${ORDER_PORT}/health`);
     for (let i = 0; i < 50 && !/one-time step done: re-date/.test(s0.log); i++) await wait(100);
     s0.kill();
     await wait(300);
@@ -1409,14 +1413,14 @@ try {
     add.run('שיעור עם גיא — 9.2.2026', '2026-02-09', 'Daniel Guy 09feb26.pdf', 'להמר', JSON.stringify(['להמר']), null, null, null, at);
     add.run('my notes', '2026-09-20', 'my notes.pdf', 'שלום', JSON.stringify(['שלום']), null, null, null, at);
     d.close();
-    const s1 = start('node', ['server.js'], { ...env, PORT: '8798' });
-    await up('http://127.0.0.1:8798/health');
+    const s1 = start('node', ['server.js'], { ...env, PORT: String(ORDER_PORT) });
+    await up(`http://127.0.0.1:${ORDER_PORT}/health`);
     for (let i = 0; i < 50 && !/one-time step done: re-date/.test(s1.log); i++) await wait(100);
     const rows = () => { const x = new Database(join(rDir, 'reader.db'), { readonly: true }); const ls = x.prepare('SELECT id, title, lesson_date, source_name, guide_json FROM lessons ORDER BY id').all(); const st = x.prepare("SELECT * FROM steps WHERE name LIKE 're-date%'").all(); x.close(); return { ls, st }; };
     const { ls, st } = rows();
     const jl = ls.find((l) => l.source_name === 'Daniel Guy hebrew 08july25.pdf');
-    const cookie = (await fetch('http://127.0.0.1:8798/login', { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ passphrase: PASS }) })).headers.get('set-cookie').split(';')[0];
-    const order = (await (await fetch('http://127.0.0.1:8798/lessons', { headers: { cookie, accept: 'application/json' } })).json()).items.map((l) => l.lesson_date);
+    const cookie = (await fetch(`http://127.0.0.1:${ORDER_PORT}/login`, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ passphrase: PASS }) })).headers.get('set-cookie').split(';')[0];
+    const order = (await (await fetch(`http://127.0.0.1:${ORDER_PORT}/lessons`, { headers: { cookie, accept: 'application/json' } })).json()).items.map((l) => l.lesson_date);
     check('the one-time step re-dates the July 2025 lesson to 2025-07-08 with the title the pattern gives, keeps its guide, touches no other lesson, logs and records the count, 1; the list puts it after the 2026 lessons',
       jl.lesson_date === '2025-07-08' && jl.title === 'שיעור עם גיא — 8.7.2025' && jl.guide_json === JSON.stringify(guide)
       && ls.find((l) => l.source_name === 'Daniel Guy 09feb26.pdf').lesson_date === '2026-02-09' && ls.find((l) => l.source_name === 'my notes.pdf').lesson_date === '2026-09-20'
@@ -1425,8 +1429,8 @@ try {
       JSON.stringify({ ls: ls.map(({ guide_json, ...l }) => l), order, log: s1.log.split('\n').filter((l) => /re-date/.test(l)) }));
     s1.kill();
     await wait(300);
-    const s2 = start('node', ['server.js'], { ...env, PORT: '8798' });
-    await up('http://127.0.0.1:8798/health');
+    const s2 = start('node', ['server.js'], { ...env, PORT: String(ORDER_PORT) });
+    await up(`http://127.0.0.1:${ORDER_PORT}/health`);
     for (let i = 0; i < 50 && !/already run on .*: re-date/.test(s2.log); i++) await wait(100);
     check('the re-date step never runs twice: the next start says it already ran and changes nothing',
       /one-time step already run on .*: re-date lessons/.test(s2.log) && !/one-time step done: re-date/.test(s2.log) && JSON.stringify(rows().ls) === JSON.stringify(ls), s2.log.split('\n').filter((l) => /re-date/.test(l)).join(' | '));
@@ -1553,7 +1557,7 @@ try {
     const env = { DATA_DIR: mDir, APP_PASSWORD: PASS, COOKIE_SECRET: 'm'.repeat(64), COOKIE_INSECURE: '1',
       OPENROUTER_API_KEY: 'test-key', OPENROUTER_URL: `http://127.0.0.1:${OR_PORT}/v1/chat/completions`,
       SPINE_TOKEN: 'test-spine-token', SPINE_URL: `http://127.0.0.1:${SPINE_PORT}` };
-    const run = async (re) => { const k = start('node', ['server.js'], { ...env, PORT: '8799' }); await up('http://127.0.0.1:8799/health'); for (let i = 0; i < 60 && !re.test(k.log); i++) await wait(100); k.kill(); await wait(300); return k.log; };
+    const run = async (re) => { const k = start('node', ['server.js'], { ...env, PORT: String(LOG_PORT) }); await up(`http://127.0.0.1:${LOG_PORT}/health`); for (let i = 0; i < 60 && !re.test(k.log); i++) await wait(100); k.kill(); await wait(300); return k.log; };
     await run(/one-time step done: make the 26 Jan/);
     const at = '2026-09-24T01:00:00.000Z';
     const hash = (w) => createHash('sha256').update(`${w}\n${w}`).digest('hex');
@@ -1595,11 +1599,11 @@ try {
   }
 
   // 6. fail closed
-  const closed = start('node', ['server.js'], { PORT: '8794', DATA_DIR: dataDir, COOKIE_INSECURE: '1' });
-  await up('http://127.0.0.1:8794/health');
-  r = await fetch('http://127.0.0.1:8794/');
+  const closed = start('node', ['server.js'], { PORT: String(CLOSED_PORT), DATA_DIR: dataDir, COOKIE_INSECURE: '1' });
+  await up(`http://127.0.0.1:${CLOSED_PORT}/health`);
+  r = await fetch(`http://127.0.0.1:${CLOSED_PORT}/`);
   check('unconfigured server serves only the login page saying so', r.status === 503 && (await r.text()).includes('not configured'));
-  r = await fetch('http://127.0.0.1:8794/articles');
+  r = await fetch(`http://127.0.0.1:${CLOSED_PORT}/articles`);
   check('unconfigured server refuses the api with the same line', r.status === 503 && (await r.json()).error.includes('not configured'));
 } catch (e) {
   failed++;

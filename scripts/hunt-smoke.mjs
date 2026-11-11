@@ -9,10 +9,11 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { freePorts } from './free-ports.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
-const PORT = 8830, OR_PORT = 8831, NEWS_PORT = 8832;
+const [PORT, OR_PORT, NEWS_PORT] = await freePorts(3);
 const PASS = 'open-sesame';
 const dataDir = mkdtempSync(join(tmpdir(), 'hr-hunt-'));
 const news = `http://127.0.0.1:${NEWS_PORT}`;

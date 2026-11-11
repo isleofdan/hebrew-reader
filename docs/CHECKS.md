@@ -103,13 +103,18 @@ to the desk" closes the sheet's tab while Playwright still reports the click
 from another website …" check reads the desk before the save lands. A rerun
 passes; neither is a fault in the app.
 
-Two clones of this repository checked side by side collide (23 Oct 2026,
-hebrew-save-one): every check script starts its servers on fixed ports
-(8790–8918), so a second clone's `npm run check`, or the after-edit hook in
-another clone's session, takes the same ports and the first run fails at
-whatever it was doing (seen here as a 502 in `screenshots.mjs`, a grow-pages
-cut and the paper share). Rerun when the other clone is idle; `ss -ltn`
-shows whether the ports are taken.
+Two runs at once no longer collide (11 Nov 2026). Until then every check
+script started its servers on fixed ports (8790–8918), so a second clone's
+`npm run check`, or the after-edit hook in another clone's session, took the
+same ports and the first run failed at whatever it was doing (seen 23 Oct
+2026, hebrew-save-one, as a 502 in `screenshots.mjs`, a grow-pages cut and
+the paper share). Now each script asks `scripts/free-ports.mjs` for ports the
+operating system picks, so every run has its own. Checked by running
+`npm test` twice at once and `npm run screenshots` twice at once: all passed.
+A new check script takes its ports the same way:
+`const [PORT, OR_PORT] = await freePorts(2);`. The check's `ports` step
+refuses a fixed port in `scripts/` (a `…PORT = 8790` or `127.0.0.1:8790`),
+naming the file and line, so one cannot come back unnoticed.
 
 ## Reading a failure
 

@@ -13,13 +13,14 @@ import { mkdtempSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { freePorts } from './free-ports.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
 const out = join(root, 'docs', 'screenshots');
 mkdirSync(out, { recursive: true });
 
-const PORT = 8840, OR_PORT = 8841, NEWS_PORT = 8842;
+const [PORT, OR_PORT, NEWS_PORT] = await freePorts(3);
 const PASS = 'open-sesame';
 const dataDir = mkdtempSync(join(tmpdir(), 'hr-hunt-pages-'));
 const news = `http://127.0.0.1:${NEWS_PORT}`;

@@ -10,10 +10,11 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { freePorts } from './free-ports.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
-const PORT = 8850, OR_PORT = 8851, SPINE_PORT = 8852, REF_PORT = 8853;
+const [PORT, OR_PORT, SPINE_PORT, REF_PORT] = await freePorts(4);
 const PASS = 'open-sesame';
 const dataDir = mkdtempSync(join(tmpdir(), 'hr-lookup-'));
 

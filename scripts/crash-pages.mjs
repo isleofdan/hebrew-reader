@@ -13,10 +13,11 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { freePorts } from './free-ports.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
-const PORT = 8935, PLAIN_PORT = 8936, SENTRY_PORT = 8937, PROBE_PORT = 8938;
+const [PORT, PLAIN_PORT, SENTRY_PORT, PROBE_PORT] = await freePorts(4);
 const PASS = 'open-sesame';
 const DSN = `http://publickey@127.0.0.1:${SENTRY_PORT}/1`;
 const WORD = 'שלום';

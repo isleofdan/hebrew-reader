@@ -12,11 +12,12 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { seed } from './today-fixture.mjs';
+import { freePorts } from './free-ports.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
 const require = createRequire(import.meta.url);
-const PORT = 8880, OR_PORT = 8881, SPINE_PORT = 8882;
+const [PORT, OR_PORT, SPINE_PORT] = await freePorts(3);
 const PASS = 'open-sesame';
 const dirs = [];
 const newDir = (name) => { const d = mkdtempSync(join(tmpdir(), `hr-today-${name}-`)); dirs.push(d); return d; };

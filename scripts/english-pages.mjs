@@ -15,13 +15,14 @@ import { mkdtempSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { freePorts } from './free-ports.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
 const out = join(root, 'docs', 'screenshots');
 mkdirSync(out, { recursive: true });
 
-const PORT = 8915, OR_PORT = 8916, SPINE_PORT = 8917, REF_PORT = 8918;
+const [PORT, OR_PORT, SPINE_PORT, REF_PORT] = await freePorts(4);
 const PASS = 'open-sesame';
 const dataDir = mkdtempSync(join(tmpdir(), 'hr-english-pages-'));
 const kids = [];
