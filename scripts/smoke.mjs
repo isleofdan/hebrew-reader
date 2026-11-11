@@ -1151,6 +1151,9 @@ try {
   check('a token of three letters is never stripped (הדם stays plain with דם saved); four letters are (והדם)',
     tint('הדם') === 'plain' && tint('והדם') === 'shaky' && tint('שתק') === 'plain', `הדם:${tint('הדם')} והדם:${tint('והדם')}`);
   check('one prefix only: two stacked prefixes are not stripped (לבממסד)', tint('לבממסד') === 'plain');
+  const verse = tok.words('בְּרֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים אֵ֥ת הַשָּׁמַ֖יִם וְאֵ֥ת הָאָֽרֶץ׃').map((w) => w.surface);
+  check('a Tanakh verse with cantillation marks splits into whole words (Genesis 1:1: 7 words, בָּרָ֣א one word)',
+    verse.length === 7 && verse[1] === 'בָּרָ֣א' && verse[6] === 'הָאָֽרֶץ', verse.join(' | '));
   const spotsBefore = (await api('GET', '/spots')).body.items.length;
   const tBefore = await touchCount();
   const putsBefore = JSON.stringify(await putCounts());

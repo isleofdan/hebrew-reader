@@ -5,12 +5,14 @@
 // a maqaf, a geresh/gershayim, or a hyphen inside (צה"ל, תל-אביב, על־פי).
 // Prefixed articles and prepositions stay part of the surface; markFor()
 // below looks past one of them when tinting.
-// Punctuation, digits and Latin text are not words.
+// Punctuation, digits and Latin text are not words. Cantillation marks
+// (U+0591-U+05AF, the chanting signs on Tanakh text from Sefaria) count as
+// part of a word, so a verse is not cut where a mark sits (בָּרָ֣א stays one).
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.HebrewTokenize = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
-  var L = '[\\u05d0-\\u05ea\\u05b0-\\u05bd\\u05bf\\u05c1\\u05c2\\u05c4\\u05c5\\u05c7]';
+  var L = '[\\u05d0-\\u05ea\\u0591-\\u05af\\u05b0-\\u05bd\\u05bf\\u05c1\\u05c2\\u05c4\\u05c5\\u05c7]';
   var INNER = '[\\u05be"\'\\u05f3\\u05f4\\u2010\\u2011-]';
   var WORD = new RegExp(L + '(?:' + INNER + '*' + L + ')*', 'g');
 
