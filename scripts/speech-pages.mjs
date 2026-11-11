@@ -17,6 +17,7 @@ import { mkdtempSync, mkdirSync, rmSync, existsSync, readdirSync } from 'node:fs
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { freePorts } from './free-ports.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
@@ -24,7 +25,7 @@ const out = join(root, 'docs', 'screenshots');
 mkdirSync(out, { recursive: true });
 const WAV = join(here, 'fixtures', 'speech', 'he-emet.wav');
 
-const PORT = 8925, OR_PORT = 8926, SPINE_PORT = 8927, REF_PORT = 8928;
+const [PORT, OR_PORT, SPINE_PORT, REF_PORT] = await freePorts(4);
 const PASS = 'open-sesame';
 const dataDir = mkdtempSync(join(tmpdir(), 'hr-speech-pages-'));
 const kids = [];

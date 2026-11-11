@@ -13,6 +13,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { seed } from './today-fixture.mjs';
+import { freePorts } from './free-ports.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
@@ -20,8 +21,9 @@ const out = join(root, 'docs', 'screenshots');
 mkdirSync(out, { recursive: true });
 const db = createRequire(import.meta.url)(join(root, 'lib', 'db.js'));
 
-const OR_PORT = 8871, SPINE_PORT = 8872;
-const PORTS = { desktop: 8873, phone: 8874, empty: 8875 };
+const [OR_PORT, SPINE_PORT] = await freePorts(2);
+const [DESKTOP_PORT, PHONE_PORT, EMPTY_PORT] = await freePorts(3);
+const PORTS = { desktop: DESKTOP_PORT, phone: PHONE_PORT, empty: EMPTY_PORT };
 const PASS = 'open-sesame';
 const dirs = [];
 const kids = [];

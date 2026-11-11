@@ -24,10 +24,11 @@ import { createRequire } from 'node:module';
 import { isDeepStrictEqual } from 'node:util';
 import vm from 'node:vm';
 import { sentryBundle } from './build-sentry.mjs';
+import { freePorts } from './free-ports.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
-const PORT = 8930, DSN_PORT = 8931, SENTRY_PORT = 8932;
+const [PORT, DSN_PORT, SENTRY_PORT] = await freePorts(3);
 const PASS = 'open-sesame';
 const DSN = `http://publickey@127.0.0.1:${SENTRY_PORT}/1`;
 const require = createRequire(import.meta.url);

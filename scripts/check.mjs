@@ -1,7 +1,7 @@
 // Every check, in order, stopping at the first failure, ending with one
 // line that names what failed. Uses only what Node ships with.
-//   npm run check              syntax, tests, screenshots (the full run)
-//   npm run check -- --fast    syntax and the fast tests only (a few seconds)
+//   npm run check              syntax, fixed ports, tests, screenshots (the full run)
+//   npm run check -- --fast    syntax, fixed ports and the fast tests only (a few seconds)
 //   node scripts/check.mjs --hook
 // The reader's tests: `npm test` runs all three smoke scripts (about 37 s
 // here); --fast and --hook run `npm run test:fast` (grow and paper, about
@@ -16,7 +16,7 @@
 // GitHub Actions), unless CHECK_SKIP_SCREENSHOTS=1 is set: then they are
 // skipped and the verdict says so.
 import { spawnSync } from 'node:child_process';
-import { existsSync, openSync, closeSync, statSync, unlinkSync, readdirSync } from 'node:fs';
+import { existsSync, openSync, closeSync, statSync, unlinkSync, readdirSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join, dirname, relative } from 'node:path';
@@ -26,8 +26,9 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const hook = process.argv.includes('--hook');
 const fast = hook || process.argv.includes('--fast');
 
-// Edits made side by side fire the hook side by side; the tests start a
-// server on a fixed port, so a second run would fail for no real reason.
+// Edits made side by side fire the hook side by side. The tests take free
+// ports (scripts/free-ports.mjs), so two runs no longer collide, but a
+// second run of the same checks on the same files only repeats the first.
 // While one run holds the lock, another skips quietly.
 let lock;
 if (hook) {
@@ -62,6 +63,24 @@ const checks = [
       }
       if (!bad.length) return { ok: true };
       return { ok: false, output: bad.map((b) => b.error).join('\n\n'), detail: `does not parse: ${bad.map((b) => b.file).join(', ')}` };
+    },
+  },
+  {
+    // A check script that starts a server on a fixed port collides with a
+    // second run at once (docs/CHECKS.md); each takes its ports from
+    // scripts/free-ports.mjs. The mocks' own fallback port (used only when
+    // started by hand, with no port given) is allowed.
+    name: 'ports',
+    run() {
+      const fixed = /\b[A-Z_]*PORT\b\s*[=:]\s*['"]?\d{2,5}\b|127\.0\.0\.1:\d{2,5}\b|localhost:\d{2,5}\b/;
+      const bad = [];
+      for (const file of jsFiles(join(root, 'scripts'))) {
+        readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
+          if (fixed.test(line)) bad.push(`${relative(root, file)}:${i + 1}: ${line.trim()}`);
+        });
+      }
+      if (!bad.length) return { ok: true };
+      return { ok: false, output: bad.join('\n'), detail: `a fixed port in ${bad.length} line(s); take ports with freePorts() from scripts/free-ports.mjs` };
     },
   },
   {

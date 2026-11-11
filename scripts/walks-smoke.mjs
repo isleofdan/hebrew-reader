@@ -13,10 +13,11 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { freePorts } from './free-ports.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
-const PORT = 8890, OR_PORT = 8891, SEF_PORT = 8892;
+const [PORT, OR_PORT, SEF_PORT] = await freePorts(3);
 const PASS = 'open-sesame';
 const dataDir = mkdtempSync(join(tmpdir(), 'hr-walks-'));
 const require = createRequire(import.meta.url);

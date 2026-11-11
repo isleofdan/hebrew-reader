@@ -15,10 +15,11 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { freePorts } from './free-ports.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..');
-const PORT = 8920, OR_PORT = 8921, SPINE_PORT = 8922, REF_PORT = 8923;
+const [PORT, OR_PORT, SPINE_PORT, REF_PORT] = await freePorts(4);
 const PASS = 'open-sesame';
 const dataDir = mkdtempSync(join(tmpdir(), 'hr-speech-'));
 const libDir = mkdtempSync(join(tmpdir(), 'hr-speech-lib-'));
