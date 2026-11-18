@@ -137,6 +137,7 @@ async function start(ref) {
 
 // --- /walks/<id> --------------------------------------------------------------------
 
+let walkObservedAt = null;
 let walk = null; // the walk as the server last gave it
 
 async function walkPage(id) {
@@ -153,8 +154,12 @@ async function walkPage(id) {
 // way, the wait; or the last move's failure line and the controls).
 function draw(data) {
   walk = data;
+  walkObservedAt = new Date().toISOString();
   document.title = `Hebrew reader · ${walk.title}`;
   $('#walk-title').textContent = walk.title;
+  const oldReview = document.getElementById('walk-continuity');
+  if (oldReview) oldReview.remove();
+  $('#walk-title').after(continuityPanel());
   const box = $('#stops');
   box.innerHTML = '';
   // the line saying what Dan did stands above every stop but the one the
@@ -165,6 +170,44 @@ function draw(data) {
   });
   box.append(movePanel());
   if (walk.failure) showFailure(walk.failure);
+}
+
+// Pull-only recap of this walk's existing record. No model, request or save.
+// Closing clears the snapshot; reopening uses the latest data already read.
+function continuityPanel() {
+  const details = el('details', 'panel');
+  details.id = 'walk-continuity';
+  const summary = el('summary', '', 'Where we left off');
+  const body = el('div');
+  details.append(summary, body);
+  details.addEventListener('toggle', () => {
+    body.replaceChildren();
+    if (!details.open) return;
+    body.append(el('p', 'msg', 'This walk only. Original words, not a new interpretation or a statement of what you now believe. Nothing is sent or saved by opening this view.'));
+    body.append(el('p', 'msg', `Snapshot read ${walkObservedAt || 'at an unknown time'}; ${walk.stops.length} saved stops. Reopen to use the latest data loaded on this page.`));
+    const pending = typeof walk.pending === 'boolean' ? (walk.pending ? 'yes' : 'no') : 'unknown';
+    body.append(el('p', 'msg', `Pending at that read: ${pending}. This is not a new live check.`));
+    if (walk.failure) body.append(section('Recorded interruption', typeof walk.failure === 'string' ? walk.failure : (walk.failure.error || walk.failure.declined || 'Unspecified failure')));
+    if (walk.question) body.append(section('Your starting words', walk.question));
+    else if (walk.start_ref) body.append(section('Your starting passage', walk.start_ref));
+    const last = walk.stops.at(-1);
+    if (!last) { body.append(el('p', '', 'No saved guide response in this walk yet.')); return; }
+    if (last.move?.text && last.move.text !== walk.question) body.append(section(last.move.kind === 'pick' ? 'Latest direction recorded by the app (not endorsement)' : 'Your latest recorded words', last.move.text));
+    body.append(el('p', 'msg', `Latest saved stop: ${last.n}; ${last.asked_at || 'time not recorded'}. Earlier turns remain below; this view does not reconcile corrections or infer agreement.`));
+    if (last.reading) body.append(section('The guide’s interpretation, not your words', last.reading));
+    if (last.reply) body.append(section('The guide’s response', last.reply));
+    if (last.opinion) body.append(section('The guide’s opinion, not your endorsement', last.opinion));
+    const original = el('a', '', 'Read this stop in full');
+    original.href = `#walk-stop-${last.n}`;
+    body.append(original);
+    if (Array.isArray(last.next) && last.next.length) {
+      body.append(el('h3', '', 'Directions the guide offered, not choices you made'));
+      const choices = el('ul');
+      for (const next of last.next) choices.append(el('li', '', `${next.label || ''}${next.why ? ': ' + next.why : ''}`));
+      body.append(choices);
+    }
+  });
+  return details;
 }
 
 const POLL_MS = 3000;
@@ -199,6 +242,7 @@ async function follow(label, top) {
   thinking.remove();
   sending = false;
   walk = data;
+  walkObservedAt = new Date().toISOString();
   if (walk.stops.length > had) {
     const s = walk.stops.at(-1);
     const move = label !== null ? (s.move.kind === 'pick' ? { kind: 'pick', text: label } : { kind: 'text', text: label }) : s.move;
@@ -240,6 +284,7 @@ function section(title, body, cls) {
 function stopPanel(s) {
   const panel = el('section', 'panel walk-stop');
   panel.dataset.n = s.n;
+  panel.id = `walk-stop-${s.n}`;
   const head = el('div', 'walk-stop-head');
   // a stop with no passage: the guide answered the move itself
   const h = el('h2', 'walk-stop-title', `Stop ${s.n} · ${s.passage ? s.passage.title : (s.ref || 'the guide answers')}`);
@@ -339,6 +384,7 @@ async function send(body, pressed, label) {
     return;
   }
   walk = r.data;
+  walkObservedAt = new Date().toISOString();
   await follow(label, top);
 }
 
